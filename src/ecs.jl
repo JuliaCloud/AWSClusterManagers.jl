@@ -7,9 +7,16 @@ immutable ECSManager <: ClusterManager
     region::AbstractString
     cluster::AbstractString
     task_def::AbstractString
+    task_name::AbstractString
 
-    function ECSManager(np::Integer, region::AbstractString="us-east-1", cluster::AbstractString="ETS", task_def::AbstractString="julia-baked:11")
-        new(np, region, cluster, task_def)
+    function ECSManager(
+            np::Integer, region::AbstractString="us-east-1", cluster::AbstractString="ETS",
+            task_def::AbstractString="julia-baked:11", task_name::AbstractString="",
+        )
+        if isempty(task_name)
+            task_name = first(split(task_def, ':'))
+        end
+        new(np, region, cluster, task_def, task_name)
     end
 end
 
@@ -44,7 +51,7 @@ function launch(manager::ECSManager, params::Dict, launched::Array, c::Condition
                         "-e",
                         "sock = connect(ip\"$(getipaddr())\", $port); Base.start_worker(sock, \"$(cluster_cookie())\")",
                     ],
-                    "name" => "julia",
+                    "name" => manager.task_name,
                 )
             ]
         )
