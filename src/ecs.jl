@@ -4,20 +4,20 @@ using JSON
 
 immutable ECSManager <: ClusterManager
     np::Integer
-    region::AbstractString
-    cluster::AbstractString
     task_def::AbstractString
     task_name::AbstractString
+    cluster::AbstractString
+    region::AbstractString
+end
 
-    function ECSManager(
-            np::Integer, region::AbstractString="us-east-1", cluster::AbstractString="ETS",
-            task_def::AbstractString="julia-baked:11", task_name::AbstractString="",
-        )
-        if isempty(task_name)
-            task_name = first(split(task_def, ':'))
-        end
-        new(np, region, cluster, task_def, task_name)
+function ECSManager(
+        np::Integer, task_def::AbstractString; task_name::AbstractString="",
+        cluster::AbstractString="", region::AbstractString="",
+    )
+    if isempty(task_name)
+        task_name = first(split(task_def, ':'))
     end
+    ECSManager(np, task_def, task_name, cluster, region)
 end
 
 function launch(manager::ECSManager, params::Dict, launched::Array, c::Condition)
@@ -55,7 +55,12 @@ function launch(manager::ECSManager, params::Dict, launched::Array, c::Condition
         # as this essentially runs `start_worker(STDOUT, COOKIE)` which reports the worker
         # address and port to STDOUT. Instead we'll run the code ourselves and report the
         # connection information back to the manager over a socket.
-        cmd = `aws --region $region ecs run-task --cluster $cluster --task-definition $task_definition`
+
+        r = isempty(region) ? `` : `--region $(region)`
+        cmd = `aws $r ecs run-task --count $np --task-definition $task_definition`
+        if !isempty(cluster)
+            cmd = `$cmd --cluster $cluster`
+        end
         overrides = Dict(
             "containerOverrides" => [
                 Dict(
@@ -70,9 +75,10 @@ function launch(manager::ECSManager, params::Dict, launched::Array, c::Condition
                 )
             ]
         )
+        cmd = `$cmd --overrides $(JSON.json(overrides))`
 
         # In order to start ECS tasks the container needs to have the appropriate AWS access
-        run(pipeline(`$cmd --count $np --overrides $(JSON.json(overrides))`, stdout=DevNull))
+        run(pipeline(cmd, stdout=DevNull))
     end
 
     # TODO: Does stopping listening terminate the sockets from `accept`? If so, we could
