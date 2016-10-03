@@ -1,37 +1,66 @@
-import Base: wait
+import Base: wait, ==
 export ECSManager
 
 using JSON
 
 immutable ECSManager <: ClusterManager
-    np::Integer
+    min_workers::Int
+    max_workers::Int
     task_def::AbstractString
     task_name::AbstractString
     cluster::AbstractString
     region::AbstractString
+
+    function ECSManager(min_workers::Integer, max_workers::Integer, task_def::AbstractString,
+        task_name::AbstractString, cluster::AbstractString, region::AbstractString,
+    )
+        if isempty(task_name)
+            task_name = first(split(task_def, ':'))
+        end
+        new(min_workers, max_workers, task_def, task_name, cluster, region)
+    end
 end
 
-function ECSManager(
-        np::Integer, task_def::AbstractString; task_name::AbstractString="",
-        cluster::AbstractString="", region::AbstractString="",
+function ECSManager(min_workers::Integer, max_workers::Integer, task_def::AbstractString;
+        task_name::AbstractString="", cluster::AbstractString="", region::AbstractString="",
     )
-    if isempty(task_name)
-        task_name = first(split(task_def, ':'))
-    end
-    ECSManager(np, task_def, task_name, cluster, region)
+    ECSManager(min_workers, max_workers, task_def, task_name, cluster, region)
+end
+
+function ECSManager{I<:Integer}(workers::UnitRange{I}, task_def::AbstractString;
+      task_name::AbstractString="", cluster::AbstractString="", region::AbstractString="",
+    )
+    ECSManager(start(workers), last(workers), task_def, task_name, cluster, region)
+end
+
+function ECSManager(workers::Integer, task_def::AbstractString;
+        task_name::AbstractString="", cluster::AbstractString="", region::AbstractString="",
+    )
+    ECSManager(workers, workers, task_def, task_name, cluster, region)
+end
+
+function ==(a::ECSManager, b::ECSManager)
+    return (
+        a.min_workers == b.min_workers &&
+        a.max_workers == b.max_workers &&
+        a.task_def == b.task_def &&
+        a.task_name == b.task_name &&
+        a.cluster == b.cluster &&
+        a.region == b.region
+    )
 end
 
 function launch(manager::ECSManager, params::Dict, launched::Array, c::Condition)
-    np = manager.np
+    min_workers, max_workers = manager.min_workers, manager.max_workers
     region = manager.region
     cluster = manager.cluster
     task_definition = manager.task_def
 
-    launch_tasks = Vector{Task}(np)
+    launch_tasks = Vector{Task}(max_workers)
 
     # TODO: Should be using TLS connections.
     port, server = listenany(ip"::", PORT_HINT)  # Listen on all IPv4 and IPv6 interfaces
-    for i in 1:np
+    for i in 1:max_workers
         launch_tasks[i] = @schedule begin
             sock = accept(server)
 
@@ -59,7 +88,7 @@ function launch(manager::ECSManager, params::Dict, launched::Array, c::Condition
     # connection information back to the manager over a socket.
 
     r = isempty(region) ? `` : `--region $(region)`
-    cmd = `aws $r ecs run-task --count $np --task-definition $task_definition`
+    cmd = `aws $r ecs run-task --count $max_workers --task-definition $task_definition`
     if !isempty(cluster)
         cmd = `$cmd --cluster $cluster`
     end
@@ -82,8 +111,16 @@ function launch(manager::ECSManager, params::Dict, launched::Array, c::Condition
     # In order to start ECS tasks the container needs to have the appropriate AWS access
     run(pipeline(cmd, stdout=DevNull))
 
+    function callback(num_failed)
+        num_launched = max_workers - num_failed
+        if num_launched >= min_workers
+            warn("Only managed to launch $num_launched/$max_workers workers")
+        else
+            error("Unable to launch the minimum number of workers")
+        end
+    end
+
     # Await for workers to inform the manager of their address.
-    callback = (num_failed) -> warn("Time out while waiting for $num_failed workers to call home")
     wait(launch_tasks, 30, callback)
 
     # TODO: Does stopping listening terminate the sockets from `accept`? If so, we could
