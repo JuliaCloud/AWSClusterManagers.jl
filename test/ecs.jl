@@ -1,5 +1,5 @@
 # Test expect to run within an ECS container
-ecs = ECSClusterManager(2, "julia-baked", cluster="ETS", region="us-east-1")
+ecs = ECSManager(2, "julia-baked", cluster="ETS", region="us-east-1", task_name="julia")
 
 addprocs(ecs)
 manager_ip = getipaddr()
