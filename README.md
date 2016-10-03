@@ -16,7 +16,7 @@ Requirements:
 - Task definition uses networkMode "host"
 - Security groups allow ECS cluster containers to talk to each other in the ephemeral port range
 - Tasks have permission to execute "ecs:RunTask"
-- Image which has julia and this package installed
+- Image which has julia, awscli, and this package installed
 
 When a ECS task uses this manager there are several steps involved in setting up the new process. They are as follows:
 
