@@ -26,3 +26,17 @@ Ideally we should be using a secure channel to talk betweek the ECS tasks.
 
 The run tasks AWS command contains a section in the output for failures. We should probably
 parse the output and ensure that their are no failed tasks.
+
+```
+{
+    "failures": [
+        {
+            "reason": "RESOURCE:MEMORY", 
+            "arn": "arn:aws:ecs:us-east-1:292522074875:container-instance/d6e98fba-83fe-4e52-9920-8d2bb8d5ff75"
+        }
+    ], 
+    "tasks": []
+}
+```
+
+One complication with failures from run-task is that we are already waiting for a set number of workers to contact us. One alternative is to only start listening to the number of workers that stated they were launching. Unfortunately since we cannot launch all worker at once we could end up being too slow to listen if all workers are listened to at the end. Probably the solution to this is to start listening to workers as we confirm they should be coming up.
