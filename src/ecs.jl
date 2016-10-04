@@ -3,6 +3,8 @@ export ECSManager
 
 using JSON
 
+const MAX_COUNT = 10  # Maximum count value that can be supplied to ECS RunTask
+
 immutable ECSManager <: ClusterManager
     min_workers::Int
     max_workers::Int
@@ -108,8 +110,16 @@ function launch(manager::ECSManager, params::Dict, launched::Array, c::Condition
     )
     cmd = `$cmd --overrides $(JSON.json(overrides))`
 
-    # In order to start ECS tasks the container needs to have the appropriate AWS access
-    run(pipeline(cmd, stdout=DevNull))
+    # ECS RunTask operation limits count. We'll get around this by running the command
+    # multiple times.
+    remaining = max_workers
+    while remaining > 0
+        count = remaining > MAX_COUNT : MAX_COUNT : remaining
+
+        # In order to start ECS tasks the container needs to have the appropriate AWS access.
+        run(pipeline(`$cmd --count $count`, stdout=DevNull))
+        remaining -= count
+    end
 
     function callback(num_failed)
         num_launched = max_workers - num_failed

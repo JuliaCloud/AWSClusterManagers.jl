@@ -21,3 +21,8 @@ Since tasks launch other tasks it would be good to have some kind of introspecti
 ## TLS Sockets
 
 Ideally we should be using a secure channel to talk betweek the ECS tasks.
+
+## Review output from runtasks
+
+The run tasks AWS command contains a section in the output for failures. We should probably
+parse the output and ensure that their are no failed tasks.
