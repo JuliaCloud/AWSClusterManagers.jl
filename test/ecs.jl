@@ -1,6 +1,6 @@
-@test ECSManager(2, "def") == ECSManager(2, 2, "def", "def", "", "")
-@test ECSManager(2, 4, "def") == ECSManager(2, 4, "def", "def", "", "")
-@test ECSManager(2:4, "def") == ECSManager(2, 4, "def", "def", "", "")
+@test ECSManager(2, "def") == ECSManager(2, 2, "def", "def", "", "", 300)
+@test ECSManager(2, 4, "def") == ECSManager(2, 4, "def", "def", "", "", 300)
+@test ECSManager(2:4, "def") == ECSManager(2, 4, "def", "def", "", "", 300)
 
 # Test expect to run within an ECS container
 if success(`curl --silent --connect-timeout 5 http://169.254.169.254`)

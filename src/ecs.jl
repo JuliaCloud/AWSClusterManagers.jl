@@ -10,33 +10,32 @@ immutable ECSManager <: ClusterManager
     task_name::AbstractString
     cluster::AbstractString
     region::AbstractString
+    timeout::Float64
 
     function ECSManager(min_workers::Integer, max_workers::Integer, task_def::AbstractString,
         task_name::AbstractString, cluster::AbstractString, region::AbstractString,
+        timeout::Real,
     )
         if isempty(task_name)
             task_name = first(split(task_def, ':'))
         end
-        new(min_workers, max_workers, task_def, task_name, cluster, region)
+        new(min_workers, max_workers, task_def, task_name, cluster, region, timeout)
     end
 end
 
 function ECSManager(min_workers::Integer, max_workers::Integer, task_def::AbstractString;
         task_name::AbstractString="", cluster::AbstractString="", region::AbstractString="",
+        timeout::Real=300,
     )
-    ECSManager(min_workers, max_workers, task_def, task_name, cluster, region)
+    ECSManager(min_workers, max_workers, task_def, task_name, cluster, region, timeout)
 end
 
-function ECSManager{I<:Integer}(workers::UnitRange{I}, task_def::AbstractString;
-      task_name::AbstractString="", cluster::AbstractString="", region::AbstractString="",
-    )
-    ECSManager(start(workers), last(workers), task_def, task_name, cluster, region)
+function ECSManager{I<:Integer}(workers::UnitRange{I}, task_def::AbstractString; kwargs...)
+    ECSManager(start(workers), last(workers), task_def; kwargs...)
 end
 
-function ECSManager(workers::Integer, task_def::AbstractString;
-        task_name::AbstractString="", cluster::AbstractString="", region::AbstractString="",
-    )
-    ECSManager(workers, workers, task_def, task_name, cluster, region)
+function ECSManager(workers::Integer, task_def::AbstractString; kwargs...)
+    ECSManager(workers, workers, task_def; kwargs...)
 end
 
 function ==(a::ECSManager, b::ECSManager)
@@ -46,7 +45,8 @@ function ==(a::ECSManager, b::ECSManager)
         a.task_def == b.task_def &&
         a.task_name == b.task_name &&
         a.cluster == b.cluster &&
-        a.region == b.region
+        a.region == b.region &&
+        a.timeout == b.timeout
     )
 end
 
@@ -121,7 +121,7 @@ function launch(manager::ECSManager, params::Dict, launched::Array, c::Condition
     end
 
     # Await for workers to inform the manager of their address.
-    wait(launch_tasks, 30, callback)
+    wait(launch_tasks, manager.timeout, callback)
 
     # TODO: Does stopping listening terminate the sockets from `accept`? If so, we could
     # potentially close the socket before we know the name of the connected worker. During
