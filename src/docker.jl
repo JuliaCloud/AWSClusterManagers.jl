@@ -1,5 +1,7 @@
 using Docker
-HOST = "localhost:2375"
+
+const HOST = "localhost:2375"
+INITIALIZED = false
 
 immutable DockerManager <: ClusterManager
     min_workers::Int
@@ -10,6 +12,7 @@ immutable DockerManager <: ClusterManager
     function DockerManager(min_workers::Integer, max_workers::Integer,
             image::AbstractString, timeout::Real,
         )
+        _init_docker_engine()
         if isempty(image)
             image = _image_id(HOST, _container_id())
         end
@@ -119,4 +122,13 @@ end
 function _image_id(host, container_id)
     container = Docker.inspect_container(host, container_id)
     return last(split(container["Image"], ':'))
+end
+
+function _init_docker_engine()
+    global INITIALIZED
+
+    if !INITIALIZED
+        run(detach(`socat TCP-LISTEN:2375,bind=127.0.0.1,reuseaddr,fork,range=127.0.0.0/8 UNIX-CLIENT:/var/run/docker.sock`))
+        INITIALIZED = true
+    end
 end
