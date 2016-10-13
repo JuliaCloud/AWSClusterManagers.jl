@@ -13,5 +13,6 @@ else
 end
 
 include("ecs.jl")
+include("docker.jl")
 
 end # module
