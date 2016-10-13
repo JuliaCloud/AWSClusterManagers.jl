@@ -128,6 +128,10 @@ function _init_docker_engine()
     global INITIALIZED
 
     if !INITIALIZED
+        # Expecting that this code is run within a docker container that has
+        # /var/run/docker.sock mounted from the host.
+        # Note: The reason we need to bind a port to a unix-socket is because the Docker.jl
+        # and Requests.jl both do not support unix-sockets.
         run(detach(`socat TCP-LISTEN:2375,bind=127.0.0.1,reuseaddr,fork,range=127.0.0.0/8 UNIX-CLIENT:/var/run/docker.sock`))
         INITIALIZED = true
     end
