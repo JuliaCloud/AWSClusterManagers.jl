@@ -1,7 +1,9 @@
-broker = spawn(`julia -e "using AWSClusterManagers; AWSClusterManagers.start_broker()"`)
+broker = spawn(`julia -e "using AWSClusterManagers; AWSClusterManagers.ZMQBrokers.start_broker()"`)
+info("Broker started")
 
 try
-    AWSClusterManagers.start_master(4)
+    AWSClusterManagers.ZMQManagers.start_master(4)
+    info("Workers started")
 
     # Have worker 2 get information from worker 3
     @test remotecall_fetch(() -> remotecall_fetch(myid, 3), 2) == 3

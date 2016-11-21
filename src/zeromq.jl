@@ -1,3 +1,5 @@
+module ZMQManagers
+
 using ZMQ
 
 import Base: launch, manage, connect, kill
@@ -119,23 +121,7 @@ function setup_connection(zid, initiated_by)
     end
 end
 
-# BROKER
-function start_broker()
-    ctx=Context()
-    xpub=Socket(ctx, XPUB)
-    xsub=Socket(ctx, XSUB)
 
-    ZMQ.bind(xsub, "tcp://127.0.0.1:$(BROKER_SUB_PORT)")
-    ZMQ.bind(xpub, "tcp://127.0.0.1:$(BROKER_PUB_PORT)")
-
-    ccall((:zmq_proxy, :libzmq), Cint,  (Ptr{Void}, Ptr{Void}, Ptr{Void}), xsub.data, xpub.data, C_NULL)
-#    proxy(xsub, xpub)
-
-    # control never comes here
-    ZMQ.close(xpub)
-    ZMQ.close(xsub)
-    ZMQ.close(ctx)
-end
 
 # Used by: manager, worker
 function recv_data()
@@ -205,7 +191,7 @@ end
 function launch(manager::ZMQManager, params::Dict, launched::Array, c::Condition)
     #println("launch $(params[:np])")
     for i in 1:params[:np]
-        io, pobj = open(`$(params[:exename]) -e "using AWSClusterManagers; AWSClusterManagers.start_worker($i, \"$(Base.cluster_cookie())\")"`, "r")
+        io, pobj = open(`$(params[:exename]) -e "using AWSClusterManagers; AWSClusterManagers.ZMQManagers.start_worker($i, \"$(Base.cluster_cookie())\")"`, "r")
 
         wconfig = WorkerConfig()
         wconfig.userdata = Dict(:zid=>i, :io=>io)
@@ -288,3 +274,32 @@ function print_worker_stdout(io, pid)
     end
 end
 
+end
+
+
+module ZMQBrokers
+
+using ZMQ
+
+const BROKER_SUB_PORT = 8100
+const BROKER_PUB_PORT = 8101
+
+# BROKER
+function start_broker()
+    ctx=Context()
+    xpub=Socket(ctx, XPUB)
+    xsub=Socket(ctx, XSUB)
+
+    ZMQ.bind(xsub, "tcp://127.0.0.1:$(BROKER_SUB_PORT)")
+    ZMQ.bind(xpub, "tcp://127.0.0.1:$(BROKER_PUB_PORT)")
+
+    ccall((:zmq_proxy, :libzmq), Cint,  (Ptr{Void}, Ptr{Void}, Ptr{Void}), xsub.data, xpub.data, C_NULL)
+#    proxy(xsub, xpub)
+
+    # control never comes here
+    ZMQ.close(xpub)
+    ZMQ.close(xsub)
+    ZMQ.close(ctx)
+end
+
+end
