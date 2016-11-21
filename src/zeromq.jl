@@ -28,6 +28,10 @@ end
 
 const manager = ZMQManager()
 
+type ZMQNode
+    zid::Int
+end
+
 function lock_for_send()
     if manager.isfree == true
         manager.isfree = false
@@ -47,18 +51,18 @@ function release_lock_for_send()
     notify(manager.c, all=true)
 end
 
-function init_node(zid=0)
+function init_node(node::ZMQNode)
     manager.ctx = Context(1)
     pub=Socket(manager.ctx, PUB)    # Outbound
     connect(pub, "tcp://127.0.0.1:$BROKER_SUB_PORT")
 
     sub=Socket(manager.ctx, SUB)    # In bound
     connect(sub, "tcp://127.0.0.1:$BROKER_PUB_PORT")
-    ZMQ.set_subscribe(sub, string(zid))
+    ZMQ.set_subscribe(sub, string(node.zid))
 
     manager.pub = pub
     manager.sub = sub
-    manager.zid_self = zid
+    manager.zid_self = node.zid
 
     (pub, sub)
 end
@@ -170,7 +174,8 @@ end
 
 # MASTER
 function start_master(np)
-    init_node()
+    node = ZMQNode(0)
+    init_node(node)
     @schedule begin
         try
             while true
@@ -229,7 +234,8 @@ end
 function start_worker(zid, cookie)
     #println("start_worker")
     Base.init_worker(cookie, ZMQManager())
-    init_node(zid)
+    node = ZMQNode(zid)
+    init_node(node)
 
     while true
         (from_zid, data) = recv_data()
