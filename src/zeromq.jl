@@ -32,6 +32,7 @@ type ZMQNode
     zid::Int
 end
 
+# Used by: worker
 function lock_for_send()
     if manager.isfree == true
         manager.isfree = false
@@ -46,13 +47,14 @@ function lock_for_send()
     end
 end
 
+# Used by: worker
 function release_lock_for_send()
     manager.isfree = true
     notify(manager.c, all=true)
 end
 
 function init_node(node::ZMQNode)
-    manager.ctx = Context(1)
+    manager.ctx = Context()
     pub=Socket(manager.ctx, PUB)    # Outbound
     connect(pub, "tcp://127.0.0.1:$BROKER_SUB_PORT")
 
@@ -67,6 +69,7 @@ function init_node(node::ZMQNode)
     (pub, sub)
 end
 
+# Used by: worker
 function send_data(zid, mtype, data)
     lock_for_send()
     ZMQ.send(manager.pub, Message(string(zid)), SNDMORE)
@@ -77,6 +80,7 @@ function send_data(zid, mtype, data)
     release_lock_for_send()
 end
 
+# Used by: worker
 function setup_connection(zid, initiated_by)
     try
         read_stream=BufferStream()
@@ -117,7 +121,7 @@ end
 
 # BROKER
 function start_broker()
-    ctx=Context(1)
+    ctx=Context()
     xpub=Socket(ctx, XPUB)
     xsub=Socket(ctx, XSUB)
 
@@ -133,20 +137,21 @@ function start_broker()
     ZMQ.close(ctx)
 end
 
+# Used by: manager, worker
 function recv_data()
     try
         #println("On $(manager.zid_self) waiting to recv message")
-        zid = parse(Int,String(ZMQ.recv(manager.sub)))
+        zid = parse(Int,unsafe_string(ZMQ.recv(manager.sub)))
         assert(zid == manager.zid_self)
 
-        from_zid = parse(Int,String(ZMQ.recv(manager.sub)))
-        mtype = String(ZMQ.recv(manager.sub))
+        from_zid = parse(Int,unsafe_string(ZMQ.recv(manager.sub)))
+        mtype = unsafe_string(ZMQ.recv(manager.sub))
 
         #println("$zid received message of type $mtype from $from_zid")
 
         data = ZMQ.recv(manager.sub)
         if mtype == CONTROL_MSG
-            cmsg = String(data)
+            cmsg = unsafe_string(data)
             if cmsg == REQUEST_ACK
                 #println("$from_zid REQUESTED_ACK from $zid")
                 # send back a control_msg
@@ -200,7 +205,7 @@ end
 function launch(manager::ZMQManager, params::Dict, launched::Array, c::Condition)
     #println("launch $(params[:np])")
     for i in 1:params[:np]
-        io, pobj = open(`$(params[:exename]) worker.jl $i $(Base.cluster_cookie())`, "r")
+        io, pobj = open(`$(params[:exename]) -e "using AWSClusterManagers; AWSClusterManagers.start_worker($i, \"$(Base.cluster_cookie())\")"`, "r")
 
         wconfig = WorkerConfig()
         wconfig.userdata = Dict(:zid=>i, :io=>io)
@@ -231,7 +236,7 @@ function connect(manager::ZMQManager, pid::Int, config::WorkerConfig)
 end
 
 # WORKER
-function start_worker(zid, cookie)
+function start_worker(zid::Integer, cookie::AbstractString)
     #println("start_worker")
     Base.init_worker(cookie, ZMQManager())
     node = ZMQNode(zid)
@@ -253,6 +258,10 @@ function start_worker(zid, cookie)
 
         unsafe_write(r_s, pointer(data), length(data))
     end
+end
+
+function start_worker(zid::AbstractString, cookie::AbstractString)
+    start_worker(parse(Int, zid), cookie)
 end
 
 function manage(manager::ZMQManager, id::Int, config::WorkerConfig, op)
