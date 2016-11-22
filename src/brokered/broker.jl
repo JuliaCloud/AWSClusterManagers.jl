@@ -17,30 +17,38 @@ function start_broker(port::Integer=2000)
 
             @async begin
                 # Initial connection map the ID to the socket
-                src_id = read(sock, UInt32)
-                println("Registered: $src_id")
-                mapping[src_id] = BrokeredNode(sock)
+                sock_id = read(sock, UInt32)
+                println("Registered: $sock_id")
+                mapping[sock_id] = BrokeredNode(sock)
 
-                println("Awaiting incoming data from $src_id")
-                while isopen(sock) && !eof(sock)
-                    src = mapping[src_id]
-                    println("New data from $src_id")
+                for (k, v) in mapping
+                    println("$k: $v, $(object_id(v))")
+                end
+
+                println("Awaiting outbound data from $sock_id")
+                while !eof(sock)
+                    src = mapping[sock_id]
+                    println("New data from $sock_id ($(object_id(src.sock)))")
 
                     acquire(src.read_access)
                     src_id, dest_id, message = decode(src.sock)
                     release(src.read_access)
                     println("$src_id, $dest_id, $message")
 
-                    println("Sending message to $dest_id")
-                    dest = mapping[dest_id]
-                    acquire(dest.write_access)
-                    encode(dest.sock, src_id, dest_id, message)
-                    release(dest.write_access)
+                    src_id == sock_id || warn("registered source $sock_id is pretending to be $src_id")
+
+                    println("Passing message along to $dest_id")
+                    # assert(mapping[dest_id].id == dest_id)
+                    # dest = mapping[dest_id]
+                    # println("SOCKET $dest_id: $(object_id(dest.sock))")
+                    # acquire(dest.write_access)
+                    # encode(dest.sock, src_id, dest_id, message)
+                    # release(dest.write_access)
                     println("Message transferred")
                 end
 
-                println("Deregistered: $src_id")
-                delete!(mapping, src_id)
+                println("Deregistered: $sock_id")
+                delete!(mapping, sock_id)
             end
         end
     finally
