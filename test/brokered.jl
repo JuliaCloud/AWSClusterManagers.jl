@@ -10,8 +10,7 @@ src_id, dest_id, message = decode(io)
 @test message == "hello"
 
 
-
-broker_task = @schedule start_broker()
+broker_process = spawn(`$(Base.julia_cmd()) -e "using AWSClusterManagers; AWSClusterManagers.Brokered.start_broker()"`)
 
 # worker1_task @schedule begin
 #     sleep(2)
@@ -32,7 +31,11 @@ broker_task = @schedule start_broker()
 # @test message == "REPLY: helloworld!"
 
 
-sleep(5)
-
+# Send a message to yourself
 broker = Broker(1)
 encode(broker.sock, 1, 1, "helloworld!")
+src_id, dest_id, message = decode(broker.sock)
+
+@test src_id == 1
+@test dest_id == 1
+@test message == "helloworld!"
