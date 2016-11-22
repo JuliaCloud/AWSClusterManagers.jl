@@ -9,9 +9,8 @@ src_id, dest_id, message = decode(io)
 @test dest_id == 2
 @test message == "hello"
 
-
 @schedule start_broker()
-sleep(5)
+yield()
 
 # Send a message to yourself
 broker = Broker(1)
@@ -28,8 +27,7 @@ src_id, dest_id, message = decode(broker.sock)
     src_id, dest_id, msg = decode(broker.sock)
     encode(broker.sock, 2, src_id, "REPLY: $msg")
 end
-
-sleep(5)
+yield()
 
 encode(broker.sock, 1, 2, "helloworld!")
 # println("Awaiting decode")
