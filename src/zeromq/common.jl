@@ -215,6 +215,18 @@ function connect(manager::ZMQManager, pid::Int, config::WorkerConfig)
 end
 
 function manage(manager::ZMQManager, id::Int, config::WorkerConfig, op)
+    if op == :interrupt
+        zid = get(config.userdata)[:zid]
+        send(manager.node, zid, CONTROL_MSG, KILL_MSG)
+
+        # TODO: Need to clear out mapping on workers?
+        (r_s, w_s) = get(config.userdata)[:streams]
+        close(r_s)
+        close(w_s)
+
+        # remove from our map
+        delete!(manager.node.mapping, get(config.userdata)[:zid])
+    end
     nothing
 end
 
