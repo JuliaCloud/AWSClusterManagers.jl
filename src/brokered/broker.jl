@@ -2,8 +2,9 @@ import Base: Semaphore, acquire, release
 
 type BrokeredNode
     sock::TCPSocket
-    semaphore::Semaphore
-    BrokeredNode(sock::TCPSocket) = new(sock, Semaphore(1))
+    read_access::Semaphore
+    write_access::Semaphore
+    BrokeredNode(sock::TCPSocket) = new(sock, Semaphore(1), Semaphore(1))
 end
 
 function start_broker(port::Integer=2000)
@@ -21,19 +22,19 @@ function start_broker(port::Integer=2000)
 
             println("Awaiting incoming data from $src_id")
             while isopen(sock) && !eof(sock)
-                node = mapping[src_id]
+                src = mapping[src_id]
                 println("New data from $src_id")
 
-                acquire(node.semaphore)
-                src_id, dest_id, message = decode(sock)
-                release(node.semaphore)
+                acquire(src.read_access)
+                src_id, dest_id, message = decode(src.sock)
+                release(src.read_access)
                 println("$src_id, $dest_id, $message")
 
                 println("Sending message to $dest_id")
-                node = mapping[dest_id]
-                acquire(node.semaphore)
-                encode(node.sock, src_id, dest_id, message)
-                release(node.semaphore)
+                dest = mapping[dest_id]
+                acquire(dest.write_access)
+                encode(dest.sock, src_id, dest_id, message)
+                release(dest.write_access)
                 println("Message transferred")
             end
 
