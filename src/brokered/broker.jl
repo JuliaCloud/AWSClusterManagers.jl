@@ -13,12 +13,12 @@ function start_broker(port::Integer=2000)
         # TODO: Find way of timing out the broker if there are no sockets connecting to it.
         sock = accept(server)
 
-        # Initial connection map the ID to the socket
-        src_id = read(sock, UInt32)
-        println("Registered: $src_id")
-        mapping[src_id] = BrokeredNode(sock)
-
         @async begin
+            # Initial connection map the ID to the socket
+            src_id = read(sock, UInt32)
+            println("Registered: $src_id")
+            mapping[src_id] = BrokeredNode(sock)
+
             println("Awaiting incoming data from $src_id")
             while isopen(sock) && !eof(sock)
                 node = mapping[src_id]
