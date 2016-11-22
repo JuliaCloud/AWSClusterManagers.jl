@@ -1,24 +1,24 @@
 module Worker
 
-import AWSClusterManagers.ZeroMQ.Common: ZMQNode, init_node, recv_data, manager, ZMQManager
+import AWSClusterManagers.ZeroMQ.Common: Node, recv, ZMQManager
 import AWSClusterManagers.ZeroMQ.Common: setup_connection, REMOTE_INITIATED
 
 # WORKER
 function start_worker(zid::Integer, cookie::AbstractString)
     #println("start_worker")
-    Base.init_worker(cookie, ZMQManager())
-    node = ZMQNode(zid)
-    init_node(node)
+    node = Node(zid)
+    Base.init_worker(cookie, ZMQManager(node))
+
 
     while true
-        (from_zid, data) = recv_data()
+        (from_zid, data) = recv(node)
 
         #println("worker recv data from $from_zid")
 
-        streams = get(manager.map_zmq_julia, from_zid, nothing)
+        streams = get(node.mapping, from_zid, nothing)
         if streams === nothing
             # First time..
-            (r_s, w_s) = setup_connection(from_zid, REMOTE_INITIATED)
+            (r_s, w_s) = setup_connection(node, from_zid, REMOTE_INITIATED)
             Base.process_messages(r_s, w_s)
         else
             (r_s, w_s, t_r) = streams
