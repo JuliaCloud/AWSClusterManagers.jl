@@ -16,6 +16,6 @@ end
 # include("ecs.jl")
 # include("docker.jl")
 
-include("zeromq.jl")
+include("zeromq/ZeroMQ.jl")
 
 end # module

@@ -1,4 +1,4 @@
-module ZMQManagers
+module Common
 
 using ZMQ
 
@@ -163,35 +163,10 @@ function recv_data()
 
 end
 
-# MASTER
-function start_master(np)
-    node = ZMQNode(0)
-    init_node(node)
-    @schedule begin
-        try
-            while true
-                (from_zid, data) = recv_data()
-
-                #println("master recv data from $from_zid")
-
-                (r_s, w_s, t_r) = manager.map_zmq_julia[from_zid]
-                unsafe_write(r_s, pointer(data), length(data))
-            end
-        catch e
-            Base.show_backtrace(STDOUT,catch_backtrace())
-            println(e)
-            rethrow(e)
-        end
-    end
-
-    addprocs(manager; np=np)
-end
-
-
 function launch(manager::ZMQManager, params::Dict, launched::Array, c::Condition)
     #println("launch $(params[:np])")
     for i in 1:params[:np]
-        io, pobj = open(`$(params[:exename]) -e "using AWSClusterManagers; AWSClusterManagers.ZMQManagers.start_worker($i, \"$(Base.cluster_cookie())\")"`, "r")
+        io, pobj = open(`$(params[:exename]) -e "using AWSClusterManagers; AWSClusterManagers.ZeroMQ.Worker.start_worker($i, \"$(Base.cluster_cookie())\")"`, "r")
 
         wconfig = WorkerConfig()
         wconfig.userdata = Dict(:zid=>i, :io=>io)
@@ -221,35 +196,6 @@ function connect(manager::ZMQManager, pid::Int, config::WorkerConfig)
     streams
 end
 
-# WORKER
-function start_worker(zid::Integer, cookie::AbstractString)
-    #println("start_worker")
-    Base.init_worker(cookie, ZMQManager())
-    node = ZMQNode(zid)
-    init_node(node)
-
-    while true
-        (from_zid, data) = recv_data()
-
-        #println("worker recv data from $from_zid")
-
-        streams = get(manager.map_zmq_julia, from_zid, nothing)
-        if streams === nothing
-            # First time..
-            (r_s, w_s) = setup_connection(from_zid, REMOTE_INITIATED)
-            Base.process_messages(r_s, w_s)
-        else
-            (r_s, w_s, t_r) = streams
-        end
-
-        unsafe_write(r_s, pointer(data), length(data))
-    end
-end
-
-function start_worker(zid::AbstractString, cookie::AbstractString)
-    start_worker(parse(Int, zid), cookie)
-end
-
 function manage(manager::ZMQManager, id::Int, config::WorkerConfig, op)
     nothing
 end
@@ -272,34 +218,6 @@ function print_worker_stdout(io, pid)
         line = readline(io)
         print("\tFrom worker $(pid):\t$line")
     end
-end
-
-end
-
-
-module ZMQBrokers
-
-using ZMQ
-
-const BROKER_SUB_PORT = 8100
-const BROKER_PUB_PORT = 8101
-
-# BROKER
-function start_broker()
-    ctx=Context()
-    xpub=Socket(ctx, XPUB)
-    xsub=Socket(ctx, XSUB)
-
-    ZMQ.bind(xsub, "tcp://127.0.0.1:$(BROKER_SUB_PORT)")
-    ZMQ.bind(xpub, "tcp://127.0.0.1:$(BROKER_PUB_PORT)")
-
-    ccall((:zmq_proxy, :libzmq), Cint,  (Ptr{Void}, Ptr{Void}, Ptr{Void}), xsub.data, xpub.data, C_NULL)
-#    proxy(xsub, xpub)
-
-    # control never comes here
-    ZMQ.close(xpub)
-    ZMQ.close(xsub)
-    ZMQ.close(ctx)
 end
 
 end
