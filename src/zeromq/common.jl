@@ -186,10 +186,10 @@ end
 function launch(manager::ZMQManager, params::Dict, launched::Array, c::Condition)
     #println("launch $(params[:np])")
     for i in 1:params[:np]
-        io, pobj = open(`$(params[:exename]) -e "using AWSClusterManagers; AWSClusterManagers.ZeroMQ.Worker.start_worker($i, \"$(Base.cluster_cookie())\")"`, "r")
+        spawn(`$(params[:exename]) -e "using AWSClusterManagers; AWSClusterManagers.ZeroMQ.Worker.start_worker($i, \"$(Base.cluster_cookie())\")"`)
 
         wconfig = WorkerConfig()
-        wconfig.userdata = Dict(:zid=>i, :io=>io)
+        wconfig.userdata = Dict{Symbol,Any}(:zid=>i)
         push!(launched, wconfig)
         notify(c)
     end
@@ -200,12 +200,10 @@ function connect(manager::ZMQManager, pid::Int, config::WorkerConfig)
     if myid() == 1
         zid = get(config.userdata)[:zid]
         config.connect_at = zid # This will be useful in the worker-to-worker connection setup.
-
-        print_worker_stdout(get(config.userdata)[:io], pid)
     else
         #println("connect_w2w")
         zid = get(config.connect_at)
-        config.userdata = Dict{Symbol, Any}(:zid=>zid)
+        config.userdata = Dict{Symbol,Any}(:zid=>zid)
     end
 
     streams = setup_connection(manager.node, zid, SELF_INITIATED)
