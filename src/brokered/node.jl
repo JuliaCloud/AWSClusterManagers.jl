@@ -11,6 +11,7 @@ function Node(id::Integer)
 end
 
 function encode(io::IO, src_id::Integer, dest_id::Integer, content::AbstractVector{UInt8})
+    println("SEND: $(src_id) -> $dest_id")
     write(io, UInt32(dest_id))
     write(io, UInt32(src_id))
     write(io, UInt32(length(content)))
@@ -22,6 +23,7 @@ function decode(io::IO)
     src_id = read(io, UInt32)
     len = read(io, UInt32)
     content = read(io, len)
+    println("RECV: $src_id -> $dest_id")
     return (src_id, dest_id, content)
 end
 
@@ -57,6 +59,7 @@ function setup_connection(node::Node, dest_id::Integer)
     # Transfer all data written to the write stream to the destination via the broker.
     @schedule while true
         data = readavailable(write_stream)
+        println("Sending buffer $(node.id) -> $dest_id")
         send(node, dest_id, data)
     end
 

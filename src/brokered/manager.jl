@@ -2,22 +2,24 @@ import Base: launch, manage, connect, kill
 
 type BrokeredManager <: ClusterManager
     np::Int
-    node::Node
-    BrokeredManager(np::Integer) = new(Int(np), Node(0))
+    node::Nullable{Node}
 end
 
+BrokeredManager(np::Integer) = BrokeredManager(Int(np), Nullable(Node(0)))
+
 function launch(manager::BrokeredManager, params::Dict, launched::Array, c::Condition)
-    node = manager.node
+    node = get(manager.node)
     @schedule while true
         (from_zid, data) = recv(node)
+        println("MANAGER")
 
         # TODO: Do what worker does?
-        (r_s, w_s, t_r) = node.mapping[from_zid]
+        (r_s, w_s) = node.streams[from_zid]
         unsafe_write(r_s, pointer(data), length(data))
     end
 
     for i in 1:manager.np
-        spawn(`$(params[:exename]) -e "using AWSClusterManagers; AWSClusterManagers.Brokered.start_worker($i, \"$(Base.cluster_cookie())\")"`)
+        # spawn(`$(params[:exename]) -e "using AWSClusterManagers; AWSClusterManagers.Brokered.start_worker($i, \"$(Base.cluster_cookie())\")"`)
 
         wconfig = WorkerConfig()
         wconfig.userdata = Dict{Symbol,Any}(:id=>i)
@@ -26,6 +28,8 @@ function launch(manager::BrokeredManager, params::Dict, launched::Array, c::Cond
     end
 end
 
+# Used by the manager or workers to connect to estabilish connections to other nodes in the
+# cluster.
 function connect(manager::BrokeredManager, pid::Int, config::WorkerConfig)
     #println("connect_m2w")
     if myid() == 1
@@ -38,7 +42,7 @@ function connect(manager::BrokeredManager, pid::Int, config::WorkerConfig)
     end
 
     # Curt: I think this is just used by the manager
-    streams = setup_connection(manager.node, zid)
+    streams = setup_connection(get(manager.node), zid)
 
     udata = get(config.userdata)
     udata[:streams] = streams
@@ -51,13 +55,17 @@ function manage(manager::BrokeredManager, id::Int, config::WorkerConfig, op)
 end
 
 function kill(manager::BrokeredManager, pid::Int, config::WorkerConfig)
-    send(manager.node, get(config.userdata)[:id], CONTROL_MSG, KILL_MSG)
+    # send(manager.node, get(config.userdata)[:id], CONTROL_MSG, KILL_MSG)
     (r_s, w_s) = get(config.userdata)[:streams]
     close(r_s)
     close(w_s)
 
-    # remove from our map
-    delete!(manager.node.mapping, get(config.userdata)[:id])
+    # Terminate socket from manager to broker when all workers have been killed
+    # Doesn't work?
+    node = get(manager.node)
+    if isempty(node.streams)
+        close(node.sock)
+    end
 
     nothing
 end

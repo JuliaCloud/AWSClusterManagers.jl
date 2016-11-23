@@ -31,26 +31,45 @@ function start_broker(port::Integer=2000)
         end
 
 
+        count = 10
         # println("Awaiting outbound data from $sock_id")
-        while !eof(sock)
+        while !eof(sock) && count > 0
             src = mapping[sock_id]
             println("New data from $sock_id ($(object_id(src.sock)))")
 
             acquire(src.read_access)
             src_id, dest_id, message = decode(src.sock)
+            println("BROKER: $src_id -> $dest_id")
             release(src.read_access)
             println("$src_id, $dest_id, $message")
 
             assert(src_id == sock_id)
 
-            dest = mapping[dest_id]
+            # TODO: Temporary
+            if isempty(message)
+                println("DISCARD EMPTY")
+                close(server)
+            end
+
+            if haskey(mapping, dest_id)
+                dest = mapping[dest_id]
+            else
+                println("discarding")
+                continue
+            end
+
             if isopen(dest.sock)
                 println("Passing message along to $dest_id ($(object_id(dest.sock)))")
                 acquire(dest.write_access)
+                println("BROKER: $src_id -> $dest_id")
                 encode(dest.sock, src_id, dest_id, message)
                 release(dest.write_access)
                 println("Message transferred")
+            else
+                println("discarding")
             end
+
+            count -= 1
         end
 
         println("Deregistered: $sock_id")
