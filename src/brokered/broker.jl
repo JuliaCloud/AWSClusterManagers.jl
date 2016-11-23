@@ -41,27 +41,39 @@ function start_broker(port::Integer=2000)
             release(src.read_access)
             println("$src_id, $dest_id, $message")
 
-            assert(src_id == sock_id)
+            # assert(src_id == sock_id)
 
-            println("Passing message along to $dest_id")
+
             dest = mapping[dest_id]
-            acquire(dest.write_access)
-            encode(dest.sock, src_id, dest_id, message)
-            release(dest.write_access)
-            println("Message transferred")
+            if isopen(dest.sock)
+                println("Passing message along to $dest_id ($(object_id(dest.sock)))")
+                acquire(dest.write_access)
+                encode(dest.sock, src_id, dest_id, message)
+                release(dest.write_access)
+                println("Message transferred")
+            end
         end
 
         println("Deregistered: $sock_id")
         delete!(mapping, sock_id)
     end
 
+    initializing = true
     server = listen(port)
     try
-        while true
+        while initializing || !isempty(mapping)
+            if initializing && !isempty(mapping)
+                initializing = false
+            end
+
             # TODO: Find way of timing out the broker if there are no sockets connecting to it.
             sock = accept(server)
+
+            # Note: Using a function here instead of a block as it seems to solve the issue
+            # with duplicate sockets.
             @async process(sock)
         end
+        println("Shutting broker down")
     finally
         close(server)
     end
