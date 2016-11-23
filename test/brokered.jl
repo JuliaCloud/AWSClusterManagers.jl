@@ -28,7 +28,7 @@ echo_task = @schedule begin
     println("BROKER 2 SOCK: $(object_id(broker.sock))")
     src_id, dest_id, msg = decode(broker.sock)
     println("BROKER 2: $src_id, $dest_id, $message")
-    # encode(broker.sock, 2, src_id, "REPLY: $msg")
+    encode(broker.sock, 2, src_id, "REPLY: $msg")
 end
 yield()
 
