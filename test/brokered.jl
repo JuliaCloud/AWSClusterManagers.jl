@@ -1,5 +1,7 @@
 import AWSClusterManagers.Brokered: encode, decode, Node, start_broker, BrokeredManager
 
+
+
 @testset "encoding" begin
     io = IOBuffer()
     encode(io, 1, 2, "hello")
@@ -58,3 +60,10 @@ end
 
     @test addprocs(BrokeredManager(2)) == [1, 2]
 end
+
+
+# Tests to make
+# - `addprocs(BrokeredManager(2))`
+#   Multiple workers start in an all-to-all
+# - `rmprocs`
+#   Sends an empty message which has been problematic in the past

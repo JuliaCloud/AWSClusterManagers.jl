@@ -31,7 +31,7 @@ function start_broker(port::Integer=2000)
         end
 
 
-        count = 10
+        count = 50
         # println("Awaiting outbound data from $sock_id")
         while !eof(sock) && count > 0
             src = mapping[sock_id]
@@ -44,12 +44,6 @@ function start_broker(port::Integer=2000)
             println("$src_id, $dest_id, $message")
 
             assert(src_id == sock_id)
-
-            # TODO: Temporary
-            if isempty(message)
-                println("DISCARD EMPTY")
-                close(server)
-            end
 
             if haskey(mapping, dest_id)
                 dest = mapping[dest_id]
@@ -70,6 +64,9 @@ function start_broker(port::Integer=2000)
             end
 
             count -= 1
+            if !(count > 0)
+                println("COUNT SAFE GUARD")
+            end
         end
 
         println("Deregistered: $sock_id")
@@ -77,7 +74,7 @@ function start_broker(port::Integer=2000)
 
         # Shutdown the server when all connections have terminated.
         # Note: I would prefer to throw an exception but it doesn't get caught by the loop
-        if isempty(mapping) || sock_id == 1
+        if isempty(mapping)
             close(server)
         end
     end
