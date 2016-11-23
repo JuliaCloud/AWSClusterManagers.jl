@@ -11,21 +11,21 @@ import AWSClusterManagers.Brokered: encode, decode, Broker, start_broker
     @test message == "hello"
 end
 
-# @testset "send to self" begin
-#     broker_task = @schedule start_broker()
-#     yield()
+@testset "send to self" begin
+    broker_task = @schedule start_broker()
+    yield()
 
-#     broker = Broker(1)
-#     encode(broker.sock, 1, 1, "helloworld!")
-#     src_id, dest_id, message = decode(broker.sock)
+    broker = Broker(1)
+    encode(broker.sock, 1, 1, "helloworld!")
+    src_id, dest_id, message = decode(broker.sock)
 
-#     @test src_id == 1
-#     @test dest_id == 1
-#     @test message == "helloworld!"
+    @test src_id == 1
+    @test dest_id == 1
+    @test message == "helloworld!"
 
-#     close(broker.sock)
-#     wait(broker_task)
-# end
+    close(broker.sock)
+    wait(broker_task)
+end
 
 @testset "echo" begin
     broker_task = @schedule start_broker()
@@ -35,8 +35,8 @@ end
         broker = Broker(2)
         src_id, dest_id, msg = decode(broker.sock)
         encode(broker.sock, 2, src_id, "REPLY: $msg")
+        # sleep(5)
         # close(broker.sock)
-        sleep(5)
     end
     yield()
 

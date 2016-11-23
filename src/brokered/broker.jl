@@ -9,6 +9,7 @@ end
 
 function start_broker(port::Integer=2000)
     mapping = Dict{UInt32,BrokeredNode}()
+    server = listen(port)
 
     function process(sock)
         # Registration should happen before the async block otherwise we could associate
@@ -56,24 +57,31 @@ function start_broker(port::Integer=2000)
 
         println("Deregistered: $sock_id")
         delete!(mapping, sock_id)
+
+        # Shutdown the server when all connections have terminated.
+        # Note: I would prefer to throw an exception but it doesn't get caught by the loop
+        if isempty(mapping)
+            close(server)
+        end
     end
 
-    initializing = true
-    server = listen(port)
     try
-        while initializing || !isempty(mapping)
-            if initializing && !isempty(mapping)
-                initializing = false
-            end
-
+        while true
+            println("Mapping: $(length(mapping))")
             # TODO: Find way of timing out the broker if there are no sockets connecting to it.
             sock = accept(server)
+            println("Sock: $(object_id(sock))")
 
             # Note: Using a function here instead of a block as it seems to solve the issue
             # with duplicate sockets.
             @async process(sock)
+
+            println("loop end")
         end
-        println("Shutting broker down")
+    catch e
+        if !isa(e, Base.UVError)
+            rethrow()
+        end
     finally
         close(server)
     end
