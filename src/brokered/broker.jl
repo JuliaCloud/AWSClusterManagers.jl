@@ -15,17 +15,27 @@ function start_broker(port::Integer=2000)
             # TODO: Find way of timing out the broker if there are no sockets connecting to it.
             sock = accept(server)
 
-            # Registration should happen before the async block otherwise we could associate
-            # an ID with the wrong socket.
-            sock_id = read(sock, UInt32)
-            println("Registered: $sock_id")
-            mapping[sock_id] = BrokeredNode(sock)
+            @async begin
+                # Registration should happen before the async block otherwise we could associate
+                # an ID with the wrong socket.
+                sock_id = read(sock, UInt32)
+                println("Registered: $sock_id")
+                mapping[sock_id] = BrokeredNode(sock)
 
-            for (k, v) in mapping
-                println("$k: $v, $(object_id(v.sock))")
-            end
+                k = collect(keys(mapping))
+                println("KEYS: $k")
+                n = length(k)
+                for i = 1:n - 1, j = i + 1:n
+                    if mapping[k[i]].sock == mapping[k[j]].sock
+                        error("duplicate socket detected")
+                    end
+                end
 
-            @async let
+                for (k, v) in mapping
+                    println("$k: $v, $(object_id(v.sock))")
+                end
+
+
                 println("Awaiting outbound data from $sock_id")
                 while !eof(sock)
                     println("resuming $(object_id(sock))")

@@ -25,7 +25,6 @@ sleep(5)
 # echo a single query then terminates
 echo_task = @schedule begin
     broker = Broker(2)
-    println("BROKER 2 SOCK: $(object_id(broker.sock))")
     src_id, dest_id, msg = decode(broker.sock)
     println("BROKER 2: $src_id, $dest_id, $message")
     encode(broker.sock, 2, src_id, "REPLY: $msg")
@@ -33,7 +32,6 @@ end
 yield()
 
 broker = Broker(1)
-println("BROKER 1 SOCK: $(object_id(broker.sock))")
 
 println("TEST: Sending message")
 encode(broker.sock, 1, 2, "helloworld!")
