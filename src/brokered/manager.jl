@@ -42,7 +42,12 @@ function connect(manager::BrokeredManager, pid::Int, config::WorkerConfig)
     end
 
     # Curt: I think this is just used by the manager
-    streams = setup_connection(get(manager.node), zid)
+    node = get(manager.node)
+    println("Connect $(node.id) -> $zid")
+    streams = get!(node.streams, zid) do
+        println("Establish connection $(node.id) -> $zid")
+        setup_connection(node, zid)
+    end
 
     udata = get(config.userdata)
     udata[:streams] = streams
