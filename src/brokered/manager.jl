@@ -2,13 +2,13 @@ import Base: launch, manage, connect, kill
 
 type BrokeredManager <: ClusterManager
     np::Int
-    node::Nullable{Node}
+    node::Node
 end
 
-BrokeredManager(np::Integer) = BrokeredManager(Int(np), Nullable(Node(0)))
+BrokeredManager(np::Integer) = BrokeredManager(Int(np), Node(0))
 
 function launch(manager::BrokeredManager, params::Dict, launched::Array, c::Condition)
-    node = get(manager.node)
+    node = manager.node
     @schedule while true
         (from_zid, data) = recv(node)
         println("MANAGER")
@@ -42,7 +42,7 @@ function connect(manager::BrokeredManager, pid::Int, config::WorkerConfig)
     end
 
     # Curt: I think this is just used by the manager
-    node = get(manager.node)
+    node = manager.node
     println("Connect $(node.id) -> $zid")
     streams = get!(node.streams, zid) do
         println("Establish connection $(node.id) -> $zid")
@@ -67,7 +67,7 @@ function kill(manager::BrokeredManager, pid::Int, config::WorkerConfig)
 
     # Terminate socket from manager to broker when all workers have been killed
     # Doesn't work?
-    node = get(manager.node)
+    node = manager.node
     if isempty(node.streams)
         close(node.sock)
     end
