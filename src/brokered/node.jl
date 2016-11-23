@@ -1,11 +1,11 @@
-type Broker
+type Node
     sock::TCPSocket
 end
 
-function Broker(id::Integer)
+function Node(id::Integer)
     sock = connect(2000)
     write(sock, UInt32(id))  # Register
-    return Broker(sock)
+    return Node(sock)
 end
 
 function encode(io::IO, src_id::Integer, dest_id::Integer, message::AbstractString)
