@@ -5,7 +5,7 @@ type BrokeredManager <: ClusterManager
     node::Node
 end
 
-BrokeredManager(np::Integer) = BrokeredManager(Int(np), Node(0))
+BrokeredManager(np::Integer) = BrokeredManager(Int(np), Node(1))
 
 function launch(manager::BrokeredManager, params::Dict, launched::Array, c::Condition)
     node = manager.node
@@ -22,7 +22,7 @@ function launch(manager::BrokeredManager, params::Dict, launched::Array, c::Cond
         # spawn(`$(params[:exename]) -e "using AWSClusterManagers; AWSClusterManagers.Brokered.start_worker($i, \"$(Base.cluster_cookie())\")"`)
 
         wconfig = WorkerConfig()
-        wconfig.userdata = Dict{Symbol,Any}(:id=>i)
+        wconfig.userdata = Dict{Symbol,Any}(:id=>i + 1)
         push!(launched, wconfig)
         notify(c)
     end

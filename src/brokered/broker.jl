@@ -77,7 +77,7 @@ function start_broker(port::Integer=2000)
 
         # Shutdown the server when all connections have terminated.
         # Note: I would prefer to throw an exception but it doesn't get caught by the loop
-        if isempty(mapping)
+        if isempty(mapping) || sock_id == 1
             close(server)
         end
     end
