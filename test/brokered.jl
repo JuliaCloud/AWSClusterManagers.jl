@@ -1,10 +1,10 @@
-import AWSClusterManagers.Brokered: encode, decode, Node, start_broker
+import AWSClusterManagers.Brokered: encode, decode, Node, start_broker, BrokeredManager
 
 @testset "encoding" begin
     io = IOBuffer()
     encode(io, 1, 2, "hello")
     seekstart(io)
-    src_id, dest_id, message = decode(io)
+    src_id, dest_id, message = decode(io, String)
 
     @test src_id == 1
     @test dest_id == 2
@@ -17,7 +17,7 @@ end
 
     node = Node(1)
     encode(node.sock, 1, 1, "helloworld!")
-    src_id, dest_id, message = decode(node.sock)
+    src_id, dest_id, message = decode(node.sock, String)
 
     @test src_id == 1
     @test dest_id == 1
@@ -33,19 +33,15 @@ end
 
     @schedule begin
         node_b = Node(2)
-        src_id, dest_id, msg = decode(node_b.sock)
+        src_id, dest_id, msg = decode(node_b.sock, String)
         encode(node_b.sock, 2, src_id, "REPLY: $msg")
         close(node_b.sock)
     end
     yield()
 
     node_a = Node(1)
-
-    println("TEST: Sending message")
     encode(node_a.sock, 1, 2, "helloworld!")
-    println("TEST: Awaiting response")
-    src_id, dest_id, message = decode(node_a.sock)
-    println("BROKER 1: $src_id, $dest_id, $message")
+    src_id, dest_id, message = decode(node_a.sock, String)
 
     @test src_id == 2
     @test dest_id == 1
@@ -53,4 +49,12 @@ end
 
     close(node_a.sock)
     wait(broker_task)
+end
+
+
+@testset "real" begin
+    broker_task = @schedule start_broker()
+    yield()
+
+    @test addprocs(BrokeredManager(2)) == [1, 2]
 end
