@@ -57,7 +57,7 @@ function setup_connection(node::Node, dest_id::Integer)
     node.streams[dest_id] = (read_stream, write_stream)
 
     # Transfer all data written to the write stream to the destination via the broker.
-    @schedule while true
+    @schedule while !eof(write_stream)
         data = readavailable(write_stream)
         println("Sending buffer $(node.id) -> $dest_id")
         send(node, dest_id, data)
