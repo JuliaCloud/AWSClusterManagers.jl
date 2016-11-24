@@ -39,9 +39,8 @@ function start_broker(port::Integer=2000)
 
             acquire(src.read_access)
             src_id, dest_id, message = decode(src.sock)
-            println("BROKER: $src_id -> $dest_id")
             release(src.read_access)
-            println("$src_id, $dest_id, $message")
+            println("$(now()) IN:   $src_id -> $dest_id")
 
             assert(src_id == sock_id)
 
@@ -53,12 +52,10 @@ function start_broker(port::Integer=2000)
             end
 
             if isopen(dest.sock)
-                println("Passing message along to $dest_id ($(object_id(dest.sock)))")
+                println("$(now()) OUT:  $src_id -> $dest_id")
                 acquire(dest.write_access)
-                println("BROKER: $src_id -> $dest_id")
                 encode(dest.sock, src_id, dest_id, message)
                 release(dest.write_access)
-                println("Message transferred")
             else
                 println("discarding")
             end
