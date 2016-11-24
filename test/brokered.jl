@@ -67,3 +67,5 @@ end
 #   Multiple workers start in an all-to-all
 # - `rmprocs`
 #   Sends an empty message which has been problematic in the past
+# - `rmprocs(X); addprocs(1)`
+#   Remove the last worker then add a worker. Could cause issues on the other remaining workers

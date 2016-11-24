@@ -36,6 +36,10 @@ function decode{T}(io::IO, ::Type{T})
     return (src_id, dest_id, T(content))
 end
 
+function encode(io::IO, src_id::Integer, dest_id::Integer, message::IO)
+    encode(io, src_id, dest_id, readavailable(message))
+end
+
 function send(node::Node, dest_id::Integer, content)
     encode(node.sock, node.id, dest_id, content)
 end
@@ -45,7 +49,16 @@ function recv(node::Node)
     return src_id, content
 end
 
+const DATA_MSG = 0x00
+const KILL_MSG = 0x01
 
+type Message
+    typ::UInt8
+    data::Vector{UInt8}
+end
+
+encode(msg::Message) = vcat(msg.typ, msg.data)
+decode(content::AbstractVector{UInt8}) = Message(content[1], content[2:end])
 
 
 function setup_connection(node::Node, dest_id::Integer)
@@ -60,7 +73,7 @@ function setup_connection(node::Node, dest_id::Integer)
     @schedule while !eof(write_stream)
         data = readavailable(write_stream)
         println("Sending buffer $(node.id) -> $dest_id")
-        send(node, dest_id, data)
+        send(node, dest_id, encode(Message(DATA_MSG, data)))
     end
 
     return (read_stream, write_stream)

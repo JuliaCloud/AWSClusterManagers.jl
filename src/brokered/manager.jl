@@ -11,11 +11,16 @@ function launch(manager::BrokeredManager, params::Dict, launched::Array, c::Cond
     node = manager.node
     @schedule while true
         (from_zid, data) = recv(node)
+        msg = decode(data)
         println("MANAGER")
 
         # TODO: Do what worker does?
-        (r_s, w_s) = node.streams[from_zid]
-        unsafe_write(r_s, pointer(data), length(data))
+        if msg.typ == DATA_MSG
+            (r_s, w_s) = node.streams[from_zid]
+            unsafe_write(r_s, pointer(msg.data), length(msg.data))
+        else
+            error("Unhandled message type: $(msg.typ)")
+        end
     end
 
     for i in 1:manager.np
@@ -69,6 +74,14 @@ function manage(manager::BrokeredManager, id::Int, config::WorkerConfig, op)
     #     # remove from our map
     #     delete!(manager.node.mapping, get(config.userdata)[:zid])
     # end
+
+    if op == :deregister
+        zid = get(config.userdata)[:id]
+        send(manager.node, zid, encode(Message(KILL_MSG, UInt8[])))
+
+        # TODO: Do we need to cleanup the streams to this worker which are on other remote
+        # workers?
+    end
 
     nothing
 end
