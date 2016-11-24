@@ -1,7 +1,5 @@
 import AWSClusterManagers.Brokered: encode, decode, Node, start_broker, BrokeredManager
 
-
-
 @testset "encoding" begin
     io = IOBuffer()
     encode(io, 1, 2, "hello")
@@ -53,13 +51,29 @@ end
     wait(broker_task)
 end
 
+spawn_broker() = spawn(`$(Base.julia_cmd()) -e "using AWSClusterManagers; AWSClusterManagers.Brokered.start_broker()"`)
+function spawn_worker(id, cookie=Base.cluster_cookie())
+    spawn(`$(Base.julia_cmd()) -e "using AWSClusterManagers; AWSClusterManagers.Brokered.start_worker($id, \"$cookie\")"`)
+end
+
 
 @testset "real" begin
-    broker_task = @schedule start_broker()
-    yield()
+    broker = spawn_broker()
+    sleep(5)
+    worker_processes = [spawn_worker(2), spawn_worker(3)]
+    sleep(5)
 
-    @test addprocs(BrokeredManager(2)) == [1, 2]
+    added = addprocs(BrokeredManager(2))
+    @test added == [2, 3]
+
+    map(rmprocs, added)
+
+    sleep(5)
+
+    @test workers() == [1]
 end
+
+
 
 
 # Tests to make

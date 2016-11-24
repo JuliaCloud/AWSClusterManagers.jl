@@ -3,13 +3,20 @@ import Base: launch, manage, connect, kill
 type BrokeredManager <: ClusterManager
     np::Int
     node::Node
+    launcher::Function
 end
 
-BrokeredManager(np::Integer) = BrokeredManager(Int(np), Node(1))
+function BrokeredManager(np::Integer; launcher::Function=(i,c) -> nothing)
+    BrokeredManager(Int(np), Node(1), launcher)
+end
+
+function BrokeredManager(np::Integer, node::Node)
+    BrokeredManager(Int(np), Node(1), (id,cookie) -> nothing)
+end
 
 function launch(manager::BrokeredManager, params::Dict, launched::Array, c::Condition)
     node = manager.node
-    @schedule while true
+    @schedule while !eof(node.sock)
         (from_zid, data) = recv(node)
         msg = decode(data)
         println("MANAGER")
@@ -25,6 +32,7 @@ function launch(manager::BrokeredManager, params::Dict, launched::Array, c::Cond
 
     for i in 1:manager.np
         # spawn(`$(params[:exename]) -e "using AWSClusterManagers; AWSClusterManagers.Brokered.start_worker($i, \"$(Base.cluster_cookie())\")"`)
+        manager.launcher(i, Base.cluster_cookie())
 
         wconfig = WorkerConfig()
         wconfig.userdata = Dict{Symbol,Any}(:id=>i + 1)
