@@ -71,6 +71,7 @@ decode(content::AbstractVector{UInt8}) = Message(content[1], content[2:end])
 
 const send_to_broker = Condition()
 
+
 function setup_connection(node::Node, dest_id::Integer)
     # read indicates data from the remote source to be processed by the current node
     # while write indicates data to be sent to the remote source

@@ -4,6 +4,9 @@ function start_worker(id::Integer, cookie::AbstractString)
     dummy = BrokeredManager(id, node)  # Needed for use in `connect`
     Base.init_worker(cookie, dummy)
 
+    # Inform the manager that the worker is ready
+    send(node, 1, encode(Message(HELLO_MSG, [])))
+
     while !eof(node.sock)
         from, data = recv(node)
         msg = decode(data)

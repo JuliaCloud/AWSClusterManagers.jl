@@ -16,6 +16,10 @@ end
 
 function launch(manager::BrokeredManager, params::Dict, launched::Array, c::Condition)
     node = manager.node
+
+    available_workers = 0
+    worker_up = Condition()
+
     @schedule while !eof(node.sock)
         (from_zid, data) = recv(node)
         msg = decode(data)
@@ -25,6 +29,9 @@ function launch(manager::BrokeredManager, params::Dict, launched::Array, c::Cond
         if msg.typ == DATA_MSG
             (r_s, w_s) = node.streams[from_zid]
             unsafe_write(r_s, pointer(msg.data), length(msg.data))
+        elseif msg.typ == HELLO_MSG
+            available_workers += 1
+            notify(worker_up)
         else
             error("Unhandled message type: $(msg.typ)")
         end
@@ -32,12 +39,18 @@ function launch(manager::BrokeredManager, params::Dict, launched::Array, c::Cond
 
     for i in 1:manager.np
         # spawn(`$(params[:exename]) -e "using AWSClusterManagers; AWSClusterManagers.Brokered.start_worker($i, \"$(Base.cluster_cookie())\")"`)
-        manager.launcher(i, Base.cluster_cookie())
+        id = i + 1
+        manager.launcher(id, Base.cluster_cookie())
 
         wconfig = WorkerConfig()
-        wconfig.userdata = Dict{Symbol,Any}(:id=>i + 1)
+        wconfig.userdata = Dict{Symbol,Any}(:id=>id)
         push!(launched, wconfig)
         notify(c)
+    end
+
+    # Wait until all requested workers are available.
+    while available_workers < manager.np
+        wait(worker_up)
     end
 end
 

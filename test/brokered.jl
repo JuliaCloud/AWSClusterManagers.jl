@@ -11,21 +11,21 @@ import AWSClusterManagers.Brokered: encode, decode, Node, start_broker, Brokered
     @test message == "hello"
 end
 
-@testset "send to self" begin
-    broker_task = @schedule start_broker()
-    yield()
+# @testset "send to self" begin
+#     broker_task = @schedule start_broker()
+#     yield()
 
-    node = Node(1)
-    encode(node.sock, 1, 1, "helloworld!")
-    src_id, dest_id, message = decode(node.sock, String)
+#     node = Node(1)
+#     encode(node.sock, 1, 1, "helloworld!")
+#     src_id, dest_id, message = decode(node.sock, String)
 
-    @test src_id == 1
-    @test dest_id == 1
-    @test message == "helloworld!"
+#     @test src_id == 1
+#     @test dest_id == 1
+#     @test message == "helloworld!"
 
-    close(node.sock)
-    wait(broker_task)
-end
+#     close(node.sock)
+#     wait(broker_task)
+# end
 
 # @testset "echo" begin
 #     broker_task = @schedule start_broker()
@@ -58,20 +58,20 @@ end
 
 
 @testset "real" begin
-    broker = spawn_broker()
-    sleep(2)
-    worker_processes = [spawn_worker(2), spawn_worker(3)]
-    sleep(2)
+    # broker = spawn_broker()
+    # worker_processes = [spawn_worker(2), spawn_worker(3)]
+    # sleep(2)
 
-    mgr = BrokeredManager(2)
+    mgr = BrokeredManager(2, launcher=spawn_worker)
     added = addprocs(mgr)
     @test added == [2, 3]
 
     map(rmprocs, added)
-    wait(mgr.node)
+    # wait(mgr.node)
 
-    kill(broker)
-    map(kill, worker_processes)
+    for p in worker_processes
+        wait(p)
+    end
 
     @test workers() == [1]
 
@@ -88,3 +88,4 @@ end
 #   Sends an empty message which has been problematic in the past
 # - `rmprocs(X); addprocs(1)`
 #   Remove the last worker then add a worker. Could cause issues on the other remaining workers
+# - launch without the broker
