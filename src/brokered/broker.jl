@@ -31,9 +31,8 @@ function start_broker(port::Integer=2000)
         end
 
 
-        count = 50
         # println("Awaiting outbound data from $sock_id")
-        while !eof(sock) && count > 0
+        while !eof(sock)
             src = mapping[sock_id]
             println("New data from $sock_id ($(object_id(src.sock)))")
 
@@ -58,11 +57,6 @@ function start_broker(port::Integer=2000)
                 release(dest.write_access)
             else
                 println("discarding")
-            end
-
-            count -= 1
-            if !(count > 0)
-                println("COUNT SAFE GUARD")
             end
         end
 
@@ -92,8 +86,4 @@ function start_broker(port::Integer=2000)
     finally
         close(server)
     end
-end
-
-function process(sock::TCPSocket)
-
 end
