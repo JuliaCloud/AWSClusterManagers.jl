@@ -57,28 +57,26 @@ function spawn_worker(id, cookie=Base.cluster_cookie())
 end
 
 
-# @testset "real" begin
+@testset "real" begin
     broker = spawn_broker()
-    sleep(5)
+    sleep(2)
     worker_processes = [spawn_worker(2), spawn_worker(3)]
-    sleep(5)
+    sleep(2)
 
-    added = addprocs(BrokeredManager(2))
+    mgr = BrokeredManager(2)
+    added = addprocs(mgr)
     @test added == [2, 3]
 
     map(rmprocs, added)
+    wait(mgr.node)
 
-    # sleep(5)
-
-    println("kill processes")
     kill(broker)
     map(kill, worker_processes)
-    # sleep(5)
 
     @test workers() == [1]
 
     println("Julia shutdown")
-# end
+end
 
 
 
