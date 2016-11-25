@@ -27,29 +27,29 @@ end
     wait(broker_task)
 end
 
-@testset "echo" begin
-    broker_task = @schedule start_broker()
-    yield()
+# @testset "echo" begin
+#     broker_task = @schedule start_broker()
+#     yield()
 
-    @schedule begin
-        node_b = Node(2)
-        src_id, dest_id, msg = decode(node_b.sock, String)
-        encode(node_b.sock, 2, src_id, "REPLY: $msg")
-        close(node_b.sock)
-    end
-    yield()
+#     @schedule begin
+#         node_b = Node(2)
+#         src_id, dest_id, msg = decode(node_b.sock, String)
+#         encode(node_b.sock, 2, src_id, "REPLY: $msg")
+#         close(node_b.sock)
+#     end
+#     yield()
 
-    node_a = Node(1)
-    encode(node_a.sock, 1, 2, "helloworld!")
-    src_id, dest_id, message = decode(node_a.sock, String)
+#     node_a = Node(1)
+#     encode(node_a.sock, 1, 2, "helloworld!")
+#     src_id, dest_id, message = decode(node_a.sock, String)
 
-    @test src_id == 2
-    @test dest_id == 1
-    @test message == "REPLY: helloworld!"
+#     @test src_id == 2
+#     @test dest_id == 1
+#     @test message == "REPLY: helloworld!"
 
-    close(node_a.sock)
-    wait(broker_task)
-end
+#     close(node_a.sock)
+#     wait(broker_task)
+# end
 
 spawn_broker() = spawn(`$(Base.julia_cmd()) -e "using AWSClusterManagers; AWSClusterManagers.Brokered.start_broker()"`)
 function spawn_worker(id, cookie=Base.cluster_cookie())
@@ -57,7 +57,7 @@ function spawn_worker(id, cookie=Base.cluster_cookie())
 end
 
 
-@testset "real" begin
+# @testset "real" begin
     broker = spawn_broker()
     sleep(5)
     worker_processes = [spawn_worker(2), spawn_worker(3)]
@@ -68,10 +68,17 @@ end
 
     map(rmprocs, added)
 
-    sleep(5)
+    # sleep(5)
+
+    println("kill processes")
+    kill(broker)
+    map(kill, worker_processes)
+    # sleep(5)
 
     @test workers() == [1]
-end
+
+    println("Julia shutdown")
+# end
 
 
 
