@@ -60,6 +60,7 @@ end
 
 const DATA_MSG = 0x00
 const KILL_MSG = 0x01
+const HELLO_MSG = 0x02
 
 type Message
     typ::UInt8
