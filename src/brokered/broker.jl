@@ -46,7 +46,8 @@ function start_broker(port::Integer=2000)
             if haskey(mapping, dest_id)
                 dest = mapping[dest_id]
             else
-                println("discarding")
+                println("discarding: $src_id -> $dest_id")
+                println(message)
                 continue
             end
 

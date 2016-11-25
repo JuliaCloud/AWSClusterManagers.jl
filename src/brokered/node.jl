@@ -1,13 +1,17 @@
+import Base: Semaphore
+
 type Node
     id::UInt32
     sock::TCPSocket
+    read_access::Semaphore
+    write_access::Semaphore
     streams::Dict{UInt32,Tuple{IO,IO}}
 end
 
 function Node(id::Integer)
     sock = connect(2000)
     write(sock, UInt32(id))  # Register
-    return Node(id, sock, Dict{UInt32,Tuple{IO,IO}}())
+    return Node(id, sock, Semaphore(1), Semaphore(1), Dict{UInt32,Tuple{IO,IO}}())
 end
 
 function encode(io::IO, src_id::Integer, dest_id::Integer, content::AbstractVector{UInt8})
@@ -41,11 +45,16 @@ function encode(io::IO, src_id::Integer, dest_id::Integer, message::IO)
 end
 
 function send(node::Node, dest_id::Integer, content)
+    # println("SENDING: $content")
+    acquire(node.write_access)
     encode(node.sock, node.id, dest_id, content)
+    release(node.write_access)
 end
 
 function recv(node::Node)
+    acquire(node.read_access)
     src_id, dest_id, content = decode(node.sock)
+    release(node.read_access)
     return src_id, content
 end
 
@@ -78,5 +87,3 @@ function setup_connection(node::Node, dest_id::Integer)
 
     return (read_stream, write_stream)
 end
-
-
