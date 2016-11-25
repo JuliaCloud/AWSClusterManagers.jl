@@ -69,7 +69,7 @@ function connect(manager::BrokeredManager, pid::Int, config::WorkerConfig)
 end
 
 function manage(manager::BrokeredManager, id::Int, config::WorkerConfig, op)
-    println("manager: $op")
+    # println("manager: $op")
     # if op == :interrupt
     #     zid = get(config.userdata)[:zid]
     #     send(manager.node, zid, CONTROL_MSG, KILL_MSG)

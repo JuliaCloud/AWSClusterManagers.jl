@@ -66,6 +66,7 @@ function start_broker(port::Integer=2000)
         # Shutdown the server when all connections have terminated.
         # Note: I would prefer to throw an exception but it doesn't get caught by the loop
         if isempty(mapping)
+            println("All connections terminated. Shutting down broker")
             close(server)
         end
     end
@@ -73,6 +74,7 @@ function start_broker(port::Integer=2000)
     try
         while true
             sock = accept(server)
+            println("accept new connection")
 
             # Note: Using a function here instead of a block as it seems to solve the issue
             # with duplicate sockets.
