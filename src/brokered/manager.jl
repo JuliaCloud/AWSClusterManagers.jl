@@ -11,7 +11,7 @@ function BrokeredManager(np::Integer; launcher::Function=(i,c) -> nothing)
 end
 
 function BrokeredManager(np::Integer, node::Node)
-    BrokeredManager(Int(np), Node(1), (id,cookie) -> nothing)
+    BrokeredManager(Int(np), node, (id,cookie) -> nothing)
 end
 
 function launch(manager::BrokeredManager, params::Dict, launched::Array, c::Condition)
