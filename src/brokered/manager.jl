@@ -98,20 +98,39 @@ function manage(manager::BrokeredManager, id::Int, config::WorkerConfig, op)
     #     delete!(manager.node.mapping, get(config.userdata)[:zid])
     # end
 
-    if op == :deregister
-        zid = get(config.userdata)[:id]
-        send(manager.node, zid, encode(Message(KILL_MSG, UInt8[])))
+    # if op == :deregister
+    #     # zid = get(config.userdata)[:id]
+    #     # send(manager.node, zid, encode(Message(KILL_MSG, UInt8[])))
 
-        # TODO: Do we need to cleanup the streams to this worker which are on other remote
-        # workers?
-    end
+    #     # TODO: Do we need to cleanup the streams to this worker which are on other remote
+    #     # workers?
+    # elseif op == :finalize
+    #     zid = get(config.userdata)[:id]
+    #     send(manager.node, zid, encode(Message(KILL_MSG, UInt8[])))
+
+    #     # TODO: Need to clear out mapping on workers?
+    #     (r_s, w_s) = manager.node.streams[zid]
+    #     close(r_s)
+    #     close(w_s)
+
+    #     # remove from our map
+    #     delete!(manager.node.streams, zid)
+
+    #     # TODO: Receive response?
+    # end
 
     nothing
 end
 
 function kill(manager::BrokeredManager, pid::Int, config::WorkerConfig)
-    # send(manager.node, get(config.userdata)[:id], CONTROL_MSG, KILL_MSG)
-    (r_s, w_s) = get(config.userdata)[:streams]
+    println("MGR: kill")
+    zid = get(config.userdata)[:id]
+
+    # TODO: I'm worried about the connection being terminated before the message is sent...
+    send(manager.node, zid, encode(Message(KILL_MSG, UInt8[])))
+
+    # Remove the streams from the node and close them
+    (r_s, w_s) = pop!(manager.node.streams, zid)
     close(r_s)
     close(w_s)
 
