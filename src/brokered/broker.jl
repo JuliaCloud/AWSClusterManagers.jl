@@ -15,7 +15,7 @@ function start_broker(port::Integer=2000; self_terminate=false)
         # Registration should happen before the async block otherwise we could associate
         # an ID with the wrong socket.
         sock_id = read(sock, UInt128)
-        println("Registered: $sock_id")
+        info("Register: $sock_id")
         mapping[sock_id] = BrokeredNode(sock)
 
         k = collect(keys(mapping))
@@ -26,48 +26,41 @@ function start_broker(port::Integer=2000; self_terminate=false)
             end
         end
 
-        for (k, v) in mapping
-            println("$k: $v, $(object_id(v.sock))")
-        end
-
-
         # println("Awaiting outbound data from $sock_id")
         while !eof(sock)
             src = mapping[sock_id]
-            println("New data from $sock_id ($(object_id(src.sock)))")
 
             acquire(src.read_access)
             src_id, dest_id, message = decode(src.sock)
             release(src.read_access)
-            println("$(now()) IN:   $src_id -> $dest_id")
+            debug("IN:      $src_id -> $dest_id ($(length(message)))")
 
             assert(src_id == sock_id)
 
             if haskey(mapping, dest_id)
                 dest = mapping[dest_id]
             else
-                println("discarding: $src_id -> $dest_id")
-                println(message)
+                debug("DISCARD: $src_id -> $dest_id")
                 continue
             end
 
             if isopen(dest.sock)
-                println("$(now()) OUT:  $src_id -> $dest_id")
+                debug("OUT:     $src_id -> $dest_id")
                 acquire(dest.write_access)
                 encode(dest.sock, src_id, dest_id, message)
                 release(dest.write_access)
             else
-                println("discarding")
+                debug("TERM:    $src_id -> $dest_id")
             end
         end
 
-        println("Deregistered: $sock_id")
+        info("Deregister: $sock_id")
         delete!(mapping, sock_id)
 
         # Shutdown the server when all connections have terminated.
         # Note: I would prefer to throw an exception but it doesn't get caught by the loop
         if isempty(mapping) && self_terminate
-            println("All connections terminated. Shutting down broker")
+            info("All connections terminated. Shutting down broker")
             close(server)
         end
     end
@@ -75,7 +68,6 @@ function start_broker(port::Integer=2000; self_terminate=false)
     try
         while true
             sock = accept(server)
-            println("accept new connection")
 
             # Note: Using a function here instead of a block as it seems to solve the issue
             # with duplicate sockets.

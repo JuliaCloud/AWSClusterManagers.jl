@@ -29,7 +29,6 @@ function close(node::Node)
 end
 
 function encode(io::IO, src_id::Integer, dest_id::Integer, content::AbstractVector{UInt8})
-    println("$(now()) SEND: $(src_id) -> $dest_id ($(length(content)))")
     write(io, UInt128(dest_id))
     write(io, UInt128(src_id))
     write(io, UInt64(length(content)))
@@ -97,7 +96,7 @@ function setup_connection(node::Node, dest_id::Integer)
 
     # Transfer all data written to the write stream to the destination via the broker.
     @schedule while !eof(write_stream) && isopen(node.sock)
-        println("Sending buffer $(node.id) -> $dest_id")
+        debug("Transfer $(node.id) -> $dest_id")
         data = readavailable(write_stream)
         send(node, dest_id, encode(Message(DATA_MSG, data)))
         notify(send_to_broker)

@@ -10,9 +10,10 @@ function start_worker(id::Integer, cookie::AbstractString)
     while !eof(node.sock)
         from, data = recv(node)
         msg = decode(data)
-        println("WORKER")
 
         if msg.typ == DATA_MSG
+            debug("Receive DATA from $from")
+
             # Note: To keep compatibility with the underlying ClusterManager implementation we
             # need to have incoming/outgoing streams. Typically these streams are created in
             # `connect` when initiating a connection to a worker but it also needs to be done
@@ -26,6 +27,7 @@ function start_worker(id::Integer, cookie::AbstractString)
 
             unsafe_write(read_stream, pointer(msg.data), length(msg.data))
         elseif msg.typ == KILL_MSG
+            debug("Receive KILL from $from")
             break
         else
             error("Unhandled message type: $(msg.typ)")

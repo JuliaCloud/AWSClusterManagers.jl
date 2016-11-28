@@ -40,13 +40,16 @@ function launch(manager::BrokeredManager, params::Dict, launched::Array, c::Cond
         while !eof(node.sock)
             (from_zid, data) = recv(node)
             msg = decode(data)
-            println("MANAGER")
 
             # TODO: Do what worker does?
             if msg.typ == DATA_MSG
+                debug("Receive DATA from $from_zid")
+
                 (r_s, w_s) = node.streams[from_zid]
                 unsafe_write(r_s, pointer(msg.data), length(msg.data))
             elseif msg.typ == HELLO_MSG
+                debug("Receive HELLO from $from_zid")
+
                 available_workers += 1
 
                 # `launched` is treated as a queue and will have elements removed from it
@@ -95,9 +98,8 @@ function connect(manager::BrokeredManager, pid::Int, config::WorkerConfig)
 
     # Curt: I think this is just used by the manager
     node = manager.node
-    println("Connect $(node.id) -> $zid")
     streams = get!(node.streams, zid) do
-        println("Establish connection $(node.id) -> $zid")
+        info("Connect $(node.id) -> $zid")
         setup_connection(node, zid)
     end
 
@@ -147,10 +149,10 @@ function manage(manager::BrokeredManager, id::Int, config::WorkerConfig, op)
 end
 
 function kill(manager::BrokeredManager, pid::Int, config::WorkerConfig)
-    println("MGR: kill")
     zid = get(config.userdata)[:id]
 
     # TODO: I'm worried about the connection being terminated before the message is sent...
+    info("Send KILL to $zid")
     send(manager.node, zid, encode(Message(KILL_MSG, UInt8[])))
 
     # Remove the streams from the node and close them
