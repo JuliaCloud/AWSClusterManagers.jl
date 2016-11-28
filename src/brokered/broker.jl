@@ -18,10 +18,12 @@ function start_broker(port::Integer=2000; self_terminate=false)
         info("Register: $sock_id")
         mapping[sock_id] = BrokeredNode(sock)
 
+        # `@async` can act strangely sometimes where the same socket can get accidentally
+        # mapped to different identifiers.
         k = collect(keys(mapping))
         n = length(k)
         for i = 1:n - 1, j = i + 1:n
-            if mapping[k[i]].sock == mapping[k[j]].sock
+            if mapping[k[i]].sock === mapping[k[j]].sock
                 error("duplicate socket detected")
             end
         end
@@ -35,6 +37,7 @@ function start_broker(port::Integer=2000; self_terminate=false)
             release(src.read_access)
             debug("IN:      $src_id -> $dest_id ($(length(message)))")
 
+            # The reported source ID should match the registered ID for the socket
             assert(src_id == sock_id)
 
             if haskey(mapping, dest_id)
