@@ -10,12 +10,17 @@ end
 
 function Node(id::Integer)
     sock = connect(2000)
+
+    # Trying this to keep the connection open while data needs to be send
+    # Base.disable_nagle(sock)
+    # Base.wait_connected(sock)
+
     write(sock, UInt32(id))  # Register
     return Node(id, sock, Semaphore(1), Semaphore(1), Dict{UInt32,Tuple{IO,IO}}())
 end
 
 function encode(io::IO, src_id::Integer, dest_id::Integer, content::AbstractVector{UInt8})
-    # println("$(now()) SEND: $(src_id) -> $dest_id ($(length(content)))")
+    println("$(now()) SEND: $(src_id) -> $dest_id ($(length(content)))")
     write(io, UInt32(dest_id))
     write(io, UInt32(src_id))
     write(io, UInt32(length(content)))
