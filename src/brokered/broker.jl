@@ -8,13 +8,13 @@ type BrokeredNode
 end
 
 function start_broker(port::Integer=2000; self_terminate=false)
-    mapping = Dict{UInt32,BrokeredNode}()
+    mapping = Dict{UInt128,BrokeredNode}()
     server = listen(port)
 
     function process(sock)
         # Registration should happen before the async block otherwise we could associate
         # an ID with the wrong socket.
-        sock_id = read(sock, UInt32)
+        sock_id = read(sock, UInt128)
         println("Registered: $sock_id")
         mapping[sock_id] = BrokeredNode(sock)
 
