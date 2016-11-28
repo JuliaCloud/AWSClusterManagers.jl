@@ -51,34 +51,81 @@ end
 #     wait(broker_task)
 # end
 
-spawn_broker() = spawn(`$(Base.julia_cmd()) -e "using AWSClusterManagers; AWSClusterManagers.Brokered.start_broker()"`)
+function spawn_broker(; self_terminate=true)
+    broker = spawn(`$(Base.julia_cmd()) -e "using AWSClusterManagers; AWSClusterManagers.Brokered.start_broker(self_terminate=$self_terminate)"`)
+
+    # Wait until the broker is ready
+    # TODO: Find better way of waiting for broker to be connectable
+    while true
+        try
+            sock = connect(2000)
+            close(sock)
+            break
+        catch
+            sleep(0.2)
+        end
+    end
+
+    return broker
+end
+
 function spawn_worker(id, cookie=Base.cluster_cookie())
     spawn(`$(Base.julia_cmd()) -e "using AWSClusterManagers; AWSClusterManagers.Brokered.start_worker($id, \"$cookie\")"`)
 end
 
 
-@testset "real" begin
-    # broker = spawn_broker()
-    # worker_processes = [spawn_worker(2), spawn_worker(3)]
-    # sleep(2)
+@testset "all-to-all" begin
+    broker = spawn_broker()
 
-    mgr = BrokeredManager(2, launcher=spawn_worker)
-    added = addprocs(mgr)
+    # Add two workers which will connect to each other
+    added = addprocs(BrokeredManager(2, launcher=spawn_worker))
     @test added == [2, 3]
 
+    # Each node can talk to each other node
+    @test remotecall_fetch(myid, 2) == 2
+    @test remotecall_fetch(myid, 3) == 3
+    @test remotecall_fetch(() -> remotecall_fetch(myid, 1), 2) == 1
+    @test remotecall_fetch(() -> remotecall_fetch(myid, 3), 2) == 3
+    @test remotecall_fetch(() -> remotecall_fetch(myid, 1), 3) == 1
+    @test remotecall_fetch(() -> remotecall_fetch(myid, 2), 3) == 2
+
+    # Remove the two workers
     map(rmprocs, added)
-    # wait(mgr.node)
-
-    for p in worker_processes
-        wait(p)
-    end
-
     @test workers() == [1]
 
-    println("Julia shutdown")
+    kill(broker)
 end
 
+# @testset "empty" begin
+#     broker = spawn_broker()
 
+#     # Add two workers which will connect to each other
+#     mgr = BrokeredManager(1, launcher=spawn_worker)
+#     addprocs(mgr)
+
+#     r_s, w_s = mgr.node.streams[2]  # Access the read/write streams for node 2
+#     write(w_s, UInt8[])
+#     yield()
+
+#     sleep(5)
+
+#     kill(broker)
+# end
+
+@testset "add and remove" begin
+    broker = spawn_broker(self_terminate=false)
+
+    added = addprocs(BrokeredManager(2, launcher=spawn_worker))
+    @test workers() == [2, 3]
+
+    rmprocs(3)
+    @test workers() == [2]
+
+    added = addprocs(BrokeredManager(1, launcher=spawn_worker))
+    @test workers() == [2, 4]
+
+    kill(broker)
+end
 
 
 # Tests to make
@@ -89,3 +136,4 @@ end
 # - `rmprocs(X); addprocs(1)`
 #   Remove the last worker then add a worker. Could cause issues on the other remaining workers
 # - launch without the broker
+# - clean shutdown

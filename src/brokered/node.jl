@@ -89,7 +89,7 @@ function setup_connection(node::Node, dest_id::Integer)
     # Transfer all data written to the write stream to the destination via the broker.
     @schedule while !eof(write_stream) && isopen(node.sock)
         data = readavailable(write_stream)
-        println("Sending buffer $(node.id) -> $dest_id")
+        println("Sending buffer $(node.id) -> $dest_id ($(length(data)))")
         send(node, dest_id, encode(Message(DATA_MSG, data)))
         notify(send_to_broker)
     end

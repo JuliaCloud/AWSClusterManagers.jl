@@ -7,7 +7,7 @@ type BrokeredNode
     BrokeredNode(sock::TCPSocket) = new(sock, Semaphore(1), Semaphore(1))
 end
 
-function start_broker(port::Integer=2000)
+function start_broker(port::Integer=2000; self_terminate=false)
     mapping = Dict{UInt32,BrokeredNode}()
     server = listen(port)
 
@@ -66,7 +66,7 @@ function start_broker(port::Integer=2000)
 
         # Shutdown the server when all connections have terminated.
         # Note: I would prefer to throw an exception but it doesn't get caught by the loop
-        if isempty(mapping)
+        if isempty(mapping) && self_terminate
             println("All connections terminated. Shutting down broker")
             close(server)
         end
