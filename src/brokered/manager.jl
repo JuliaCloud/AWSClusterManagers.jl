@@ -36,28 +36,36 @@ function launch(manager::BrokeredManager, params::Dict, launched::Array, c::Cond
     node = manager.node
     available_workers = 0
 
-    @schedule while !eof(node.sock)
-        (from_zid, data) = recv(node)
-        msg = decode(data)
-        println("MANAGER")
+    @schedule begin
+        while !eof(node.sock)
+            (from_zid, data) = recv(node)
+            msg = decode(data)
+            println("MANAGER")
 
-        # TODO: Do what worker does?
-        if msg.typ == DATA_MSG
-            (r_s, w_s) = node.streams[from_zid]
-            unsafe_write(r_s, pointer(msg.data), length(msg.data))
-        elseif msg.typ == HELLO_MSG
-            available_workers += 1
+            # TODO: Do what worker does?
+            if msg.typ == DATA_MSG
+                (r_s, w_s) = node.streams[from_zid]
+                unsafe_write(r_s, pointer(msg.data), length(msg.data))
+            elseif msg.typ == HELLO_MSG
+                available_workers += 1
 
-            # `launched` is treated as a queue and will have elements removed from it
-            # periodically. Once an element is removed from the queue the manager will call
-            # `connect` and send initial information to the worker.
-            wconfig = WorkerConfig()
-            wconfig.userdata = Dict{Symbol,Any}(:id=>from_zid)
-            push!(launched, wconfig)
-            notify(c)
-        else
-            error("Unhandled message type: $(msg.typ)")
+                # `launched` is treated as a queue and will have elements removed from it
+                # periodically. Once an element is removed from the queue the manager will call
+                # `connect` and send initial information to the worker.
+                wconfig = WorkerConfig()
+                wconfig.userdata = Dict{Symbol,Any}(:id=>from_zid)
+                push!(launched, wconfig)
+                notify(c)
+            else
+                error("Unhandled message type: $(msg.typ)")
+            end
         end
+
+        # Close all remaining connections when the broker connection is terminated. This
+        # will ensure that the local references to the workers are cleaned up.
+        # Will generate "ERROR (unhandled task failure): EOFError: read end of file" when
+        # the worker connection is severed.
+        close(node)
     end
 
     # Note: The manager doesn't have to assign the broker ID. The workers could actually

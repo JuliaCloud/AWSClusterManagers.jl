@@ -1,4 +1,4 @@
-import Base: Semaphore
+import Base: Semaphore, close
 
 type Node
     id::UInt32
@@ -17,6 +17,15 @@ function Node(id::Integer)
 
     write(sock, UInt32(id))  # Register
     return Node(id, sock, Semaphore(1), Semaphore(1), Dict{UInt32,Tuple{IO,IO}}())
+end
+
+function close(node::Node)
+    for (read_stream, write_stream) in values(node.streams)
+        close(read_stream)
+        close(write_stream)
+    end
+
+    close(node.sock)
 end
 
 function encode(io::IO, src_id::Integer, dest_id::Integer, content::AbstractVector{UInt8})
@@ -88,8 +97,8 @@ function setup_connection(node::Node, dest_id::Integer)
 
     # Transfer all data written to the write stream to the destination via the broker.
     @schedule while !eof(write_stream) && isopen(node.sock)
+        println("Sending buffer $(node.id) -> $dest_id")
         data = readavailable(write_stream)
-        println("Sending buffer $(node.id) -> $dest_id ($(length(data)))")
         send(node, dest_id, encode(Message(DATA_MSG, data)))
         notify(send_to_broker)
     end

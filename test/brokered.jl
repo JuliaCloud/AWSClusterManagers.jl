@@ -95,6 +95,7 @@ end
 
 
 @testset "all-to-all" begin
+    reset_next_pid()
     broker = spawn_broker()
 
     # Add two workers which will connect to each other
@@ -117,25 +118,56 @@ end
     kill(broker)
 end
 
-# @testset "empty" begin
-#     broker = spawn_broker()
+@testset "broker shutdown" begin
+    reset_next_pid()
+    broker = spawn_broker()
+    @test process_running(broker)
 
-#     # Add two workers which will connect to each other
-#     mgr = BrokeredManager(1, launcher=spawn_worker)
-#     addprocs(mgr)
+    mgr = BrokeredManager(2, launcher=(id, cookie) -> nothing)
 
-#     r_s, w_s = mgr.node.streams[2]  # Access the read/write streams for node 2
-#     write(w_s, UInt8[])
-#     yield()
+    # Add workers manually so that we have access to their processes
+    launch = @schedule addprocs(mgr)
+    worker_a = spawn_worker(2, Base.cluster_cookie())
+    worker_b = spawn_worker(3, Base.cluster_cookie())
+    wait(launch)  # will complete once the workers have connected to the manager
 
-#     sleep(5)
+    @test workers() == [2, 3]
 
-#     kill(broker)
-# end
+    # Cause an abrupt shutdown of the broker. Will cause the following error(s) to occur:
+    # "ERROR (unhandled task failure): EOFError: read end of file"
+    kill(broker)
+
+    # TODO: Timed wait?
+    println("waiting")
+    wait(worker_a)
+    wait(worker_b)
+    @test process_exited(worker_a)
+    @test process_exited(worker_b)
+    @test workers() == [1]
+end
+
+exit()
+
+# During development there were issues with empty messages causing infinite loops. This test
+# should reproduce the problem but hasn't demonstrated the issue yet.
+@testset "empty" begin
+    reset_next_pid()
+    broker = spawn_broker()
+
+    # Add two workers which will connect to each other
+    mgr = BrokeredManager(1, launcher=spawn_worker)
+    addprocs(mgr)
+
+    r_s, w_s = first(values(mgr.node.streams))  # Access the read/write streams for the added worker
+    write(w_s, UInt8[])
+    yield()
+
+    kill(broker)
+end
 
 @testset "add and remove" begin
     reset_next_pid()
-    broker = spawn_broker(self_terminate=false)
+    broker = spawn_broker()
 
     added = addprocs(BrokeredManager(2, launcher=spawn_worker))
     @test workers() == [2, 3]
@@ -149,13 +181,7 @@ end
     kill(broker)
 end
 
-
-# Tests to make
-# - `addprocs(BrokeredManager(2))`
-#   Multiple workers start in an all-to-all
-# - `rmprocs`
-#   Sends an empty message which has been problematic in the past
-# - `rmprocs(X); addprocs(1)`
-#   Remove the last worker then add a worker. Could cause issues on the other remaining workers
-# - launch without the broker
-# - clean shutdown
+# @testset "brokerless" begin
+#     reset_next_pid()
+#     added = addprocs(BrokeredManager(1, launcher=spawn_worker))
+# end
