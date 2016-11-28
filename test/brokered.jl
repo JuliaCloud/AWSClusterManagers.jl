@@ -123,7 +123,6 @@ end
 @testset "broker shutdown" begin
     reset_next_pid()
     broker = spawn_broker()
-    @test process_running(broker)
 
     mgr = BrokeredManager(2, launcher=(id, cookie) -> nothing)
 
@@ -137,10 +136,9 @@ end
 
     # Cause an abrupt shutdown of the broker. Will cause the following error(s) to occur:
     # "ERROR (unhandled task failure): EOFError: read end of file"
+    assert(process_running(broker))  # Ensure we can actually kill the broker
     kill(broker)
 
-    # TODO: Timed wait?
-    println("waiting")
     wait(worker_a)
     wait(worker_b)
     @test process_exited(worker_a)
