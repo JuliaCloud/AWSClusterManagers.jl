@@ -18,6 +18,20 @@ function spawn_local_worker(id, cookie)
     spawn(`$(Base.julia_cmd()) -e "using AWSClusterManagers; AWSClusterManagers.Brokered.start_worker($id, \"$cookie\")"`)
 end
 
+let next_id = 2    # 1 is reserved for the client (always)
+    global get_next_broker_id
+    function get_next_broker_id()
+        id = next_id
+        next_id += 1
+        id
+    end
+
+    global reset_broker_id
+    function reset_broker_id()
+        next_id = 2
+    end
+end
+
 function launch(manager::BrokeredManager, params::Dict, launched::Array, c::Condition)
     node = manager.node
     available_workers = 0
@@ -46,8 +60,10 @@ function launch(manager::BrokeredManager, params::Dict, launched::Array, c::Cond
         end
     end
 
+    # Note: The manager doesn't have to assign the broker ID. The workers could actually
+    # self assign their own IDs as long as they are unique within the cluster.
     for i in 1:manager.np
-        manager.launcher(i + 1, Base.cluster_cookie())
+        manager.launcher(get_next_broker_id(), Base.cluster_cookie())
     end
 
     # Wait until all requested workers are available.

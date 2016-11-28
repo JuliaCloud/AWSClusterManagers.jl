@@ -1,4 +1,24 @@
-import AWSClusterManagers.Brokered: encode, decode, Node, start_broker, BrokeredManager
+import AWSClusterManagers.Brokered: encode, decode, Node, start_broker, BrokeredManager, reset_broker_id
+
+# Override the `get_next_pid` function such that we can reset the PID to appear that we're
+# running in a new Julia session. Assists in test case maintainence as without this we would
+# have to keep incrementing worker ID values.
+let next_pid = 2    # 1 is reserved for the client (always)
+    global get_next_pid
+    function get_next_pid()
+        pid = next_pid
+        next_pid += 1
+        pid
+    end
+
+    global reset_next_pid
+    function reset_next_pid()
+        next_pid = 2
+        empty!(Base.map_del_wrkr)
+        nothing
+    end
+end
+Base.get_next_pid() = get_next_pid()
 
 @testset "encoding" begin
     io = IOBuffer()
@@ -91,7 +111,7 @@ end
 
     # Remove the two workers
     map(rmprocs, added)
-    @test workers() == [1]
+    @test workers() == [1]  # TODO: Wrong?
 
     kill(broker)
 end
@@ -113,12 +133,14 @@ end
 # end
 
 @testset "add and remove" begin
+    reset_next_pid()
     broker = spawn_broker(self_terminate=false)
 
     added = addprocs(BrokeredManager(2, launcher=spawn_worker))
     @test workers() == [2, 3]
 
     rmprocs(3)
+    sleep(2)
     @test workers() == [2]
 
     added = addprocs(BrokeredManager(1, launcher=spawn_worker))
