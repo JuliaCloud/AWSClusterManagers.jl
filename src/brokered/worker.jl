@@ -1,7 +1,7 @@
 function start_worker(id::Integer, cookie::AbstractString)
     #println("start_worker")
     node = Node(id)
-    dummy = BrokeredManager(id, node)  # Needed for use in `connect`
+    dummy = BrokeredManager(node)  # Needed for use in `connect`
     Base.init_worker(cookie, dummy)
 
     # Inform the manager that the worker is ready

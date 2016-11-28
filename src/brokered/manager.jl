@@ -10,8 +10,8 @@ function BrokeredManager(np::Integer; launcher::Function=spawn_local_worker)
     BrokeredManager(Int(np), Node(1), launcher)
 end
 
-function BrokeredManager(np::Integer, node::Node)
-    BrokeredManager(Int(np), node, (id,cookie) -> nothing)
+function BrokeredManager(node::Node)
+    BrokeredManager(0, node, (id,cookie) -> nothing)
 end
 
 function spawn_local_worker(id, cookie)
