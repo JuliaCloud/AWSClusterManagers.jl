@@ -98,6 +98,7 @@ end
     broker = spawn_broker()
 
     # Add two workers which will connect to each other
+    @test workers() == [1]
     added = addprocs(BrokeredManager(2, launcher=spawn_worker))
     @test added == [2, 3]
 
@@ -111,7 +112,7 @@ end
 
     # Remove the two workers
     map(rmprocs, added)
-    @test workers() == [1]  # TODO: Wrong?
+    @test workers() == [1]
 
     kill(broker)
 end
@@ -139,8 +140,7 @@ end
     added = addprocs(BrokeredManager(2, launcher=spawn_worker))
     @test workers() == [2, 3]
 
-    rmprocs(3)
-    sleep(2)
+    rmprocs(3); yield()
     @test workers() == [2]
 
     added = addprocs(BrokeredManager(1, launcher=spawn_worker))
