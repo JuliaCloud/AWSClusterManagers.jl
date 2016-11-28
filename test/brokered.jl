@@ -1,4 +1,7 @@
 import AWSClusterManagers.Brokered: encode, decode, Node, start_broker, BrokeredManager, reset_broker_id
+import Lumberjack: remove_truck
+
+remove_truck("console")  # Disable logging
 
 # Override the `get_next_pid` function such that we can reset the PID to appear that we're
 # running in a new Julia session. Assists in test case maintainence as without this we would
