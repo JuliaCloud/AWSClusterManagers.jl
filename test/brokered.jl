@@ -20,57 +20,6 @@ let next_pid = 2    # 1 is reserved for the client (always)
 end
 Base.get_next_pid() = get_next_pid()
 
-@testset "encoding" begin
-    io = IOBuffer()
-    encode(io, 1, 2, "hello")
-    seekstart(io)
-    src_id, dest_id, message = decode(io, String)
-
-    @test src_id == 1
-    @test dest_id == 2
-    @test message == "hello"
-end
-
-# @testset "send to self" begin
-#     broker_task = @schedule start_broker()
-#     yield()
-
-#     node = Node(1)
-#     encode(node.sock, 1, 1, "helloworld!")
-#     src_id, dest_id, message = decode(node.sock, String)
-
-#     @test src_id == 1
-#     @test dest_id == 1
-#     @test message == "helloworld!"
-
-#     close(node.sock)
-#     wait(broker_task)
-# end
-
-# @testset "echo" begin
-#     broker_task = @schedule start_broker()
-#     yield()
-
-#     @schedule begin
-#         node_b = Node(2)
-#         src_id, dest_id, msg = decode(node_b.sock, String)
-#         encode(node_b.sock, 2, src_id, "REPLY: $msg")
-#         close(node_b.sock)
-#     end
-#     yield()
-
-#     node_a = Node(1)
-#     encode(node_a.sock, 1, 2, "helloworld!")
-#     src_id, dest_id, message = decode(node_a.sock, String)
-
-#     @test src_id == 2
-#     @test dest_id == 1
-#     @test message == "REPLY: helloworld!"
-
-#     close(node_a.sock)
-#     wait(broker_task)
-# end
-
 function spawn_broker(; self_terminate=true)
     broker = spawn(`$(Base.julia_cmd()) -e "using AWSClusterManagers; AWSClusterManagers.Brokered.start_broker(self_terminate=$self_terminate)"`)
 
@@ -91,6 +40,56 @@ end
 
 function spawn_worker(id, cookie=Base.cluster_cookie())
     spawn(`$(Base.julia_cmd()) -e "using AWSClusterManagers; AWSClusterManagers.Brokered.start_worker($id, \"$cookie\")"`)
+end
+
+
+@testset "encoding" begin
+    io = IOBuffer()
+    encode(io, 1, 2, "hello")
+    seekstart(io)
+    src_id, dest_id, message = decode(io, String)
+
+    @test src_id == 1
+    @test dest_id == 2
+    @test message == "hello"
+end
+
+@testset "send to self" begin
+    broker = spawn_broker()
+
+    node = Node(1)
+    encode(node.sock, 1, 1, "helloworld!")
+    src_id, dest_id, message = decode(node.sock, String)
+
+    @test src_id == 1
+    @test dest_id == 1
+    @test message == "helloworld!"
+
+    close(node.sock)
+    kill(broker)
+end
+
+@testset "echo" begin
+    broker = spawn_broker()
+
+    @schedule begin
+        node_b = Node(2)
+        src_id, dest_id, msg = decode(node_b.sock, String)
+        encode(node_b.sock, 2, src_id, "REPLY: $msg")
+        close(node_b.sock)
+    end
+    yield()
+
+    node_a = Node(1)
+    encode(node_a.sock, 1, 2, "helloworld!")
+    src_id, dest_id, message = decode(node_a.sock, String)
+
+    @test src_id == 2
+    @test dest_id == 1
+    @test message == "REPLY: helloworld!"
+
+    close(node_a.sock)
+    kill(broker)
 end
 
 
