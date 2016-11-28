@@ -59,9 +59,9 @@ function encode(io::IO, src_id::Integer, dest_id::Integer, message::IO)
 end
 
 function send(node::Node, dest_id::Integer, content)
-    # println("SENDING: $content")
+    # By the time we acquire the lock the socket may have been closed.
     acquire(node.write_access)
-    encode(node.sock, node.id, dest_id, content)
+    isopen(node.sock) && encode(node.sock, node.id, dest_id, content)
     release(node.write_access)
 end
 

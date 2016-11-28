@@ -112,7 +112,7 @@ end
     @test remotecall_fetch(() -> remotecall_fetch(myid, 2), 3) == 2
 
     # Remove the two workers
-    map(rmprocs, added)
+    rmprocs(added...)
     @test workers() == [1]
 
     kill(broker)
@@ -146,26 +146,24 @@ end
     @test workers() == [1]
 end
 
-exit()
-
 # During development there were issues with empty messages causing infinite loops. This test
 # should reproduce the problem but hasn't demonstrated the issue yet.
-@testset "empty" begin
-    reset_next_pid()
-    broker = spawn_broker()
+# @testset "empty" begin
+#     reset_next_pid()
+#     broker = spawn_broker()
 
-    # Add two workers which will connect to each other
-    mgr = BrokeredManager(1, launcher=spawn_worker)
-    addprocs(mgr)
+#     # Add two workers which will connect to each other
+#     mgr = BrokeredManager(1, launcher=spawn_worker)
+#     addprocs(mgr)
 
-    r_s, w_s = first(values(mgr.node.streams))  # Access the read/write streams for the added worker
-    write(w_s, UInt8[])
-    yield()
+#     r_s, w_s = first(values(mgr.node.streams))  # Access the read/write streams for the added worker
+#     write(w_s, UInt8[])
+#     yield()
 
-    kill(broker)
-end
+#     kill(broker)
+# end
 
-@testset "add and remove" begin
+@testset "add/remove" begin
     reset_next_pid()
     broker = spawn_broker()
 
@@ -178,6 +176,7 @@ end
     added = addprocs(BrokeredManager(1, launcher=spawn_worker))
     @test workers() == [2, 4]
 
+    rmprocs(2, 4)
     kill(broker)
 end
 
