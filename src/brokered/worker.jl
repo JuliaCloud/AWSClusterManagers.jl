@@ -5,7 +5,7 @@ function start_worker(id::Integer, cookie::AbstractString)
     Base.init_worker(cookie, dummy)
 
     # Inform the manager that the worker is ready
-    send(node, 1, DATA, encode(Message(HELLO_MSG, UInt8[])))
+    send(node, 1, DATA, ClusterMessage(HELLO_MSG))
 
     while !eof(node.sock)
         overlay_msg = recv(node)
@@ -14,7 +14,7 @@ function start_worker(id::Integer, cookie::AbstractString)
             println("UNREACHABLE")
         elseif overlay_msg.typ == DATA
             from, data = overlay_msg.src, overlay_msg.body
-            msg = decode(data)
+            msg = convert(ClusterMessage, data)
 
             if msg.typ == DATA_MSG
                 debug("Receive DATA from $from")

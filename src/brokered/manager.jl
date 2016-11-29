@@ -44,7 +44,7 @@ function launch(manager::BrokeredManager, params::Dict, launched::Array, c::Cond
                 println("UNREACHABLE")
             elseif overlay_msg.typ == DATA
                 from_zid = overlay_msg.src
-                msg = decode(overlay_msg.body)
+                msg = convert(ClusterMessage, overlay_msg.body)
 
                 # TODO: Do what worker does?
                 if msg.typ == DATA_MSG
@@ -161,7 +161,7 @@ function kill(manager::BrokeredManager, pid::Int, config::WorkerConfig)
 
     # TODO: I'm worried about the connection being terminated before the message is sent...
     info("Send KILL to $zid")
-    send(manager.node, zid, DATA, encode(Message(KILL_MSG, UInt8[])))
+    send(manager.node, zid, DATA, ClusterMessage(KILL_MSG))
 
     # Remove the streams from the node and close them
     (r_s, w_s) = pop!(manager.node.streams, zid)

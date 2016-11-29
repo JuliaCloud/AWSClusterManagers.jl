@@ -45,17 +45,7 @@ function recv(node::Node)
     return msg
 end
 
-const DATA_MSG = 0x00
-const KILL_MSG = 0x01
-const HELLO_MSG = 0x02
 
-type Message
-    typ::UInt8
-    data::Vector{UInt8}
-end
-
-encode(msg::Message) = vcat(msg.typ, msg.data)
-decode(content::AbstractVector{UInt8}) = Message(content[1], content[2:end])
 
 const send_to_broker = Condition()
 
@@ -72,7 +62,7 @@ function setup_connection(node::Node, dest_id::Integer)
     @schedule while !eof(write_stream) && isopen(node.sock)
         debug("Transfer $(node.id) -> $dest_id")
         data = readavailable(write_stream)
-        send(node, dest_id, DATA, encode(Message(DATA_MSG, data)))
+        send(node, dest_id, DATA, ClusterMessage(DATA_MSG, data))
         notify(send_to_broker)
     end
 

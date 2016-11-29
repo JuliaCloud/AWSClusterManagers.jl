@@ -5,6 +5,7 @@ export BrokeredManager
 import Lumberjack: debug, info
 
 include("overlay_message.jl")
+include("cluster_message.jl")
 include("node.jl")
 include("manager.jl")
 include("worker.jl")
