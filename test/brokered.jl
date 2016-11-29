@@ -1,4 +1,4 @@
-import AWSClusterManagers.Brokered: encode, decode, Node, start_broker, BrokeredManager, reset_broker_id
+import AWSClusterManagers.Brokered: encode, decode, Node, start_broker, BrokeredManager, reset_broker_id, OverlayMessage, DATA
 import Lumberjack: remove_truck
 
 remove_truck("console")  # Disable logging
@@ -46,27 +46,27 @@ function spawn_worker(id, cookie=Base.cluster_cookie())
 end
 
 
-@testset "encoding" begin
+@testset "encode/decode" begin
     io = IOBuffer()
-    encode(io, 1, 2, "hello")
+    write(io, OverlayMessage(1, 2, DATA, "hello"))
     seekstart(io)
-    src_id, dest_id, message = decode(io, String)
+    msg = read(io, OverlayMessage)
 
-    @test src_id == 1
-    @test dest_id == 2
-    @test message == "hello"
+    @test msg.src == 1
+    @test msg.dest == 2
+    @test msg.typ == DATA
+    @test String(msg.body) == "hello"
 end
 
 @testset "send to self" begin
     broker = spawn_broker()
 
     node = Node(1)
-    encode(node.sock, 1, 1, "helloworld!")
-    src_id, dest_id, message = decode(node.sock, String)
+    msg = OverlayMessage(1, 1, DATA, "helloworld!")
+    write(node.sock, msg)
+    result = read(node.sock, OverlayMessage)
 
-    @test src_id == 1
-    @test dest_id == 1
-    @test message == "helloworld!"
+    @test result == msg
 
     close(node.sock)
     kill(broker)
@@ -77,19 +77,21 @@ end
 
     @schedule begin
         node_b = Node(2)
-        src_id, dest_id, msg = decode(node_b.sock, String)
-        encode(node_b.sock, 2, src_id, "REPLY: $msg")
+        incoming = read(node_b.sock, OverlayMessage)
+        outgoing = OverlayMessage(2, incoming.src, DATA, "REPLY: $(String(incoming.body))")
+        write(node_b.sock, outgoing)
         close(node_b.sock)
     end
     yield()
 
     node_a = Node(1)
-    encode(node_a.sock, 1, 2, "helloworld!")
-    src_id, dest_id, message = decode(node_a.sock, String)
+    msg = OverlayMessage(1, 2, DATA, "helloworld!")
+    write(node_a.sock, msg)
+    result = read(node_a.sock, OverlayMessage)
 
-    @test src_id == 2
-    @test dest_id == 1
-    @test message == "REPLY: helloworld!"
+    @test result.src == 2
+    @test result.dest == 1
+    @test String(result.body) == "REPLY: helloworld!"
 
     close(node_a.sock)
     kill(broker)

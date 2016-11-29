@@ -33,9 +33,10 @@ function start_broker(port::Integer=2000; self_terminate=false)
             src = mapping[sock_id]
 
             acquire(src.read_access)
-            src_id, dest_id, message = decode(src.sock)
+            msg = read(src.sock, OverlayMessage)
             release(src.read_access)
-            debug("IN:      $src_id -> $dest_id ($(length(message)))")
+            src_id, dest_id, cmd = header(msg)
+            debug("IN:      $src_id -> $dest_id ($cmd)")
 
             # The reported source ID should match the registered ID for the socket
             assert(src_id == sock_id)
@@ -50,7 +51,7 @@ function start_broker(port::Integer=2000; self_terminate=false)
             if isopen(dest.sock)
                 debug("OUT:     $src_id -> $dest_id")
                 acquire(dest.write_access)
-                encode(dest.sock, src_id, dest_id, message)
+                write(dest.sock, msg)
                 release(dest.write_access)
             else
                 debug("TERM:    $src_id -> $dest_id")

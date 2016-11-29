@@ -28,47 +28,21 @@ function close(node::Node)
     close(node.sock)
 end
 
-function encode(io::IO, src_id::Integer, dest_id::Integer, content::AbstractVector{UInt8})
-    write(io, UInt128(dest_id))
-    write(io, UInt128(src_id))
-    write(io, UInt64(length(content)))
-    write(io, content)
-end
+function send(node::Node, dest_id::Integer, typ::MessageType, content)
+    msg = OverlayMessage(node.id, dest_id, typ, content)
 
-function decode(io::IO)
-    dest_id = read(io, UInt128)
-    src_id = read(io, UInt128)
-    len = read(io, UInt64)
-    content = read(io, len)
-    # println("$(now()) RECV: $src_id -> $dest_id ($len)")
-    return (src_id, dest_id, content)
-end
-
-function encode(io::IO, src_id::Integer, dest_id::Integer, message::AbstractString)
-    encode(io, src_id, dest_id, Vector{UInt8}(message))
-end
-
-function decode{T}(io::IO, ::Type{T})
-    src_id, dest_id, content = decode(io)
-    return (src_id, dest_id, T(content))
-end
-
-function encode(io::IO, src_id::Integer, dest_id::Integer, message::IO)
-    encode(io, src_id, dest_id, readavailable(message))
-end
-
-function send(node::Node, dest_id::Integer, content)
     # By the time we acquire the lock the socket may have been closed.
     acquire(node.write_access)
-    isopen(node.sock) && encode(node.sock, node.id, dest_id, content)
+    isopen(node.sock) && write(node.sock, msg)
     release(node.write_access)
 end
 
 function recv(node::Node)
     acquire(node.read_access)
-    src_id, dest_id, content = decode(node.sock)
+    msg = read(node.sock, OverlayMessage)
     release(node.read_access)
-    return src_id, content
+
+    return msg
 end
 
 const DATA_MSG = 0x00
@@ -98,7 +72,7 @@ function setup_connection(node::Node, dest_id::Integer)
     @schedule while !eof(write_stream) && isopen(node.sock)
         debug("Transfer $(node.id) -> $dest_id")
         data = readavailable(write_stream)
-        send(node, dest_id, encode(Message(DATA_MSG, data)))
+        send(node, dest_id, DATA, encode(Message(DATA_MSG, data)))
         notify(send_to_broker)
     end
 
