@@ -68,7 +68,7 @@ end
     @test result == msg
 
     close(node.sock)
-    kill(broker)
+    kill(broker); wait(broker)
 end
 
 @testset "echo" begin
@@ -93,7 +93,7 @@ end
     @test String(result.payload) == "REPLY: helloworld!"
 
     close(node_a.sock)
-    kill(broker)
+    kill(broker); wait(broker)
 end
 
 
@@ -118,10 +118,10 @@ end
     rmprocs(added...)
     @test workers() == [1]
 
-    kill(broker)
+    kill(broker); wait(broker)
 end
 
-@testset "broker shutdown" begin
+@testset "broker abrupt shutdown" begin
     reset_next_pid()
     broker = spawn_broker()
 
@@ -140,11 +140,42 @@ end
     assert(process_running(broker))  # Ensure we can actually kill the broker
     kill(broker)
 
+    wait(broker)
     wait(worker_a)
     wait(worker_b)
+
     @test process_exited(worker_a)
     @test process_exited(worker_b)
     @test workers() == [1]
+end
+
+@testset "worker abrupt shutdown" begin
+    reset_next_pid()
+    broker = spawn_broker()
+
+    mgr = BrokeredManager(2, launcher=(id, cookie) -> nothing)
+
+    # Add workers manually so that we have access to their processes
+    launch = @schedule addprocs(mgr)
+    worker_a = spawn_worker(2, Base.cluster_cookie())
+    worker_b = spawn_worker(3, Base.cluster_cookie())
+    wait(launch)  # will complete once the workers have connected to the manager
+
+    @test workers() == [2, 3]
+
+    # Cause an abrupt shutdown of a worker. Will cause the following error(s) to occur:
+    # "ERROR (unhandled task failure): EOFError: read end of file"
+    assert(process_running(worker_a))  # Ensure we can actually kill the worker
+    kill(worker_a)
+    wait(worker_a)
+
+    # Manager is unaware of worker termination until we attempt to send it a message
+    @test workers() == [2, 3]
+    @test remotecall_fetch(myid, 3) == 3
+    @test_throws ProcessExitedException remotecall_fetch(myid, 2) == 2
+    @test workers() == [3]
+
+    kill(broker); wait(broker)
 end
 
 # During development there were issues with empty messages causing infinite loops. This test
@@ -178,7 +209,7 @@ end
     @test workers() == [2, 4]
 
     rmprocs(2, 4)
-    kill(broker)
+    kill(broker); wait(broker)
 end
 
 # @testset "brokerless" begin

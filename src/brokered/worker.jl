@@ -13,6 +13,9 @@ function start_worker(id::Integer, cookie::AbstractString)
 
         if msg == UNREACHABLE_TYPE
             debug("Receive UNREACHABLE from $from")
+            (r_s, w_s) = pop!(node.streams, from)
+            close(r_s)
+            close(w_s)
         elseif msg.typ == DATA_TYPE
             debug("Receive DATA from $from")
 

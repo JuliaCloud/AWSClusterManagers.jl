@@ -35,26 +35,31 @@ function start_broker(port::Integer=2000; self_terminate=false)
             acquire(src.read_access)
             msg = read(src.sock, OverlayMessage)
             release(src.read_access)
-            src_id, dest_id, cmd = header(msg)
-            debug("IN:      $src_id -> $dest_id ($cmd)")
+            src_id, dest_id, typ = header(msg)
+            debug("IN:      $src_id -> $dest_id ($typ)")
 
             # The reported source ID should match the registered ID for the socket
             assert(src_id == sock_id)
 
-            if haskey(mapping, dest_id)
+            # Determine if the destination can have messages sent to it
+            reachable = haskey(mapping, dest_id)
+            if reachable
                 dest = mapping[dest_id]
-            else
-                debug("DISCARD: $src_id -> $dest_id")
-                continue
+                reachable = isopen(dest.sock)
             end
 
-            if isopen(dest.sock)
+            if reachable
                 debug("OUT:     $src_id -> $dest_id")
                 acquire(dest.write_access)
                 write(dest.sock, msg)
                 release(dest.write_access)
             else
-                debug("TERM:    $src_id -> $dest_id")
+                debug("UNREACH: $src_id -> $dest_id")
+
+                msg = OverlayMessage(dest_id, src_id, UNREACHABLE_TYPE, [])
+                acquire(src.write_access)
+                isopen(src.sock) && write(src.sock, msg)
+                release(src.write_access)
             end
         end
 
