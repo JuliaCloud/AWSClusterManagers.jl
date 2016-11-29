@@ -1,4 +1,4 @@
-import AWSClusterManagers.Brokered: encode, decode, Node, start_broker, BrokeredManager, reset_broker_id, OverlayMessage
+import AWSClusterManagers.Brokered: Node, start_broker, BrokeredManager, reset_broker_id, OverlayMessage
 import Lumberjack: remove_truck
 
 remove_truck("console")  # Disable logging
