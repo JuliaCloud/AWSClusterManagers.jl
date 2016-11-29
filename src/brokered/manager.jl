@@ -38,37 +38,30 @@ function launch(manager::BrokeredManager, params::Dict, launched::Array, c::Cond
 
     @schedule begin
         while !eof(node.sock)
-            overlay_msg = recv(node)
+            msg = recv(node)
+            from = msg.src
 
-            if overlay_msg.typ == UNREACHABLE
-                println("UNREACHABLE")
-            elseif overlay_msg.typ == DATA
-                from_zid = overlay_msg.src
-                msg = convert(ClusterMessage, overlay_msg.body)
+            # TODO: Do what worker does?
+            if msg.typ == UNREACHABLE_TYPE
+                debug("Receive UNREACHABLE from $from")
+            elseif msg.typ == DATA_TYPE
+                debug("Receive DATA from $from")
+                (r_s, w_s) = node.streams[from]
+                unsafe_write(r_s, pointer(msg.payload), length(msg.payload))
+            elseif msg.typ == HELLO_TYPE
+                debug("Receive HELLO from $from")
 
-                # TODO: Do what worker does?
-                if msg.typ == DATA_MSG
-                    debug("Receive DATA from $from_zid")
+                available_workers += 1
 
-                    (r_s, w_s) = node.streams[from_zid]
-                    unsafe_write(r_s, pointer(msg.data), length(msg.data))
-                elseif msg.typ == HELLO_MSG
-                    debug("Receive HELLO from $from_zid")
-
-                    available_workers += 1
-
-                    # `launched` is treated as a queue and will have elements removed from it
-                    # periodically. Once an element is removed from the queue the manager will call
-                    # `connect` and send initial information to the worker.
-                    wconfig = WorkerConfig()
-                    wconfig.userdata = Dict{Symbol,Any}(:id=>from_zid)
-                    push!(launched, wconfig)
-                    notify(c)
-                else
-                    error("Unhandled message type: $(msg.typ)")
-                end
+                # `launched` is treated as a queue and will have elements removed from it
+                # periodically. Once an element is removed from the queue the manager will call
+                # `connect` and send initial information to the worker.
+                wconfig = WorkerConfig()
+                wconfig.userdata = Dict{Symbol,Any}(:id=>from)
+                push!(launched, wconfig)
+                notify(c)
             else
-                error("Unhandled overlay message type: $(overlay_msg.typ)")
+                error("Unhandled message type: $(msg.typ)")
             end
         end
 
@@ -161,7 +154,7 @@ function kill(manager::BrokeredManager, pid::Int, config::WorkerConfig)
 
     # TODO: I'm worried about the connection being terminated before the message is sent...
     info("Send KILL to $zid")
-    send(manager.node, zid, DATA, ClusterMessage(KILL_MSG))
+    send(manager.node, zid, KILL_TYPE)
 
     # Remove the streams from the node and close them
     (r_s, w_s) = pop!(manager.node.streams, zid)

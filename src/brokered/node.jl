@@ -28,7 +28,7 @@ function close(node::Node)
     close(node.sock)
 end
 
-function send(node::Node, dest_id::Integer, typ::MessageType, content)
+function send(node::Node, dest_id::Integer, typ::Integer, content)
     msg = OverlayMessage(node.id, dest_id, typ, content)
 
     # By the time we acquire the lock the socket may have been closed.
@@ -36,6 +36,8 @@ function send(node::Node, dest_id::Integer, typ::MessageType, content)
     isopen(node.sock) && write(node.sock, msg)
     release(node.write_access)
 end
+
+send(node::Node, dest_id::Integer, typ::Integer) = send(node, dest_id, typ, UInt8[])
 
 function recv(node::Node)
     acquire(node.read_access)
@@ -46,9 +48,7 @@ function recv(node::Node)
 end
 
 
-
 const send_to_broker = Condition()
-
 
 function setup_connection(node::Node, dest_id::Integer)
     # read indicates data from the remote source to be processed by the current node
@@ -62,7 +62,7 @@ function setup_connection(node::Node, dest_id::Integer)
     @schedule while !eof(write_stream) && isopen(node.sock)
         debug("Transfer $(node.id) -> $dest_id")
         data = readavailable(write_stream)
-        send(node, dest_id, DATA, ClusterMessage(DATA_MSG, data))
+        send(node, dest_id, DATA_TYPE, data)
         notify(send_to_broker)
     end
 

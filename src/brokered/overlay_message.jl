@@ -1,12 +1,19 @@
 import Base: ==, write, read
 
-@enum MessageType DATA UNREACHABLE
+# Note: 0x80 to 0xff are reserved for use by broker clients that defined their own custom
+# message types.
+const DATA_TYPE = 0x00
+const UNREACHABLE_TYPE = 0x01
 
 type OverlayMessage
     src::UInt128
     dest::UInt128
-    typ::MessageType
-    body::Vector{UInt8}
+    typ::UInt8
+    payload::Vector{UInt8}
+end
+
+function OverlayMessage(src::Integer, dest::Integer, payload)
+    OverlayMessage(src, dest, DATA_TYPE, payload)
 end
 
 function (==)(a::OverlayMessage, b::OverlayMessage)
@@ -14,7 +21,7 @@ function (==)(a::OverlayMessage, b::OverlayMessage)
         a.src == b.src &&
         a.dest == b.dest &&
         a.typ == b.typ &&
-        a.body == b.body
+        a.payload == b.payload
     )
 end
 
@@ -22,26 +29,17 @@ function write(io::IO, msg::OverlayMessage)
     write(io, UInt128(msg.src))
     write(io, UInt128(msg.dest))
     write(io, UInt8(msg.typ))
-
-    if msg.typ == DATA
-        write(io, UInt64(length(msg.body)))
-        write(io, msg.body)
-    end
+    write(io, UInt64(length(msg.payload)))
+    write(io, msg.payload)
 end
 
 function read(io::IO, ::Type{OverlayMessage})
     src = read(io, UInt128)
     dest = read(io, UInt128)
-    typ = MessageType(read(io, UInt8))
-
-    if typ == DATA
-        len = read(io, UInt64)
-        body = read(io, len)
-    else
-        body = Vector{UInt8}()
-    end
-
-    return OverlayMessage(src, dest, typ, body)
+    typ = read(io, UInt8)
+    len = read(io, UInt64)
+    payload = read(io, len)
+    return OverlayMessage(src, dest, typ, payload)
 end
 
 function header(msg::OverlayMessage)

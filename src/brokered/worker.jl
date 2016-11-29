@@ -5,40 +5,34 @@ function start_worker(id::Integer, cookie::AbstractString)
     Base.init_worker(cookie, dummy)
 
     # Inform the manager that the worker is ready
-    send(node, 1, DATA, ClusterMessage(HELLO_MSG))
+    send(node, 1, HELLO_TYPE)
 
     while !eof(node.sock)
-        overlay_msg = recv(node)
+        msg = recv(node)
+        from = msg.src
 
-        if overlay_msg == UNREACHABLE
-            println("UNREACHABLE")
-        elseif overlay_msg.typ == DATA
-            from, data = overlay_msg.src, overlay_msg.body
-            msg = convert(ClusterMessage, data)
+        if msg == UNREACHABLE_TYPE
+            debug("Receive UNREACHABLE from $from")
+        elseif msg.typ == DATA_TYPE
+            debug("Receive DATA from $from")
 
-            if msg.typ == DATA_MSG
-                debug("Receive DATA from $from")
-
-                # Note: To keep compatibility with the underlying ClusterManager implementation we
-                # need to have incoming/outgoing streams. Typically these streams are created in
-                # `connect` when initiating a connection to a worker but it also needs to be done
-                # on the receiving side.
-                (read_stream, write_stream) = get!(node.streams, from) do
-                    println("Establish connection worker $(node.id) -> $from")
-                    (r_s, w_s) = setup_connection(node, from)
-                    Base.process_messages(r_s, w_s)
-                    (r_s, w_s)
-                end
-
-                unsafe_write(read_stream, pointer(msg.data), length(msg.data))
-            elseif msg.typ == KILL_MSG
-                debug("Receive KILL from $from")
-                break
-            else
-                error("Unhandled message type: $(msg.typ)")
+            # Note: To keep compatibility with the underlying ClusterManager implementation we
+            # need to have incoming/outgoing streams. Typically these streams are created in
+            # `connect` when initiating a connection to a worker but it also needs to be done
+            # on the receiving side.
+            (read_stream, write_stream) = get!(node.streams, from) do
+                println("Establish connection worker $(node.id) -> $from")
+                (r_s, w_s) = setup_connection(node, from)
+                Base.process_messages(r_s, w_s)
+                (r_s, w_s)
             end
+
+            unsafe_write(read_stream, pointer(msg.payload), length(msg.payload))
+        elseif msg.typ == KILL_TYPE
+            debug("Receive KILL from $from")
+            break
         else
-            error("Unhandled overlay message type: $(overlay_msg.typ)")
+            error("Unhandled message type: $(msg.typ)")
         end
     end
 end

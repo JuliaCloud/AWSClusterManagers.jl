@@ -1,4 +1,4 @@
-import AWSClusterManagers.Brokered: encode, decode, Node, start_broker, BrokeredManager, reset_broker_id, OverlayMessage, DATA
+import AWSClusterManagers.Brokered: encode, decode, Node, start_broker, BrokeredManager, reset_broker_id, OverlayMessage
 import Lumberjack: remove_truck
 
 remove_truck("console")  # Disable logging
@@ -48,21 +48,20 @@ end
 
 @testset "encode/decode" begin
     io = IOBuffer()
-    write(io, OverlayMessage(1, 2, DATA, "hello"))
+    write(io, OverlayMessage(1, 2, "hello"))
     seekstart(io)
     msg = read(io, OverlayMessage)
 
     @test msg.src == 1
     @test msg.dest == 2
-    @test msg.typ == DATA
-    @test String(msg.body) == "hello"
+    @test String(msg.payload) == "hello"
 end
 
 @testset "send to self" begin
     broker = spawn_broker()
 
     node = Node(1)
-    msg = OverlayMessage(1, 1, DATA, "helloworld!")
+    msg = OverlayMessage(1, 1, "helloworld!")
     write(node.sock, msg)
     result = read(node.sock, OverlayMessage)
 
@@ -78,20 +77,20 @@ end
     @schedule begin
         node_b = Node(2)
         incoming = read(node_b.sock, OverlayMessage)
-        outgoing = OverlayMessage(2, incoming.src, DATA, "REPLY: $(String(incoming.body))")
+        outgoing = OverlayMessage(2, incoming.src, "REPLY: $(String(incoming.payload))")
         write(node_b.sock, outgoing)
         close(node_b.sock)
     end
     yield()
 
     node_a = Node(1)
-    msg = OverlayMessage(1, 2, DATA, "helloworld!")
+    msg = OverlayMessage(1, 2, "helloworld!")
     write(node_a.sock, msg)
     result = read(node_a.sock, OverlayMessage)
 
     @test result.src == 2
     @test result.dest == 1
-    @test String(result.body) == "REPLY: helloworld!"
+    @test String(result.payload) == "REPLY: helloworld!"
 
     close(node_a.sock)
     kill(broker)
