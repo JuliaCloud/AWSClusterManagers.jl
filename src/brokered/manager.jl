@@ -44,9 +44,12 @@ function launch(manager::BrokeredManager, params::Dict, launched::Array, c::Cond
             # TODO: Do what worker does?
             if msg.typ == UNREACHABLE_TYPE
                 debug("Receive UNREACHABLE from $from")
-                (r_s, w_s) = pop!(node.streams, from)
-                close(r_s)
-                close(w_s)
+
+                if haskey(node.streams, from)
+                    (r_s, w_s) = pop!(node.streams, from)
+                    close(r_s)
+                    close(w_s)
+                end
             elseif msg.typ == DATA_TYPE
                 debug("Receive DATA from $from")
                 (r_s, w_s) = node.streams[from]

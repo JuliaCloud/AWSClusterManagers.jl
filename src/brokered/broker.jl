@@ -66,6 +66,14 @@ function start_broker(port::Integer=2000; self_terminate=false)
         info("Deregister: $sock_id")
         delete!(mapping, sock_id)
 
+        # When a node de-registers inform all other nodes of the change.
+        for (dest_id, dest) in mapping
+            msg = OverlayMessage(sock_id, dest_id, UNREACHABLE_TYPE, [])
+            acquire(dest.write_access)
+            isopen(dest.sock) && write(dest.sock, msg)
+            release(dest.write_access)
+        end
+
         # Shutdown the server when all connections have terminated.
         # Note: I would prefer to throw an exception but it doesn't get caught by the loop
         if isempty(mapping) && self_terminate

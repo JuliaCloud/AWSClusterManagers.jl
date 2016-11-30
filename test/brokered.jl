@@ -169,11 +169,34 @@ end
     kill(worker_a)
     wait(worker_a)
 
-    # Manager is unaware of worker termination until we attempt to send it a message
-    @test workers() == [2, 3]
+    # Broker informs all nodes of the deregistration which the manager uses to get notified
+    # @test workers() == [3]
     @test remotecall_fetch(myid, 3) == 3
-    @test_throws ProcessExitedException remotecall_fetch(myid, 2) == 2
+    @test_throws ProcessExitedException remotecall_fetch(myid, 2)
     @test workers() == [3]
+
+    kill(broker); wait(broker)
+end
+
+# TODO: Determine why this test is stalling
+@testset "manager abrupt shutdown" begin
+    reset_next_pid()
+    broker = spawn_broker()
+    cookie = Base.cluster_cookie()
+
+    # Spawn a manager which will wait for workers then terminate without having the chance
+    # to send the KILL message to workers. Note: We need to set the cluster_cookie on the
+    # manager process so that it accepts our workers.
+    manager = spawn(`$(Base.julia_cmd()) -e "Base.cluster_cookie(\"$cookie\"); using AWSClusterManagers; mgr = AWSClusterManagers.Brokered.BrokeredManager(2, launcher=(id, cookie) -> nothing); addprocs(mgr); close(mgr.node.sock)"`)
+
+    # Add workers manually so that we have access to their processes
+    worker_a = spawn_worker(2, cookie)
+    worker_b = spawn_worker(3, cookie)
+    wait(manager)  # manager process has terminated
+
+    # TODO: A failure will cause use to wait indefinitely...
+    wait(worker_a)
+    wait(worker_b)
 
     kill(broker); wait(broker)
 end

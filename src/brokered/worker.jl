@@ -4,18 +4,25 @@ function start_worker(id::Integer, cookie::AbstractString)
     dummy = BrokeredManager(node)  # Needed for use in `connect`
     Base.init_worker(cookie, dummy)
 
+    manager_id = 1
+
     # Inform the manager that the worker is ready
-    send(node, 1, HELLO_TYPE)
+    send(node, manager_id, HELLO_TYPE)
 
     while !eof(node.sock)
         msg = recv(node)
         from = msg.src
 
-        if msg == UNREACHABLE_TYPE
+        if msg.typ == UNREACHABLE_TYPE
             debug("Receive UNREACHABLE from $from")
-            (r_s, w_s) = pop!(node.streams, from)
-            close(r_s)
-            close(w_s)
+
+            if haskey(node.streams, from)
+                (r_s, w_s) = node.streams[from]
+                close(r_s)
+                close(w_s)
+            end
+
+            from == manager_id && break
         elseif msg.typ == DATA_TYPE
             debug("Receive DATA from $from")
 
@@ -30,7 +37,7 @@ function start_worker(id::Integer, cookie::AbstractString)
                 (r_s, w_s)
             end
 
-            unsafe_write(read_stream, pointer(msg.payload), length(msg.payload))
+            isopen(read_stream) && unsafe_write(read_stream, pointer(msg.payload), length(msg.payload))
         elseif msg.typ == KILL_TYPE
             debug("Receive KILL from $from")
             break
