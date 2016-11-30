@@ -14,9 +14,14 @@ function start_broker(port::Integer=2000; self_terminate=false)
     function process(sock)
         # Registration should happen before the async block otherwise we could associate
         # an ID with the wrong socket.
-        sock_id = read(sock, UInt128)
-        info("Register: $sock_id")
-        mapping[sock_id] = BrokeredNode(sock)
+        if !eof(sock)
+            sock_id = read(sock, UInt128)
+            info("Register: $sock_id")
+            mapping[sock_id] = BrokeredNode(sock)
+        else
+            warn("socket closed before registration")
+            return
+        end
 
         # `@async` can act strangely sometimes where the same socket can get accidentally
         # mapped to different identifiers.
