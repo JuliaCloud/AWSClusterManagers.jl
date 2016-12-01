@@ -7,9 +7,10 @@ type BrokeredNode
     BrokeredNode(sock::TCPSocket) = new(sock, Semaphore(1), Semaphore(1))
 end
 
-function start_broker(port::Integer=2000; self_terminate=false)
+function start_broker(host::IPAddr=ip"::", port::Integer=DEFAULT_PORT; self_terminate=false)
     mapping = Dict{UInt128,BrokeredNode}()
-    server = listen(port)
+    server = listen(host, port)
+    info("Starting broker server on $(getipaddr()):$port")
 
     function process(sock)
         # Registration should happen before the async block otherwise we could associate

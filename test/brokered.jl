@@ -1,4 +1,4 @@
-import AWSClusterManagers.Brokered: Node, start_broker, BrokeredManager, reset_broker_id, OverlayMessage
+import AWSClusterManagers.Brokered: Node, start_broker, BrokeredManager, reset_broker_id, OverlayMessage, DEFAULT_PORT
 import Lumberjack: remove_truck
 
 remove_truck("console")  # Disable logging
@@ -41,9 +41,12 @@ function spawn_broker(; self_terminate=true)
     return broker
 end
 
-function spawn_worker(id, cookie=Base.cluster_cookie())
-    spawn(`$(Base.julia_cmd()) -e "using AWSClusterManagers; AWSClusterManagers.Brokered.start_worker($id, \"$cookie\")"`)
+function spawn_worker(id, cookie, host=ip"127.0.0.1", port=DEFAULT_PORT)
+    spawn(`$(Base.julia_cmd()) -e "using AWSClusterManagers; AWSClusterManagers.Brokered.start_worker($id, \"$cookie\", ip\"$host\", $port)"`)
 end
+
+null_launcher(id, cookie, host, port) = nothing
+
 
 
 @testset "encode/decode" begin
@@ -125,7 +128,7 @@ end
     reset_next_pid()
     broker = spawn_broker()
 
-    mgr = BrokeredManager(2, launcher=(id, cookie) -> nothing)
+    mgr = BrokeredManager(2, launcher=null_launcher)
 
     # Add workers manually so that we have access to their processes
     launch = @schedule addprocs(mgr)
@@ -153,7 +156,7 @@ end
     reset_next_pid()
     broker = spawn_broker()
 
-    mgr = BrokeredManager(2, launcher=(id, cookie) -> nothing)
+    mgr = BrokeredManager(2, launcher=null_launcher)
 
     # Add workers manually so that we have access to their processes
     launch = @schedule addprocs(mgr)
@@ -187,7 +190,9 @@ end
     # Spawn a manager which will wait for workers then terminate without having the chance
     # to send the KILL message to workers. Note: We need to set the cluster_cookie on the
     # manager process so that it accepts our workers.
-    manager = spawn(`$(Base.julia_cmd()) -e "Base.cluster_cookie(\"$cookie\"); using AWSClusterManagers; mgr = AWSClusterManagers.Brokered.BrokeredManager(2, launcher=(id, cookie) -> nothing); addprocs(mgr); close(mgr.node.sock)"`)
+    manager = spawn(`$(Base.julia_cmd()) -e "Base.cluster_cookie(\"$cookie\"); using AWSClusterManagers; mgr = AWSClusterManagers.Brokered.BrokeredManager(2, launcher=(id, cookie, host, port) -> nothing); addprocs(mgr); close(mgr.node.sock)"`)
+
+    # TODO: Test that workers are running
 
     # Add workers manually so that we have access to their processes
     worker_a = spawn_worker(2, cookie)

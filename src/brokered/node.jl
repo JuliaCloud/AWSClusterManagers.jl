@@ -1,22 +1,34 @@
 import Base: Semaphore, close
 
+const DEFAULT_PORT = 2000
+
 type Node
     id::UInt128
     sock::TCPSocket
     read_access::Semaphore
     write_access::Semaphore
     streams::Dict{UInt128,Tuple{IO,IO}}
+    broker_host::IPAddr
+    broker_port::Int
 end
 
-function Node(id::Integer)
-    sock = connect(2000)
+function Node(id::Integer, broker::IPAddr=ip"127.0.0.1", port::Integer=DEFAULT_PORT)
+    sock = connect(broker, port)
 
     # Trying this to keep the connection open while data needs to be send
     # Base.disable_nagle(sock)
     # Base.wait_connected(sock)
 
     write(sock, UInt128(id))  # Register
-    return Node(id, sock, Semaphore(1), Semaphore(1), Dict{UInt128,Tuple{IO,IO}}())
+    return Node(
+        id,
+        sock,
+        Semaphore(1),
+        Semaphore(1),
+        Dict{UInt128,Tuple{IO,IO}}(),
+        broker,
+        port,
+    )
 end
 
 function close(node::Node)
