@@ -1,6 +1,6 @@
 module Brokered
 
-export BrokeredManager
+export BrokeredManager, start_worker, aws_batch_launcher
 
 import Lumberjack: debug, info
 

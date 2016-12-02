@@ -1,4 +1,5 @@
 import Base: launch, manage, connect, kill
+import JSON
 
 type BrokeredManager <: ClusterManager
     np::Int
@@ -16,6 +17,25 @@ end
 
 function spawn_local_worker(id, cookie, broker_host, broker_port)
     spawn(`$(Base.julia_cmd()) -e "using AWSClusterManagers; AWSClusterManagers.Brokered.start_worker($id, \"$cookie\", ip\"$broker_host\", $broker_port)"`)
+end
+
+function aws_batch_launcher(job_queue::AbstractString, job_definition::AbstractString)
+    function launcher(id::Integer, cookie::AbstractString, broker_host::IPAddr, broker_port::Integer)
+        override_cmd = `julia -e "using AWSClusterManagers; start_worker($id, \"$cookie\", ip\"$broker_host\", $broker_port)"`
+
+        cmd = `aws batch submit-job`
+        cmd = `$cmd --job-name "worker_$id"`
+        cmd = `$cmd --job-queue $job_queue`
+        cmd = `$cmd --job-definition $job_definition`
+        overrides = Dict(
+            "command" => collect(override_cmd.exec),
+        )
+        cmd = `$cmd --container-overrides $(JSON.json(overrides))`
+
+        run(cmd)
+    end
+
+    return launcher
 end
 
 let next_id = 2    # 1 is reserved for the client (always)
