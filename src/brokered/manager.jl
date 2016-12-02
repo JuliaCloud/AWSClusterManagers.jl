@@ -21,7 +21,7 @@ end
 
 function aws_batch_launcher(job_queue::AbstractString, job_definition::AbstractString, region::AbstractString="us-east-1")
     function launcher(id::Integer, cookie::AbstractString, broker_host::IPAddr, broker_port::Integer)
-        override_cmd = `julia -e "using AWSClusterManagers; start_worker($id, \"$cookie\", ip\"$broker_host\", $broker_port)"`
+        override_cmd = `julia -e "import AWSClusterManagers.Brokered: start_worker; start_worker($id, \"$cookie\", ip\"$broker_host\", $broker_port)"`
 
         cmd = `aws --region $region batch submit-job`
         cmd = `$cmd --job-name "worker_$id"`
