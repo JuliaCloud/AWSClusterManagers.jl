@@ -1,4 +1,4 @@
-module Brokered
+module Overlay
 
 export BrokeredManager, start_worker, aws_batch_launcher
 

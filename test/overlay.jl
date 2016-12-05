@@ -1,4 +1,4 @@
-import AWSClusterManagers.Brokered: Node, start_broker, BrokeredManager, reset_broker_id, OverlayMessage, DEFAULT_HOST, DEFAULT_PORT
+import AWSClusterManagers.Overlay: Node, start_broker, BrokeredManager, reset_broker_id, OverlayMessage, DEFAULT_HOST, DEFAULT_PORT
 import Lumberjack: remove_truck
 
 remove_truck("console")  # Disable logging
@@ -24,7 +24,7 @@ end
 Base.get_next_pid() = get_next_pid()
 
 function spawn_broker(; self_terminate=true)
-    broker = spawn(`$(Base.julia_cmd()) -e "using AWSClusterManagers; AWSClusterManagers.Brokered.start_broker(self_terminate=$self_terminate)"`)
+    broker = spawn(`$(Base.julia_cmd()) -e "using AWSClusterManagers; AWSClusterManagers.Overlay.start_broker(self_terminate=$self_terminate)"`)
 
     # Wait until the broker is ready
     # TODO: Find better way of waiting for broker to be connectable
@@ -42,7 +42,7 @@ function spawn_broker(; self_terminate=true)
 end
 
 function spawn_worker(id, cookie, host=DEFAULT_HOST, port=DEFAULT_PORT)
-    spawn(`$(Base.julia_cmd()) -e "using AWSClusterManagers; AWSClusterManagers.Brokered.start_worker($id, \"$cookie\", \"$host\", $port)"`)
+    spawn(`$(Base.julia_cmd()) -e "using AWSClusterManagers; AWSClusterManagers.Overlay.start_worker($id, \"$cookie\", \"$host\", $port)"`)
 end
 
 null_launcher(id, cookie, host, port) = nothing
@@ -191,7 +191,7 @@ end
     # Spawn a manager which will wait for workers then terminate without having the chance
     # to send the KILL message to workers. Note: We need to set the cluster_cookie on the
     # manager process so that it accepts our workers.
-    manager = spawn(`$(Base.julia_cmd()) -e "Base.cluster_cookie(\"$cookie\"); using AWSClusterManagers; mgr = AWSClusterManagers.Brokered.BrokeredManager(2, launcher=(id, cookie, host, port) -> nothing); addprocs(mgr); close(mgr.node.sock)"`)
+    manager = spawn(`$(Base.julia_cmd()) -e "Base.cluster_cookie(\"$cookie\"); using AWSClusterManagers; mgr = AWSClusterManagers.Overlay.BrokeredManager(2, launcher=(id, cookie, host, port) -> nothing); addprocs(mgr); close(mgr.node.sock)"`)
 
     # TODO: Test that workers are running
 
