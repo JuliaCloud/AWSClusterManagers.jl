@@ -1,5 +1,5 @@
 import AWSClusterManagers.OverlayNetwork: OverlaySocket, OverlayMessage, DEFAULT_HOST, DEFAULT_PORT
-import AWSClusterManagers.OverlayCluster: start_broker, BrokeredManager, reset_broker_id
+import AWSClusterManagers.OverlayCluster: start_broker, OverlayClusterManager, reset_broker_id
 import Lumberjack: remove_truck
 
 remove_truck("console")  # Disable logging
@@ -107,8 +107,7 @@ end
 
     # Add two workers which will connect to each other
     @test workers() == [1]
-    mgr = BrokeredManager(2, launcher=spawn_worker)
-    added = addprocs(mgr)
+    added = addprocs(OverlayClusterManager(2, launcher=spawn_worker))
     @test added == [2, 3]
 
     # Each worker can talk to each other worker
@@ -130,7 +129,7 @@ end
     reset_next_pid()
     broker = spawn_broker()
 
-    mgr = BrokeredManager(2, launcher=null_launcher)
+    mgr = OverlayClusterManager(2, launcher=null_launcher)
 
     # Add workers manually so that we have access to their processes
     launch = @schedule addprocs(mgr)
@@ -158,7 +157,7 @@ end
     reset_next_pid()
     broker = spawn_broker()
 
-    mgr = BrokeredManager(2, launcher=null_launcher)
+    mgr = OverlayClusterManager(2, launcher=null_launcher)
 
     # Add workers manually so that we have access to their processes
     launch = @schedule addprocs(mgr)
@@ -193,7 +192,7 @@ end
     # Spawn a manager which will wait for workers then terminate without having the chance
     # to send the KILL message to workers. Note: We need to set the cluster_cookie on the
     # manager process so that it accepts our workers.
-    manager = spawn(`$(Base.julia_cmd()) -e "Base.cluster_cookie(\"$cookie\"); using AWSClusterManagers; mgr = AWSClusterManagers.Overlay.BrokeredManager(2, launcher=(id, cookie, host, port) -> nothing); addprocs(mgr); close(mgr.network.sock)"`)
+    manager = spawn(`$(Base.julia_cmd()) -e "Base.cluster_cookie(\"$cookie\"); using AWSClusterManagers; mgr = OverlayClusterManager(2, launcher=(id, cookie, host, port) -> nothing); addprocs(mgr); close(mgr.network.sock)"`)
 
     # TODO: Test that workers are running
 
@@ -216,7 +215,7 @@ end
 #     broker = spawn_broker()
 
 #     # Add two workers which will connect to each other
-#     mgr = BrokeredManager(1, launcher=spawn_worker)
+#     mgr = OverlayClusterManager(1, launcher=spawn_worker)
 #     addprocs(mgr)
 
 #     r_s, w_s = first(values(mgr.network.streams))  # Access the read/write streams for the added worker
@@ -230,13 +229,13 @@ end
     reset_next_pid()
     broker = spawn_broker()
 
-    added = addprocs(BrokeredManager(2, launcher=spawn_worker))
+    added = addprocs(OverlayClusterManager(2, launcher=spawn_worker))
     @test workers() == [2, 3]
 
     rmprocs(3); yield()
     @test workers() == [2]
 
-    added = addprocs(BrokeredManager(1, launcher=spawn_worker))
+    added = addprocs(OverlayClusterManager(1, launcher=spawn_worker))
     @test workers() == [2, 4]
 
     rmprocs(2, 4)
@@ -245,5 +244,5 @@ end
 
 # @testset "brokerless" begin
 #     reset_next_pid()
-#     added = addprocs(BrokeredManager(1, launcher=spawn_worker))
+#     added = addprocs(OverlayClusterManager(1, launcher=spawn_worker))
 # end

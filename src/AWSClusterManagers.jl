@@ -1,7 +1,7 @@
 module AWSClusterManagers
 
-export launch, manage
 import Base: launch, manage, cluster_cookie
+export OverlayClusterManager, launch, manage
 
 # Determine the start of the ephemeral port range on this system. Used in `listenany` calls.
 const PORT_HINT = if is_linux()
@@ -17,5 +17,8 @@ end
 # include("docker.jl")
 include("OverlayNetwork/OverlayNetwork.jl")
 include("OverlayCluster/OverlayCluster.jl")
+
+OverlayClusterManager = OverlayCluster.OverlayClusterManager
+
 
 end # module

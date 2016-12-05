@@ -1,22 +1,22 @@
 import Base: launch, manage, connect, kill
 import JSON
 
-type BrokeredManager <: ClusterManager
+type OverlayClusterManager <: ClusterManager
     np::Int
     network::OverlaySocket
     launcher::Function
 end
 
-function BrokeredManager(np::Integer, broker=DEFAULT_HOST, port::Integer=DEFAULT_PORT; launcher::Function=spawn_local_worker)
-    BrokeredManager(Int(np), OverlaySocket(1, broker, port), launcher)
+function OverlayClusterManager(np::Integer, broker=DEFAULT_HOST, port::Integer=DEFAULT_PORT; launcher::Function=spawn_local_worker)
+    OverlayClusterManager(Int(np), OverlaySocket(1, broker, port), launcher)
 end
 
-function BrokeredManager(net::OverlaySocket)
-    BrokeredManager(0, net, (id,cookie,host,port) -> nothing)
+function OverlayClusterManager(net::OverlaySocket)
+    OverlayClusterManager(0, net, (id,cookie,host,port) -> nothing)
 end
 
 function spawn_local_worker(id, cookie, broker_host, broker_port)
-    spawn(`$(Base.julia_cmd()) -e "using AWSClusterManagers; AWSClusterManagers.Brokered.start_worker($id, \"$cookie\", \"$broker_host\", $broker_port)"`)
+    spawn(`$(Base.julia_cmd()) -e "using AWSClusterManagers; AWSClusterManagers.OverlayCluster.start_worker($id, \"$cookie\", \"$broker_host\", $broker_port)"`)
 end
 
 function aws_batch_launcher(;
@@ -39,7 +39,7 @@ function aws_batch_launcher(;
     end
 
     function launcher(id::Integer, cookie::AbstractString, broker_host, broker_port::Integer)
-        override_cmd = `julia -e "import AWSClusterManagers.Brokered: start_worker; start_worker($id, \"$cookie\", \"$broker_host\", $broker_port)"`
+        override_cmd = `julia -e "import AWSClusterManagers.OverlayCluster: start_worker; start_worker($id, \"$cookie\", \"$broker_host\", $broker_port)"`
 
         cmd = `aws --region $region batch submit-job`
         cmd = `$cmd --job-name "$name_prefix$(lpad(id, 2, 0))"`
@@ -70,7 +70,7 @@ let next_id = 2    # 1 is reserved for the client (always)
     end
 end
 
-function launch(manager::BrokeredManager, params::Dict, launched::Array, c::Condition)
+function launch(manager::OverlayClusterManager, params::Dict, launched::Array, c::Condition)
     net = manager.network
     available_workers = 0
 
@@ -135,7 +135,7 @@ end
 
 # Used by the manager or workers to connect to estabilish connections to other nodes in the
 # cluster.
-function connect(manager::BrokeredManager, pid::Int, config::WorkerConfig)
+function connect(manager::OverlayClusterManager, pid::Int, config::WorkerConfig)
     #println("connect_m2w")
     if myid() == 1
         zid = get(config.userdata)[:id]
@@ -159,7 +159,7 @@ function connect(manager::BrokeredManager, pid::Int, config::WorkerConfig)
     streams
 end
 
-function manage(manager::BrokeredManager, id::Int, config::WorkerConfig, op)
+function manage(manager::OverlayClusterManager, id::Int, config::WorkerConfig, op)
     # println("manager: $op")
     # if op == :interrupt
     #     zid = get(config.userdata)[:zid]
@@ -198,7 +198,7 @@ function manage(manager::BrokeredManager, id::Int, config::WorkerConfig, op)
     nothing
 end
 
-function kill(manager::BrokeredManager, pid::Int, config::WorkerConfig)
+function kill(manager::OverlayClusterManager, pid::Int, config::WorkerConfig)
     zid = get(config.userdata)[:id]
 
     # TODO: I'm worried about the connection being terminated before the message is sent...
