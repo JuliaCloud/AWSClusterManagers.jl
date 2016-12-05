@@ -9,9 +9,9 @@ function LocalOverlayManager(np::Integer; broker::Tuple{Any,Integer}=(DEFAULT_HO
     LocalOverlayManager(Int(np), OverlaySocket(1, host, port), manual_spawn)
 end
 
-AWSClusterManagers.OverlayCluster.num_processes(mgr::LocalOverlayManager) = mgr.np
+num_processes(mgr::LocalOverlayManager) = mgr.np
 
-function AWSClusterManagers.OverlayCluster.spawn(mgr::LocalOverlayManager, id::Integer)
+function spawn(mgr::LocalOverlayManager, id::Integer)
     if !mgr.manual_spawn
         cookie = Base.cluster_cookie()
         host = mgr.network.broker_host
@@ -21,5 +21,5 @@ function AWSClusterManagers.OverlayCluster.spawn(mgr::LocalOverlayManager, id::I
 end
 
 function spawn_local_worker(id, cookie, host=DEFAULT_HOST, port=DEFAULT_PORT)
-    spawn(`$(Base.julia_cmd()) -e "using AWSClusterManagers; AWSClusterManagers.OverlayCluster.start_worker($id, \"$cookie\", \"$host\", $port)"`)
+    Base.spawn(`$(Base.julia_cmd()) -e "using AWSClusterManagers.OverlayManagers; start_worker($id, \"$cookie\", \"$host\", $port)"`)
 end

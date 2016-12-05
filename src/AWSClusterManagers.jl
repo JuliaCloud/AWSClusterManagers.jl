@@ -15,16 +15,7 @@ end
 # include("container.jl")
 # include("ecs.jl")
 # include("docker.jl")
-include("OverlayNetwork/OverlayNetwork.jl")
-include("OverlayCluster/OverlayCluster.jl")
-
-using .OverlayNetwork
-using .OverlayCluster
-
-include("local.jl")
-include("aws_batch.jl")
-
-
-
+include("OverlayManagers/OverlayManagers.jl")
+using .OverlayManagers
 
 end # module

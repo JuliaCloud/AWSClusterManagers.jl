@@ -1,6 +1,6 @@
-import AWSClusterManagers.OverlayNetwork: OverlaySocket, OverlayMessage, DEFAULT_HOST, DEFAULT_PORT
-import AWSClusterManagers.OverlayCluster: start_broker, OverlayClusterManager, reset_broker_id
-import AWSClusterManagers: LocalOverlayManager, spawn_local_worker
+import AWSClusterManagers.OverlayManagers.Transport: OverlaySocket, OverlayMessage, DEFAULT_HOST, DEFAULT_PORT
+import AWSClusterManagers.OverlayManagers: start_broker, OverlayClusterManager, reset_broker_id
+import AWSClusterManagers.OverlayManagers: LocalOverlayManager, spawn_local_worker
 import Lumberjack: remove_truck
 
 remove_truck("console")  # Disable logging
@@ -26,7 +26,7 @@ end
 Base.get_next_pid() = get_next_pid()
 
 function spawn_broker(; self_terminate=true)
-    broker = spawn(`$(Base.julia_cmd()) -e "using AWSClusterManagers; AWSClusterManagers.OverlayNetwork.start_broker(self_terminate=$self_terminate)"`)
+    broker = Base.spawn(`$(Base.julia_cmd()) -e "using AWSClusterManagers.OverlayManagers; start_broker(self_terminate=$self_terminate)"`)
 
     # Wait until the broker is ready
     # TODO: Find better way of waiting for broker to be connectable
