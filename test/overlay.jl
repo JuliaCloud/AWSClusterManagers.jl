@@ -1,4 +1,4 @@
-import AWSClusterManagers.Overlay: Node, start_broker, BrokeredManager, reset_broker_id, OverlayMessage, DEFAULT_HOST, DEFAULT_PORT
+import AWSClusterManagers.Overlay: OverlayNetwork, start_broker, BrokeredManager, reset_broker_id, OverlayMessage, DEFAULT_HOST, DEFAULT_PORT
 import Lumberjack: remove_truck
 
 remove_truck("console")  # Disable logging
@@ -63,14 +63,14 @@ end
 @testset "send to self" begin
     broker = spawn_broker()
 
-    node = Node(1)
+    net = OverlayNetwork(1)
     msg = OverlayMessage(1, 1, "helloworld!")
-    write(node.sock, msg)
-    result = read(node.sock, OverlayMessage)
+    write(net.sock, msg)
+    result = read(net.sock, OverlayMessage)
 
     @test result == msg
 
-    close(node.sock)
+    close(net.sock)
     kill(broker); wait(broker)
 end
 
@@ -78,24 +78,24 @@ end
     broker = spawn_broker()
 
     @schedule begin
-        node_b = Node(2)
-        incoming = read(node_b.sock, OverlayMessage)
+        _net = OverlayNetwork(2)
+        incoming = read(_net.sock, OverlayMessage)
         outgoing = OverlayMessage(2, incoming.src, "REPLY: $(String(incoming.payload))")
-        write(node_b.sock, outgoing)
-        close(node_b.sock)
+        write(_net.sock, outgoing)
+        close(_net.sock)
     end
     yield()
 
-    node_a = Node(1)
+    net = OverlayNetwork(1)
     msg = OverlayMessage(1, 2, "helloworld!")
-    write(node_a.sock, msg)
-    result = read(node_a.sock, OverlayMessage)
+    write(net.sock, msg)
+    result = read(net.sock, OverlayMessage)
 
     @test result.src == 2
     @test result.dest == 1
     @test String(result.payload) == "REPLY: helloworld!"
 
-    close(node_a.sock)
+    close(net.sock)
     kill(broker); wait(broker)
 end
 
@@ -109,7 +109,7 @@ end
     added = addprocs(BrokeredManager(2, launcher=spawn_worker))
     @test added == [2, 3]
 
-    # Each node can talk to each other node
+    # Each worker can talk to each other worker
     @test remotecall_fetch(myid, 2) == 2
     @test remotecall_fetch(myid, 3) == 3
     @test remotecall_fetch(() -> remotecall_fetch(myid, 1), 2) == 1
@@ -191,7 +191,7 @@ end
     # Spawn a manager which will wait for workers then terminate without having the chance
     # to send the KILL message to workers. Note: We need to set the cluster_cookie on the
     # manager process so that it accepts our workers.
-    manager = spawn(`$(Base.julia_cmd()) -e "Base.cluster_cookie(\"$cookie\"); using AWSClusterManagers; mgr = AWSClusterManagers.Overlay.BrokeredManager(2, launcher=(id, cookie, host, port) -> nothing); addprocs(mgr); close(mgr.node.sock)"`)
+    manager = spawn(`$(Base.julia_cmd()) -e "Base.cluster_cookie(\"$cookie\"); using AWSClusterManagers; mgr = AWSClusterManagers.Overlay.BrokeredManager(2, launcher=(id, cookie, host, port) -> nothing); addprocs(mgr); close(mgr.network.sock)"`)
 
     # TODO: Test that workers are running
 
@@ -217,7 +217,7 @@ end
 #     mgr = BrokeredManager(1, launcher=spawn_worker)
 #     addprocs(mgr)
 
-#     r_s, w_s = first(values(mgr.node.streams))  # Access the read/write streams for the added worker
+#     r_s, w_s = first(values(mgr.network.streams))  # Access the read/write streams for the added worker
 #     write(w_s, UInt8[])
 #     yield()
 

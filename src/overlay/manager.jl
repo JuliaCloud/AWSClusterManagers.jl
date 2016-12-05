@@ -3,16 +3,16 @@ import JSON
 
 type BrokeredManager <: ClusterManager
     np::Int
-    node::Node
+    network::OverlayNetwork
     launcher::Function
 end
 
 function BrokeredManager(np::Integer, broker=DEFAULT_HOST, port::Integer=DEFAULT_PORT; launcher::Function=spawn_local_worker)
-    BrokeredManager(Int(np), Node(1, broker, port), launcher)
+    BrokeredManager(Int(np), OverlayNetwork(1, broker, port), launcher)
 end
 
-function BrokeredManager(node::Node)
-    BrokeredManager(0, node, (id,cookie) -> nothing)
+function BrokeredManager(net::OverlayNetwork)
+    BrokeredManager(0, net, (id,cookie,host,port) -> nothing)
 end
 
 function spawn_local_worker(id, cookie, broker_host, broker_port)
@@ -71,26 +71,26 @@ let next_id = 2    # 1 is reserved for the client (always)
 end
 
 function launch(manager::BrokeredManager, params::Dict, launched::Array, c::Condition)
-    node = manager.node
+    net = manager.network
     available_workers = 0
 
     @schedule begin
-        while !eof(node.sock)
-            msg = recv(node)
+        while !eof(net.sock)
+            msg = recv(net)
             from = msg.src
 
             # TODO: Do what worker does?
             if msg.typ == UNREACHABLE_TYPE
                 debug("Receive UNREACHABLE from $from")
 
-                if haskey(node.streams, from)
-                    (r_s, w_s) = pop!(node.streams, from)
+                if haskey(net.streams, from)
+                    (r_s, w_s) = pop!(net.streams, from)
                     close(r_s)
                     close(w_s)
                 end
             elseif msg.typ == DATA_TYPE
                 debug("Receive DATA from $from")
-                (r_s, w_s) = node.streams[from]
+                (r_s, w_s) = net.streams[from]
                 unsafe_write(r_s, pointer(msg.payload), length(msg.payload))
             elseif msg.typ == HELLO_TYPE
                 debug("Receive HELLO from $from")
@@ -113,7 +113,7 @@ function launch(manager::BrokeredManager, params::Dict, launched::Array, c::Cond
         # will ensure that the local references to the workers are cleaned up.
         # Will generate "ERROR (unhandled task failure): EOFError: read end of file" when
         # the worker connection is severed.
-        close(node)
+        close(net)
     end
 
     # Note: The manager doesn't have to assign the broker ID. The workers could actually
@@ -122,8 +122,8 @@ function launch(manager::BrokeredManager, params::Dict, launched::Array, c::Cond
         manager.launcher(
             get_next_broker_id(),
             Base.cluster_cookie(),
-            node.broker_host,
-            node.broker_port,
+            net.broker_host,
+            net.broker_port,
         )
     end
 
@@ -147,10 +147,10 @@ function connect(manager::BrokeredManager, pid::Int, config::WorkerConfig)
     end
 
     # Curt: I think this is just used by the manager
-    node = manager.node
-    streams = get!(node.streams, zid) do
-        info("Connect $(node.id) -> $zid")
-        setup_connection(node, zid)
+    net = manager.network
+    streams = get!(net.streams, zid) do
+        info("Connect $(net.id) -> $zid")
+        setup_connection(net, zid)
     end
 
     udata = get(config.userdata)
@@ -163,7 +163,7 @@ function manage(manager::BrokeredManager, id::Int, config::WorkerConfig, op)
     # println("manager: $op")
     # if op == :interrupt
     #     zid = get(config.userdata)[:zid]
-    #     send(manager.node, zid, CONTROL_MSG, KILL_MSG)
+    #     send(manager.network, zid, CONTROL_MSG, KILL_MSG)
 
     #     # TODO: Need to clear out mapping on workers?
     #     (r_s, w_s) = get(config.userdata)[:streams]
@@ -171,26 +171,26 @@ function manage(manager::BrokeredManager, id::Int, config::WorkerConfig, op)
     #     close(w_s)
 
     #     # remove from our map
-    #     delete!(manager.node.mapping, get(config.userdata)[:zid])
+    #     delete!(manager.network.mapping, get(config.userdata)[:zid])
     # end
 
     # if op == :deregister
     #     # zid = get(config.userdata)[:id]
-    #     # send(manager.node, zid, encode(Message(KILL_MSG, UInt8[])))
+    #     # send(manager.network, zid, encode(Message(KILL_MSG, UInt8[])))
 
     #     # TODO: Do we need to cleanup the streams to this worker which are on other remote
     #     # workers?
     # elseif op == :finalize
     #     zid = get(config.userdata)[:id]
-    #     send(manager.node, zid, encode(Message(KILL_MSG, UInt8[])))
+    #     send(manager.network, zid, encode(Message(KILL_MSG, UInt8[])))
 
     #     # TODO: Need to clear out mapping on workers?
-    #     (r_s, w_s) = manager.node.streams[zid]
+    #     (r_s, w_s) = manager.network.streams[zid]
     #     close(r_s)
     #     close(w_s)
 
     #     # remove from our map
-    #     delete!(manager.node.streams, zid)
+    #     delete!(manager.network.streams, zid)
 
     #     # TODO: Receive response?
     # end
@@ -203,18 +203,18 @@ function kill(manager::BrokeredManager, pid::Int, config::WorkerConfig)
 
     # TODO: I'm worried about the connection being terminated before the message is sent...
     info("Send KILL to $zid")
-    send(manager.node, zid, KILL_TYPE)
+    send(manager.network, zid, KILL_TYPE)
 
     # Remove the streams from the node and close them
-    (r_s, w_s) = pop!(manager.node.streams, zid)
+    (r_s, w_s) = pop!(manager.network.streams, zid)
     close(r_s)
     close(w_s)
 
     # Terminate socket from manager to broker when all workers have been killed
     # Doesn't work?
-    node = manager.node
-    if isempty(node.streams)
-        close(node.sock)
+    net = manager.network
+    if isempty(net.streams)
+        close(net.sock)
     end
 
     nothing

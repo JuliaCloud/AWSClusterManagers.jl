@@ -3,7 +3,7 @@ import Base: Semaphore, close
 const DEFAULT_HOST = ip"127.0.0.1"
 const DEFAULT_PORT = 2000
 
-type Node
+type OverlayNetwork
     id::UInt128
     sock::TCPSocket
     read_access::Semaphore
@@ -13,7 +13,7 @@ type Node
     broker_port::Int
 end
 
-function Node(id::Integer, broker=DEFAULT_HOST, port::Integer=DEFAULT_PORT)
+function OverlayNetwork(id::Integer, broker=DEFAULT_HOST, port::Integer=DEFAULT_PORT)
     sock = connect(broker, port)
 
     # Trying this to keep the connection open while data needs to be send
@@ -21,7 +21,7 @@ function Node(id::Integer, broker=DEFAULT_HOST, port::Integer=DEFAULT_PORT)
     # Base.wait_connected(sock)
 
     write(sock, UInt128(id))  # Register
-    return Node(
+    return OverlayNetwork(
         id,
         sock,
         Semaphore(1),
@@ -32,30 +32,30 @@ function Node(id::Integer, broker=DEFAULT_HOST, port::Integer=DEFAULT_PORT)
     )
 end
 
-function close(node::Node)
-    for (read_stream, write_stream) in values(node.streams)
+function close(net::OverlayNetwork)
+    for (read_stream, write_stream) in values(net.streams)
         close(read_stream)
         close(write_stream)
     end
 
-    close(node.sock)
+    close(net.sock)
 end
 
-function send(node::Node, dest_id::Integer, typ::Integer, content)
-    msg = OverlayMessage(node.id, dest_id, typ, content)
+function send(net::OverlayNetwork, dest_id::Integer, typ::Integer, content)
+    msg = OverlayMessage(net.id, dest_id, typ, content)
 
     # By the time we acquire the lock the socket may have been closed.
-    acquire(node.write_access)
-    isopen(node.sock) && write(node.sock, msg)
-    release(node.write_access)
+    acquire(net.write_access)
+    isopen(net.sock) && write(net.sock, msg)
+    release(net.write_access)
 end
 
-send(node::Node, dest_id::Integer, typ::Integer) = send(node, dest_id, typ, UInt8[])
+send(net::OverlayNetwork, dest_id::Integer, typ::Integer) = send(net, dest_id, typ, UInt8[])
 
-function recv(node::Node)
-    acquire(node.read_access)
-    msg = read(node.sock, OverlayMessage)
-    release(node.read_access)
+function recv(net::OverlayNetwork)
+    acquire(net.read_access)
+    msg = read(net.sock, OverlayMessage)
+    release(net.read_access)
 
     return msg
 end
@@ -63,27 +63,27 @@ end
 
 const send_to_broker = Condition()
 
-function setup_connection(node::Node, dest_id::Integer)
+function setup_connection(net::OverlayNetwork, dest_id::Integer)
     # read indicates data from the remote source to be processed by the current node
     # while write indicates data to be sent to the remote source
     read_stream = BufferStream()
     write_stream = BufferStream()
 
-    node.streams[dest_id] = (read_stream, write_stream)
+    net.streams[dest_id] = (read_stream, write_stream)
 
     # Transfer all data written to the write stream to the destination via the broker.
-    @schedule while !eof(write_stream) && isopen(node.sock)
-        debug("Transfer $(node.id) -> $dest_id")
+    @schedule while !eof(write_stream) && isopen(net.sock)
+        debug("Transfer $(net.id) -> $dest_id")
         data = readavailable(write_stream)
-        send(node, dest_id, DATA_TYPE, data)
+        send(net, dest_id, DATA_TYPE, data)
         notify(send_to_broker)
     end
 
     return (read_stream, write_stream)
 end
 
-function transfer_pending(node::Node)
-    for (read_stream, write_stream) in values(node.streams)
+function transfer_pending(net::OverlayNetwork)
+    for (read_stream, write_stream) in values(net.streams)
         if nb_available(write_stream) > 0
             return true
         end
@@ -92,8 +92,8 @@ function transfer_pending(node::Node)
     return false
 end
 
-function Base.wait(node::Node)
-    while transfer_pending(node)
+function Base.wait(net::OverlayNetwork)
+    while transfer_pending(net)
         wait(send_to_broker)
     end
 end
