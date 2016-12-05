@@ -29,7 +29,7 @@ end
 
 type AWSBatchManager <: OverlayClusterManager
     np::Int
-    network::OverlaySocket
+    network::OverlayNetwork
     prefix::AbstractString
     definition::AbstractString
     queue::AbstractString
@@ -60,7 +60,7 @@ function AWSBatchManager(
 
     AWSBatchManager(
         Int(np),
-        OverlaySocket(1, host, port),
+        OverlayNetwork(1, host, port),
         prefix,
         definition,
         queue,

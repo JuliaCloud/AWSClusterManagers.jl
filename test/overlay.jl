@@ -1,4 +1,4 @@
-import AWSClusterManagers.OverlayManagers.Transport: OverlaySocket, OverlayMessage, DEFAULT_HOST, DEFAULT_PORT
+import AWSClusterManagers.OverlayManagers.Transport: OverlayNetwork, OverlayMessage, DEFAULT_HOST, DEFAULT_PORT
 import AWSClusterManagers.OverlayManagers: start_broker, OverlayClusterManager, reset_broker_id
 import AWSClusterManagers.OverlayManagers: LocalOverlayManager, spawn_local_worker
 import Lumberjack: remove_truck
@@ -58,7 +58,7 @@ end
 @testset "send to self" begin
     broker = spawn_broker()
 
-    net = OverlaySocket(1)
+    net = OverlayNetwork(1)
     msg = OverlayMessage(1, 1, "helloworld!")
     write(net.sock, msg)
     result = read(net.sock, OverlayMessage)
@@ -73,7 +73,7 @@ end
     broker = spawn_broker()
 
     @schedule begin
-        _net = OverlaySocket(2)
+        _net = OverlayNetwork(2)
         incoming = read(_net.sock, OverlayMessage)
         outgoing = OverlayMessage(2, incoming.src, "REPLY: $(String(incoming.payload))")
         write(_net.sock, outgoing)
@@ -81,7 +81,7 @@ end
     end
     yield()
 
-    net = OverlaySocket(1)
+    net = OverlayNetwork(1)
     msg = OverlayMessage(1, 2, "helloworld!")
     write(net.sock, msg)
     result = read(net.sock, OverlayMessage)

@@ -3,7 +3,7 @@ import Base: Semaphore, send, recv, close
 const DEFAULT_HOST = ip"127.0.0.1"
 const DEFAULT_PORT = 2000
 
-type OverlaySocket
+type OverlayNetwork
     id::UInt128
     sock::TCPSocket
     read_access::Semaphore
@@ -13,7 +13,7 @@ type OverlaySocket
     broker_port::Int
 end
 
-function OverlaySocket(id::Integer, broker=DEFAULT_HOST, port::Integer=DEFAULT_PORT)
+function OverlayNetwork(id::Integer, broker=DEFAULT_HOST, port::Integer=DEFAULT_PORT)
     sock = connect(broker, port)
 
     # Trying this to keep the connection open while data needs to be send
@@ -21,7 +21,7 @@ function OverlaySocket(id::Integer, broker=DEFAULT_HOST, port::Integer=DEFAULT_P
     # Base.wait_connected(sock)
 
     write(sock, UInt128(id))  # Register
-    return OverlaySocket(
+    return OverlayNetwork(
         id,
         sock,
         Semaphore(1),
@@ -32,7 +32,7 @@ function OverlaySocket(id::Integer, broker=DEFAULT_HOST, port::Integer=DEFAULT_P
     )
 end
 
-function close(net::OverlaySocket)
+function close(net::OverlayNetwork)
     for (read_stream, write_stream) in values(net.streams)
         close(read_stream)
         close(write_stream)
@@ -41,7 +41,7 @@ function close(net::OverlaySocket)
     close(net.sock)
 end
 
-function send(net::OverlaySocket, dest_id::Integer, typ::Integer, content)
+function send(net::OverlayNetwork, dest_id::Integer, typ::Integer, content)
     msg = OverlayMessage(net.id, dest_id, typ, content)
 
     # By the time we acquire the lock the socket may have been closed.
@@ -50,9 +50,9 @@ function send(net::OverlaySocket, dest_id::Integer, typ::Integer, content)
     release(net.write_access)
 end
 
-send(net::OverlaySocket, dest_id::Integer, typ::Integer) = send(net, dest_id, typ, UInt8[])
+send(net::OverlayNetwork, dest_id::Integer, typ::Integer) = send(net, dest_id, typ, UInt8[])
 
-function recv(net::OverlaySocket)
+function recv(net::OverlayNetwork)
     acquire(net.read_access)
     msg = read(net.sock, OverlayMessage)
     release(net.read_access)
@@ -60,7 +60,7 @@ function recv(net::OverlaySocket)
     return msg
 end
 
-function setup_connection(net::OverlaySocket, dest_id::Integer)
+function setup_connection(net::OverlayNetwork, dest_id::Integer)
     # read indicates data from the remote source to be processed by the current node
     # while write indicates data to be sent to the remote source
     read_stream = BufferStream()
