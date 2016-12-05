@@ -1,5 +1,6 @@
 import Base: Semaphore, close
 
+const DEFAULT_HOST = ip"127.0.0.1"
 const DEFAULT_PORT = 2000
 
 type Node
@@ -8,11 +9,11 @@ type Node
     read_access::Semaphore
     write_access::Semaphore
     streams::Dict{UInt128,Tuple{IO,IO}}
-    broker_host::IPAddr
+    broker_host::Union{IPAddr,String}
     broker_port::Int
 end
 
-function Node(id::Integer, broker::IPAddr=ip"127.0.0.1", port::Integer=DEFAULT_PORT)
+function Node(id::Integer, broker=DEFAULT_HOST, port::Integer=DEFAULT_PORT)
     sock = connect(broker, port)
 
     # Trying this to keep the connection open while data needs to be send

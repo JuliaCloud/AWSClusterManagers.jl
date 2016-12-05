@@ -1,4 +1,4 @@
-function start_worker(id::Integer, cookie::AbstractString, broker::IPAddr, port::Integer)
+function start_worker(id::Integer, cookie::AbstractString, broker, port::Integer)
     #println("start_worker")
     node = Node(id, broker, port)
     dummy = BrokeredManager(node)  # Needed for use in `connect`

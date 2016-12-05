@@ -1,4 +1,4 @@
-import AWSClusterManagers.Brokered: Node, start_broker, BrokeredManager, reset_broker_id, OverlayMessage, DEFAULT_PORT
+import AWSClusterManagers.Brokered: Node, start_broker, BrokeredManager, reset_broker_id, OverlayMessage, DEFAULT_HOST, DEFAULT_PORT
 import Lumberjack: remove_truck
 
 remove_truck("console")  # Disable logging
@@ -41,8 +41,8 @@ function spawn_broker(; self_terminate=true)
     return broker
 end
 
-function spawn_worker(id, cookie, host=ip"127.0.0.1", port=DEFAULT_PORT)
-    spawn(`$(Base.julia_cmd()) -e "using AWSClusterManagers; AWSClusterManagers.Brokered.start_worker($id, \"$cookie\", ip\"$host\", $port)"`)
+function spawn_worker(id, cookie, host=DEFAULT_HOST, port=DEFAULT_PORT)
+    spawn(`$(Base.julia_cmd()) -e "using AWSClusterManagers; AWSClusterManagers.Brokered.start_worker($id, \"$cookie\", \"$host\", $port)"`)
 end
 
 null_launcher(id, cookie, host, port) = nothing

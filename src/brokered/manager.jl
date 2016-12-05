@@ -7,7 +7,7 @@ type BrokeredManager <: ClusterManager
     launcher::Function
 end
 
-function BrokeredManager(np::Integer, broker::IPAddr=ip"127.0.0.1", port::Integer=DEFAULT_PORT; launcher::Function=spawn_local_worker)
+function BrokeredManager(np::Integer, broker=DEFAULT_HOST, port::Integer=DEFAULT_PORT; launcher::Function=spawn_local_worker)
     BrokeredManager(Int(np), Node(1, broker, port), launcher)
 end
 
@@ -16,7 +16,7 @@ function BrokeredManager(node::Node)
 end
 
 function spawn_local_worker(id, cookie, broker_host, broker_port)
-    spawn(`$(Base.julia_cmd()) -e "using AWSClusterManagers; AWSClusterManagers.Brokered.start_worker($id, \"$cookie\", ip\"$broker_host\", $broker_port)"`)
+    spawn(`$(Base.julia_cmd()) -e "using AWSClusterManagers; AWSClusterManagers.Brokered.start_worker($id, \"$cookie\", \"$broker_host\", $broker_port)"`)
 end
 
 function aws_batch_launcher(;
@@ -38,8 +38,8 @@ function aws_batch_launcher(;
         region = isempty(region) ? job.region : region
     end
 
-    function launcher(id::Integer, cookie::AbstractString, broker_host::IPAddr, broker_port::Integer)
-        override_cmd = `julia -e "import AWSClusterManagers.Brokered: start_worker; start_worker($id, \"$cookie\", ip\"$broker_host\", $broker_port)"`
+    function launcher(id::Integer, cookie::AbstractString, broker_host, broker_port::Integer)
+        override_cmd = `julia -e "import AWSClusterManagers.Brokered: start_worker; start_worker($id, \"$cookie\", \"$broker_host\", $broker_port)"`
 
         cmd = `aws --region $region batch submit-job`
         cmd = `$cmd --job-name "$name_prefix$(lpad(id, 2, 0))"`
