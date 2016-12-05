@@ -3,15 +3,15 @@ import JSON
 
 type BrokeredManager <: ClusterManager
     np::Int
-    network::OverlayNetwork
+    network::OverlaySocket
     launcher::Function
 end
 
 function BrokeredManager(np::Integer, broker=DEFAULT_HOST, port::Integer=DEFAULT_PORT; launcher::Function=spawn_local_worker)
-    BrokeredManager(Int(np), OverlayNetwork(1, broker, port), launcher)
+    BrokeredManager(Int(np), OverlaySocket(1, broker, port), launcher)
 end
 
-function BrokeredManager(net::OverlayNetwork)
+function BrokeredManager(net::OverlaySocket)
     BrokeredManager(0, net, (id,cookie,host,port) -> nothing)
 end
 

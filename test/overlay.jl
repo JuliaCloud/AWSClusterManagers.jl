@@ -1,4 +1,5 @@
-import AWSClusterManagers.Overlay: OverlayNetwork, start_broker, BrokeredManager, reset_broker_id, OverlayMessage, DEFAULT_HOST, DEFAULT_PORT
+import AWSClusterManagers.OverlayNetwork: OverlaySocket, OverlayMessage, DEFAULT_HOST, DEFAULT_PORT
+import AWSClusterManagers.OverlayCluster: start_broker, BrokeredManager, reset_broker_id
 import Lumberjack: remove_truck
 
 remove_truck("console")  # Disable logging
@@ -24,7 +25,7 @@ end
 Base.get_next_pid() = get_next_pid()
 
 function spawn_broker(; self_terminate=true)
-    broker = spawn(`$(Base.julia_cmd()) -e "using AWSClusterManagers; AWSClusterManagers.Overlay.start_broker(self_terminate=$self_terminate)"`)
+    broker = spawn(`$(Base.julia_cmd()) -e "using AWSClusterManagers; AWSClusterManagers.OverlayNetwork.start_broker(self_terminate=$self_terminate)"`)
 
     # Wait until the broker is ready
     # TODO: Find better way of waiting for broker to be connectable
@@ -42,7 +43,7 @@ function spawn_broker(; self_terminate=true)
 end
 
 function spawn_worker(id, cookie, host=DEFAULT_HOST, port=DEFAULT_PORT)
-    spawn(`$(Base.julia_cmd()) -e "using AWSClusterManagers; AWSClusterManagers.Overlay.start_worker($id, \"$cookie\", \"$host\", $port)"`)
+    spawn(`$(Base.julia_cmd()) -e "using AWSClusterManagers; AWSClusterManagers.OverlayCluster.start_worker($id, \"$cookie\", \"$host\", $port)"`)
 end
 
 null_launcher(id, cookie, host, port) = nothing
@@ -63,7 +64,7 @@ end
 @testset "send to self" begin
     broker = spawn_broker()
 
-    net = OverlayNetwork(1)
+    net = OverlaySocket(1)
     msg = OverlayMessage(1, 1, "helloworld!")
     write(net.sock, msg)
     result = read(net.sock, OverlayMessage)
@@ -78,7 +79,7 @@ end
     broker = spawn_broker()
 
     @schedule begin
-        _net = OverlayNetwork(2)
+        _net = OverlaySocket(2)
         incoming = read(_net.sock, OverlayMessage)
         outgoing = OverlayMessage(2, incoming.src, "REPLY: $(String(incoming.payload))")
         write(_net.sock, outgoing)
@@ -86,7 +87,7 @@ end
     end
     yield()
 
-    net = OverlayNetwork(1)
+    net = OverlaySocket(1)
     msg = OverlayMessage(1, 2, "helloworld!")
     write(net.sock, msg)
     result = read(net.sock, OverlayMessage)
@@ -106,7 +107,8 @@ end
 
     # Add two workers which will connect to each other
     @test workers() == [1]
-    added = addprocs(BrokeredManager(2, launcher=spawn_worker))
+    mgr = BrokeredManager(2, launcher=spawn_worker)
+    added = addprocs(mgr)
     @test added == [2, 3]
 
     # Each worker can talk to each other worker

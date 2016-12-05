@@ -1,6 +1,6 @@
 function start_worker(id::Integer, cookie::AbstractString, broker, port::Integer)
     #println("start_worker")
-    net = OverlayNetwork(id, broker, port)
+    net = OverlaySocket(id, broker, port)
     dummy = BrokeredManager(net)  # Needed for use in `connect`
     Base.init_worker(cookie, dummy)
 

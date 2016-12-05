@@ -15,6 +15,7 @@ end
 # include("container.jl")
 # include("ecs.jl")
 # include("docker.jl")
-include("overlay/Overlay.jl")
+include("OverlayNetwork/OverlayNetwork.jl")
+include("OverlayCluster/OverlayCluster.jl")
 
 end # module
