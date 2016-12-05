@@ -171,6 +171,7 @@ end
     assert(process_running(worker_a))  # Ensure we can actually kill the worker
     kill(worker_a)
     wait(worker_a)
+    yield()
 
     # Broker informs all nodes of the deregistration which the manager uses to get notified
     # @test workers() == [3]
