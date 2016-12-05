@@ -1,5 +1,6 @@
 import AWSClusterManagers.OverlayNetwork: OverlaySocket, OverlayMessage, DEFAULT_HOST, DEFAULT_PORT
 import AWSClusterManagers.OverlayCluster: start_broker, OverlayClusterManager, reset_broker_id
+import AWSClusterManagers: LocalOverlayManager, spawn_local_worker
 import Lumberjack: remove_truck
 
 remove_truck("console")  # Disable logging
@@ -41,13 +42,6 @@ function spawn_broker(; self_terminate=true)
 
     return broker
 end
-
-function spawn_worker(id, cookie, host=DEFAULT_HOST, port=DEFAULT_PORT)
-    spawn(`$(Base.julia_cmd()) -e "using AWSClusterManagers; AWSClusterManagers.OverlayCluster.start_worker($id, \"$cookie\", \"$host\", $port)"`)
-end
-
-null_launcher(id, cookie, host, port) = nothing
-
 
 
 @testset "encode/decode" begin
@@ -107,7 +101,7 @@ end
 
     # Add two workers which will connect to each other
     @test workers() == [1]
-    added = addprocs(OverlayClusterManager(2, launcher=spawn_worker))
+    added = addprocs(LocalOverlayManager(2))
     @test added == [2, 3]
 
     # Each worker can talk to each other worker
@@ -129,12 +123,12 @@ end
     reset_next_pid()
     broker = spawn_broker()
 
-    mgr = OverlayClusterManager(2, launcher=null_launcher)
+    mgr = LocalOverlayManager(2, manual_spawn=true)
 
     # Add workers manually so that we have access to their processes
     launch = @schedule addprocs(mgr)
-    worker_a = spawn_worker(2, Base.cluster_cookie())
-    worker_b = spawn_worker(3, Base.cluster_cookie())
+    worker_a = spawn_local_worker(2, Base.cluster_cookie())
+    worker_b = spawn_local_worker(3, Base.cluster_cookie())
     wait(launch)  # will complete once the workers have connected to the manager
 
     @test workers() == [2, 3]
@@ -157,12 +151,12 @@ end
     reset_next_pid()
     broker = spawn_broker()
 
-    mgr = OverlayClusterManager(2, launcher=null_launcher)
+    mgr = LocalOverlayManager(2, manual_spawn=true)
 
     # Add workers manually so that we have access to their processes
     launch = @schedule addprocs(mgr)
-    worker_a = spawn_worker(2, Base.cluster_cookie())
-    worker_b = spawn_worker(3, Base.cluster_cookie())
+    worker_a = spawn_local_worker(2, Base.cluster_cookie())
+    worker_b = spawn_local_worker(3, Base.cluster_cookie())
     wait(launch)  # will complete once the workers have connected to the manager
 
     @test workers() == [2, 3]
@@ -192,13 +186,13 @@ end
     # Spawn a manager which will wait for workers then terminate without having the chance
     # to send the KILL message to workers. Note: We need to set the cluster_cookie on the
     # manager process so that it accepts our workers.
-    manager = spawn(`$(Base.julia_cmd()) -e "Base.cluster_cookie(\"$cookie\"); using AWSClusterManagers; mgr = OverlayClusterManager(2, launcher=(id, cookie, host, port) -> nothing); addprocs(mgr); close(mgr.network.sock)"`)
+    manager = spawn(`$(Base.julia_cmd()) -e "Base.cluster_cookie(\"$cookie\"); using AWSClusterManagers; mgr = LocalOverlayManager(2, manual_spawn=true); addprocs(mgr); close(mgr.network.sock)"`)
 
     # TODO: Test that workers are running
 
     # Add workers manually so that we have access to their processes
-    worker_a = spawn_worker(2, cookie)
-    worker_b = spawn_worker(3, cookie)
+    worker_a = spawn_local_worker(2, cookie)
+    worker_b = spawn_local_worker(3, cookie)
     wait(manager)  # manager process has terminated
 
     # TODO: A failure will cause use to wait indefinitely...
@@ -215,7 +209,7 @@ end
 #     broker = spawn_broker()
 
 #     # Add two workers which will connect to each other
-#     mgr = OverlayClusterManager(1, launcher=spawn_worker)
+#     mgr = LocalOverlayManager(1)
 #     addprocs(mgr)
 
 #     r_s, w_s = first(values(mgr.network.streams))  # Access the read/write streams for the added worker
@@ -229,13 +223,13 @@ end
     reset_next_pid()
     broker = spawn_broker()
 
-    added = addprocs(OverlayClusterManager(2, launcher=spawn_worker))
+    added = addprocs(LocalOverlayManager(2))
     @test workers() == [2, 3]
 
     rmprocs(3); yield()
     @test workers() == [2]
 
-    added = addprocs(OverlayClusterManager(1, launcher=spawn_worker))
+    added = addprocs(LocalOverlayManager(1))
     @test workers() == [2, 4]
 
     rmprocs(2, 4)
@@ -244,5 +238,5 @@ end
 
 # @testset "brokerless" begin
 #     reset_next_pid()
-#     added = addprocs(OverlayClusterManager(1, launcher=spawn_worker))
+#     added = addprocs(LocalOverlayManager(1))
 # end

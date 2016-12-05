@@ -1,60 +1,9 @@
 import Base: launch, manage, connect, kill
 import JSON
 
-type OverlayClusterManager <: ClusterManager
-    np::Int
-    network::OverlaySocket
-    launcher::Function
-end
+abstract OverlayClusterManager <: ClusterManager
 
-function OverlayClusterManager(np::Integer, broker=DEFAULT_HOST, port::Integer=DEFAULT_PORT; launcher::Function=spawn_local_worker)
-    OverlayClusterManager(Int(np), OverlaySocket(1, broker, port), launcher)
-end
-
-function OverlayClusterManager(net::OverlaySocket)
-    OverlayClusterManager(0, net, (id,cookie,host,port) -> nothing)
-end
-
-function spawn_local_worker(id, cookie, broker_host, broker_port)
-    spawn(`$(Base.julia_cmd()) -e "using AWSClusterManagers; AWSClusterManagers.OverlayCluster.start_worker($id, \"$cookie\", \"$broker_host\", $broker_port)"`)
-end
-
-function aws_batch_launcher(;
-        name_prefix::AbstractString="",
-        definition::AbstractString="",
-        queue::AbstractString="",
-        region::AbstractString="",
-    )
-
-    # Workers by default inherit the AWS Batch settings from the manager.
-    # Note: only query for default values if we need them as the lookup requires special
-    # permissions.
-    if isempty(name_prefix) || isempty(definition) || isempty(queue) || isempty(region)
-        job = AWSBatchJob()
-
-        name_prefix = isempty(name_prefix) ? "$(job.name)Worker" : name_prefix
-        definition = isempty(definition) ? job.definition : definition
-        queue = isempty(queue) ? job.queue : queue
-        region = isempty(region) ? job.region : region
-    end
-
-    function launcher(id::Integer, cookie::AbstractString, broker_host, broker_port::Integer)
-        override_cmd = `julia -e "import AWSClusterManagers.OverlayCluster: start_worker; start_worker($id, \"$cookie\", \"$broker_host\", $broker_port)"`
-
-        cmd = `aws --region $region batch submit-job`
-        cmd = `$cmd --job-name "$name_prefix$(lpad(id, 2, 0))"`
-        cmd = `$cmd --job-queue $queue`
-        cmd = `$cmd --job-definition $definition`
-        overrides = Dict(
-            "command" => collect(override_cmd.exec),
-        )
-        cmd = `$cmd --container-overrides $(JSON.json(overrides))`
-
-        run(cmd)
-    end
-
-    return launcher
-end
+function num_processes end
 
 let next_id = 2    # 1 is reserved for the client (always)
     global get_next_broker_id
@@ -118,13 +67,8 @@ function launch(manager::OverlayClusterManager, params::Dict, launched::Array, c
 
     # Note: The manager doesn't have to assign the broker ID. The workers could actually
     # self assign their own IDs as long as they are unique within the cluster.
-    for i in 1:manager.np
-        manager.launcher(
-            get_next_broker_id(),
-            Base.cluster_cookie(),
-            net.broker_host,
-            net.broker_port,
-        )
+    for i in 1:num_processes(manager)
+        spawn(manager, get_next_broker_id())
     end
 
     # Wait until all requested workers are available.

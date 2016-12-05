@@ -1,7 +1,11 @@
+type WorkerManager <: OverlayClusterManager
+    network::OverlaySocket
+end
+
 function start_worker(id::Integer, cookie::AbstractString, broker, port::Integer)
     #println("start_worker")
     net = OverlaySocket(id, broker, port)
-    dummy = OverlayClusterManager(net)  # Needed for use in `connect`
+    dummy = WorkerManager(net)  # Needed for use in `connect`
     Base.init_worker(cookie, dummy)
 
     manager_id = 1
