@@ -19,14 +19,32 @@ function spawn_local_worker(id, cookie, broker_host, broker_port)
     spawn(`$(Base.julia_cmd()) -e "using AWSClusterManagers; AWSClusterManagers.Brokered.start_worker($id, \"$cookie\", ip\"$broker_host\", $broker_port)"`)
 end
 
-function aws_batch_launcher(job_queue::AbstractString, job_definition::AbstractString, region::AbstractString="us-east-1")
+function aws_batch_launcher(;
+        name_prefix::AbstractString="",
+        definition::AbstractString="",
+        queue::AbstractString="",
+        region::AbstractString="",
+    )
+
+    # Workers by default inherit the AWS Batch settings from the manager.
+    # Note: only query for default values if we need them as the lookup requires special
+    # permissions.
+    if isempty(name_prefix) || isempty(definition) || isempty(queue) || isempty(region)
+        job = AWSBatchJob()
+
+        name_prefix = isempty(name_prefix) ? "$(job.name)Worker" : name_prefix
+        definition = isempty(definition) ? job.definition : definition
+        queue = isempty(queue) ? job.queue : queue
+        region = isempty(region) ? job.region : region
+    end
+
     function launcher(id::Integer, cookie::AbstractString, broker_host::IPAddr, broker_port::Integer)
         override_cmd = `julia -e "import AWSClusterManagers.Brokered: start_worker; start_worker($id, \"$cookie\", ip\"$broker_host\", $broker_port)"`
 
         cmd = `aws --region $region batch submit-job`
-        cmd = `$cmd --job-name "worker_$id"`
-        cmd = `$cmd --job-queue $job_queue`
-        cmd = `$cmd --job-definition $job_definition`
+        cmd = `$cmd --job-name "$name_prefix$(lpad(id, 2, 0))"`
+        cmd = `$cmd --job-queue $queue`
+        cmd = `$cmd --job-definition $definition`
         overrides = Dict(
             "command" => collect(override_cmd.exec),
         )
