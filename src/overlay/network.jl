@@ -60,9 +60,6 @@ function recv(net::OverlayNetwork)
     return msg
 end
 
-
-const send_to_broker = Condition()
-
 function setup_connection(net::OverlayNetwork, dest_id::Integer)
     # read indicates data from the remote source to be processed by the current node
     # while write indicates data to be sent to the remote source
@@ -76,24 +73,7 @@ function setup_connection(net::OverlayNetwork, dest_id::Integer)
         debug("Transfer $(net.id) -> $dest_id")
         data = readavailable(write_stream)
         send(net, dest_id, DATA_TYPE, data)
-        notify(send_to_broker)
     end
 
     return (read_stream, write_stream)
-end
-
-function transfer_pending(net::OverlayNetwork)
-    for (read_stream, write_stream) in values(net.streams)
-        if nb_available(write_stream) > 0
-            return true
-        end
-    end
-
-    return false
-end
-
-function Base.wait(net::OverlayNetwork)
-    while transfer_pending(net)
-        wait(send_to_broker)
-    end
 end
