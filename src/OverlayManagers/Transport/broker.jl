@@ -8,7 +8,7 @@ type BrokeredNode
 end
 
 function start_broker(host::IPAddr=ip"::", port::Integer=DEFAULT_PORT; self_terminate=false)
-    mapping = Dict{UInt128,BrokeredNode}()
+    mapping = Dict{OverlayID,BrokeredNode}()
     server = listen(host, port)
     info("Starting broker server on $(getipaddr()):$port")
 
@@ -16,7 +16,7 @@ function start_broker(host::IPAddr=ip"::", port::Integer=DEFAULT_PORT; self_term
         # Registration should happen before the async block otherwise we could associate
         # an ID with the wrong socket.
         if !eof(sock)
-            sock_id = read(sock, UInt128)
+            sock_id = read(sock, OverlayID)
             info("Register: $sock_id")
             mapping[sock_id] = BrokeredNode(sock)
         else

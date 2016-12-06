@@ -5,9 +5,11 @@ import Base: ==, write, read
 const DATA_TYPE = 0x00
 const UNREACHABLE_TYPE = 0x01
 
+typealias OverlayID UInt128
+
 type OverlayMessage
-    src::UInt128
-    dest::UInt128
+    src::OverlayID
+    dest::OverlayID
     typ::UInt8
     payload::Vector{UInt8}
 end

@@ -11,15 +11,15 @@ end
 
 num_processes(mgr::LocalOverlayManager) = mgr.np
 
-function spawn(mgr::LocalOverlayManager, id::Integer)
+function spawn(mgr::LocalOverlayManager, oid::Integer)
     if !mgr.manual_spawn
         cookie = Base.cluster_cookie()
         host = mgr.network.broker_host
         port = mgr.network.broker_port
-        spawn_local_worker(id, cookie, host, port)
+        spawn_local_worker(oid, cookie, host, port)
     end
 end
 
-function spawn_local_worker(id, cookie, host=DEFAULT_HOST, port=DEFAULT_PORT)
-    Base.spawn(`$(Base.julia_cmd()) -e "using AWSClusterManagers.OverlayManagers; start_worker($id, \"$cookie\", \"$host\", $port)"`)
+function spawn_local_worker(oid, cookie, host=DEFAULT_HOST, port=DEFAULT_PORT)
+    Base.spawn(`$(Base.julia_cmd()) -e "using AWSClusterManagers.OverlayManagers; start_worker($oid, \"$cookie\", \"$host\", $port)"`)
 end

@@ -70,15 +70,15 @@ end
 
 num_processes(mgr::AWSBatchManager) = mgr.np
 
-function spawn(mgr::AWSBatchManager, id::Integer)
+function spawn(mgr::AWSBatchManager, oid::Integer)
     cookie = Base.cluster_cookie()
     host = mgr.network.broker_host
     port = mgr.network.broker_port
 
-    override_cmd = `julia -e "using AWSClusterManagers.OverlayManagers; start_worker($id, \"$cookie\", \"$host\", $port)"`
+    override_cmd = `julia -e "using AWSClusterManagers.OverlayManagers; start_worker($oid, \"$cookie\", \"$host\", $port)"`
 
     cmd = `aws --region $(mgr.region) batch submit-job`
-    cmd = `$cmd --job-name "$(mgr.prefix)$(lpad(id, 2, 0))"`
+    cmd = `$cmd --job-name "$(mgr.prefix)$(lpad(oid, 2, 0))"`
     cmd = `$cmd --job-queue $(mgr.queue)`
     cmd = `$cmd --job-definition $(mgr.definition)`
     overrides = Dict(

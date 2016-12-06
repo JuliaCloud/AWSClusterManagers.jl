@@ -5,16 +5,16 @@ abstract OverlayClusterManager <: ClusterManager
 
 function num_processes end
 
-let next_id = 2    # 1 is reserved for the client (always)
-    global get_next_broker_id
-    function get_next_broker_id()
+let next_id = 2    # 1 is reserved for the manager (always)
+    global get_next_overlay_id
+    function get_next_overlay_id()
         id = next_id
         next_id += 1
         id
     end
 
-    global reset_broker_id
-    function reset_broker_id()
+    global reset_overlay_id
+    function reset_overlay_id()
         next_id = 2
     end
 end
@@ -50,7 +50,7 @@ function launch(manager::OverlayClusterManager, params::Dict, launched::Array, c
                 # periodically. Once an element is removed from the queue the manager will call
                 # `connect` and send initial information to the worker.
                 wconfig = WorkerConfig()
-                wconfig.userdata = Dict{Symbol,Any}(:id=>from)
+                wconfig.userdata = Dict{Symbol,Any}(:oid=>from)
                 push!(launched, wconfig)
                 notify(c)
             else
@@ -68,7 +68,7 @@ function launch(manager::OverlayClusterManager, params::Dict, launched::Array, c
     # Note: The manager doesn't have to assign the broker ID. The workers could actually
     # self assign their own IDs as long as they are unique within the cluster.
     for i in 1:num_processes(manager)
-        spawn(manager, get_next_broker_id())
+        spawn(manager, UInt128(get_next_overlay_id()))
     end
 
     # Wait until all requested workers are available.
@@ -82,19 +82,19 @@ end
 function connect(manager::OverlayClusterManager, pid::Int, config::WorkerConfig)
     #println("connect_m2w")
     if myid() == 1
-        zid = get(config.userdata)[:id]
-        config.connect_at = zid # This will be useful in the worker-to-worker connection setup.
+        oid = get(config.userdata)[:oid]
+        config.connect_at = oid # This will be useful in the worker-to-worker connection setup.
     else
         #println("connect_w2w")
-        zid = get(config.connect_at)
-        config.userdata = Dict{Symbol,Any}(:id=>zid)
+        oid = get(config.connect_at)
+        config.userdata = Dict{Symbol,Any}(:oid=>oid)
     end
 
     # Curt: I think this is just used by the manager
     net = manager.network
-    streams = get!(net.streams, zid) do
-        info("Connect $(net.id) -> $zid")
-        setup_connection(net, zid)
+    streams = get!(net.streams, oid) do
+        info("Connect $(net.oid) -> $oid")
+        setup_connection(net, oid)
     end
 
     udata = get(config.userdata)
@@ -103,11 +103,11 @@ function connect(manager::OverlayClusterManager, pid::Int, config::WorkerConfig)
     streams
 end
 
-function manage(manager::OverlayClusterManager, id::Int, config::WorkerConfig, op)
+function manage(manager::OverlayClusterManager, pid::Int, config::WorkerConfig, op)
     # println("manager: $op")
     # if op == :interrupt
-    #     zid = get(config.userdata)[:zid]
-    #     send(manager.network, zid, CONTROL_MSG, KILL_MSG)
+    #     oid = get(config.userdata)[:oid]
+    #     send(manager.network, oid, CONTROL_MSG, KILL_MSG)
 
     #     # TODO: Need to clear out mapping on workers?
     #     (r_s, w_s) = get(config.userdata)[:streams]
@@ -115,26 +115,26 @@ function manage(manager::OverlayClusterManager, id::Int, config::WorkerConfig, o
     #     close(w_s)
 
     #     # remove from our map
-    #     delete!(manager.network.mapping, get(config.userdata)[:zid])
+    #     delete!(manager.network.mapping, get(config.userdata)[:oid])
     # end
 
     # if op == :deregister
-    #     # zid = get(config.userdata)[:id]
-    #     # send(manager.network, zid, encode(Message(KILL_MSG, UInt8[])))
+    #     # oid = get(config.userdata)[:oid]
+    #     # send(manager.network, oid, encode(Message(KILL_MSG, UInt8[])))
 
     #     # TODO: Do we need to cleanup the streams to this worker which are on other remote
     #     # workers?
     # elseif op == :finalize
-    #     zid = get(config.userdata)[:id]
-    #     send(manager.network, zid, encode(Message(KILL_MSG, UInt8[])))
+    #     oid = get(config.userdata)[:oid]
+    #     send(manager.network, oid, encode(Message(KILL_MSG, UInt8[])))
 
     #     # TODO: Need to clear out mapping on workers?
-    #     (r_s, w_s) = manager.network.streams[zid]
+    #     (r_s, w_s) = manager.network.streams[oid]
     #     close(r_s)
     #     close(w_s)
 
     #     # remove from our map
-    #     delete!(manager.network.streams, zid)
+    #     delete!(manager.network.streams, oid)
 
     #     # TODO: Receive response?
     # end
@@ -143,14 +143,14 @@ function manage(manager::OverlayClusterManager, id::Int, config::WorkerConfig, o
 end
 
 function kill(manager::OverlayClusterManager, pid::Int, config::WorkerConfig)
-    zid = get(config.userdata)[:id]
+    oid = get(config.userdata)[:oid]
 
     # TODO: I'm worried about the connection being terminated before the message is sent...
-    info("Send KILL to $zid")
-    send(manager.network, zid, KILL_TYPE)
+    info("Send KILL to $oid")
+    send(manager.network, oid, KILL_TYPE)
 
     # Remove the streams from the node and close them
-    (r_s, w_s) = pop!(manager.network.streams, zid)
+    (r_s, w_s) = pop!(manager.network.streams, oid)
     close(r_s)
     close(w_s)
 

@@ -1,5 +1,5 @@
 import AWSClusterManagers.OverlayManagers.Transport: OverlayNetwork, OverlayMessage, DEFAULT_HOST, DEFAULT_PORT
-import AWSClusterManagers.OverlayManagers: start_broker, OverlayClusterManager, reset_broker_id
+import AWSClusterManagers.OverlayManagers: start_broker, OverlayClusterManager, reset_overlay_id
 import AWSClusterManagers.OverlayManagers: LocalOverlayManager, spawn_local_worker
 import Lumberjack: remove_truck
 
