@@ -5,6 +5,8 @@ import Lumberjack: remove_truck
 
 remove_truck("console")  # Disable logging
 
+const POLL_INTERVAL = 0.2
+
 # Override the `get_next_pid` function such that we can reset the PID to appear that we're
 # running in a new Julia session. Assists in test case maintainence as without this we would
 # have to keep incrementing worker ID values.
@@ -44,7 +46,7 @@ function spawn_broker(; self_terminate=true)
             close(sock)
             break
         catch
-            sleep(0.2)
+            sleep(POLL_INTERVAL)
         end
     end
 
@@ -174,13 +176,20 @@ end
     assert(process_running(worker_a))  # Ensure we can actually kill the worker
     kill(worker_a)
     wait(worker_a)
-    yield()
 
-    # Broker informs all nodes of the deregistration which the manager uses to get notified
-    # @test workers() == [3]
-    @test remotecall_fetch(myid, 3) == 3
-    @test_throws ProcessExitedException remotecall_fetch(myid, 2)
+    # When a node abruptly shuts down the broker informs all nodes of the deregistration.
+    # An asynchronous task on the manager will receive this message and cleanup the killed
+    # worker. It could take a little bit of time for the broker to send this message and
+    # for the manager to receive it.
+    slept = 0.0
+    while length(workers()) > 1 && slept < 10
+        sleep(POLL_INTERVAL)
+        slept += POLL_INTERVAL
+    end
+
     @test workers() == [3]
+    @test remotecall_fetch(myid, 3) == 3
+    @test_throws ProcessExitedException remotecall_fetch(myid, 2) == 2
 
     kill(broker); wait(broker)
 end
