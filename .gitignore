@@ -1,3 +1,8 @@
+# System files
+*.swp
+.DS_Store
+
+# Julia code coverage
 *.jl.cov
 *.jl.*.cov
 *.jl.mem
