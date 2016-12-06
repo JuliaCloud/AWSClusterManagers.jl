@@ -165,8 +165,9 @@ end
 
     # Add workers manually so that we have access to their processes
     launch = @schedule addprocs(mgr)
-    worker_a = spawn_local_worker(2, Base.cluster_cookie())
     worker_b = spawn_local_worker(3, Base.cluster_cookie())
+    sleep(3)
+    worker_a = spawn_local_worker(2, Base.cluster_cookie())
     wait(launch)  # will complete once the workers have connected to the manager
 
     @test workers() == [2, 3]
