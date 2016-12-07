@@ -73,6 +73,8 @@ function start_broker(host::IPAddr=ip"::", port::Integer=DEFAULT_PORT; self_term
         delete!(mapping, sock_id)
 
         # When a node de-registers inform all other nodes of the change.
+        # Note: Could result in unecessary message traffic when using multiple clusters on
+        # on the same broker.
         for (dest_id, dest) in mapping
             msg = OverlayMessage(sock_id, dest_id, UNREACHABLE_TYPE, [])
             acquire(dest.write_access)
