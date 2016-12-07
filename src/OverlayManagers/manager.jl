@@ -19,6 +19,8 @@ let next_id = 2    # 1 is reserved for the manager (always)
     end
 end
 
+const worker_launched = Condition()
+
 function launch(manager::OverlayClusterManager, params::Dict, launched::Array, c::Condition)
     net = manager.network
     available_workers = 0
@@ -53,6 +55,7 @@ function launch(manager::OverlayClusterManager, params::Dict, launched::Array, c
                 wconfig.userdata = Dict{Symbol,Any}(:oid=>from)
                 push!(launched, wconfig)
                 notify(c)
+                notify(worker_launched, all=true)
             else
                 error("Unhandled message type: $(msg.typ)")
             end
@@ -73,7 +76,7 @@ function launch(manager::OverlayClusterManager, params::Dict, launched::Array, c
 
     # Wait until all requested workers are available.
     while available_workers < manager.np
-        wait(c)
+        wait(worker_launched)
     end
 end
 

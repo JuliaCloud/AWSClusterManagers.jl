@@ -1,6 +1,6 @@
 import AWSClusterManagers.OverlayManagers.Transport: OverlayNetwork, OverlayMessage, DEFAULT_HOST, DEFAULT_PORT
 import AWSClusterManagers.OverlayManagers: start_broker, OverlayClusterManager, reset_overlay_id
-import AWSClusterManagers.OverlayManagers: LocalOverlayManager, spawn_local_worker
+import AWSClusterManagers.OverlayManagers: LocalOverlayManager, spawn_local_worker, overlay_id, worker_launched, get_next_overlay_id
 import Lumberjack: remove_truck
 
 remove_truck("console")  # Disable logging
@@ -51,6 +51,16 @@ function spawn_broker(; self_terminate=true)
     end
 
     return broker
+end
+
+function spawn_local_worker()
+    cookie = Base.cluster_cookie()
+    spawn_local_worker(
+        overlay_id(get_next_overlay_id(), cookie),
+        cookie,
+        DEFAULT_HOST,
+        DEFAULT_PORT,
+    )
 end
 
 
@@ -137,8 +147,8 @@ end
 
     # Add workers manually so that we have access to their processes
     launch = @schedule addprocs(mgr)
-    worker_a = spawn_local_worker(2, Base.cluster_cookie())
-    worker_b = spawn_local_worker(3, Base.cluster_cookie())
+    worker_a = spawn_local_worker()
+    worker_b = spawn_local_worker()
     wait(launch)  # will complete once the workers have connected to the manager
 
     @test workers() == [2, 3]
@@ -165,9 +175,11 @@ end
 
     # Add workers manually so that we have access to their processes
     launch = @schedule addprocs(mgr)
-    worker_b = spawn_local_worker(3, Base.cluster_cookie())
-    sleep(3)
-    worker_a = spawn_local_worker(2, Base.cluster_cookie())
+
+    # Manually launch workers individually to ensure they start with the expected pid.
+    worker_a = spawn_local_worker()  # Needs to launch with pid 2
+    wait(worker_launched)
+    worker_b = spawn_local_worker()  # Needs to launch with pid 3
     wait(launch)  # will complete once the workers have connected to the manager
 
     @test workers() == [2, 3]
