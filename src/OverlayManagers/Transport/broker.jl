@@ -18,7 +18,26 @@ function start_broker(host::IPAddr=ip"::", port::Integer=DEFAULT_PORT; self_term
         if !eof(sock)
             sock_id = read(sock, OverlayID)
             info("Register: $sock_id")
-            mapping[sock_id] = BrokeredNode(sock)
+
+            src = BrokeredNode(sock)
+            if !haskey(mapping, sock_id)
+                mapping[sock_id] = src
+                registered = true
+            else
+                warn("attempted to register an ID already in use: $sock_id")
+                registered = false
+            end
+
+            msg = OverlayMessage(0, sock_id, registered ? REGISTER_SUCCESS : REGISTER_FAIL, [])
+
+            acquire(src.write_access)
+            isopen(src.sock) && write(src.sock, msg)
+            release(src.write_access)
+
+            if !registered
+                close(sock)
+                return
+            end
         else
             warn("socket closed before registration")
             return

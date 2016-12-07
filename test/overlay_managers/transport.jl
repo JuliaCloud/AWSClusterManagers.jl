@@ -11,6 +11,21 @@ import AWSClusterManagers.OverlayManagers.Transport: OverlayMessage, OverlayNetw
     @test String(msg.payload) == "hello"
 end
 
+@testset "duplicate id" begin
+    broker = spawn_broker()
+
+    # Associate ID "1" with the broker
+    net = OverlayNetwork(1)
+    @test isopen(net.sock)
+
+    # Attempt to associate the same ID while the ID is in use
+    @test_throws ErrorException OverlayNetwork(1)
+    @test isopen(net.sock)
+
+    close(net.sock)
+    kill(broker); wait(broker)
+end
+
 @testset "send to self" begin
     broker = spawn_broker()
 

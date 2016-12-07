@@ -4,6 +4,8 @@ import Base: ==, write, read
 # message types.
 const DATA_TYPE = 0x00
 const UNREACHABLE_TYPE = 0x01
+const REGISTER_SUCCESS = 0x02
+const REGISTER_FAIL = 0x03
 
 typealias OverlayID UInt128
 

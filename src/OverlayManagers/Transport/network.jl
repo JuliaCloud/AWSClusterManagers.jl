@@ -21,6 +21,12 @@ function OverlayNetwork(oid::Integer, broker=DEFAULT_HOST, port::Integer=DEFAULT
     # Base.wait_connected(sock)
 
     write(sock, UInt128(oid))  # Register
+    response = read(sock, OverlayMessage)
+
+    if response.typ != REGISTER_SUCCESS
+        error("Unable to register")
+    end
+
     return OverlayNetwork(
         oid,
         sock,
