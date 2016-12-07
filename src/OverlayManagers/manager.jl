@@ -68,7 +68,7 @@ function launch(manager::OverlayClusterManager, params::Dict, launched::Array, c
     # Note: The manager doesn't have to assign the broker ID. The workers could actually
     # self assign their own IDs as long as they are unique within the cluster.
     for i in 1:num_processes(manager)
-        spawn(manager, UInt128(get_next_overlay_id()))
+        spawn(manager, overlay_id(get_next_overlay_id(), Base.cluster_cookie()))
     end
 
     # Wait until all requested workers are available.

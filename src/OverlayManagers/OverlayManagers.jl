@@ -7,6 +7,7 @@ using .Transport
 
 export LocalOverlayManager, start_broker, start_worker
 
+include("identifier.jl")
 include("message.jl")
 include("manager.jl")
 include("worker.jl")
