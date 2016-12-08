@@ -13,6 +13,14 @@ function start_broker(host::IPAddr=ip"::", port::Integer=DEFAULT_PORT; self_term
     info("Starting broker server on $(getipaddr()):$port")
 
     function process(sock)
+        # `@async` can act strangely sometimes where the same socket can get accidentally
+        # mapped to different identifiers.
+        for mapped_sock in values(mapping)
+            if mapped_sock == sock
+                error("duplicate socket detected")
+            end
+        end
+
         # Registration should happen before the async block otherwise we could associate
         # an ID with the wrong socket.
         if !eof(sock)
@@ -41,16 +49,6 @@ function start_broker(host::IPAddr=ip"::", port::Integer=DEFAULT_PORT; self_term
         else
             warn("socket closed before registration")
             return
-        end
-
-        # `@async` can act strangely sometimes where the same socket can get accidentally
-        # mapped to different identifiers.
-        k = collect(keys(mapping))
-        n = length(k)
-        for i = 1:n - 1, j = i + 1:n
-            if mapping[k[i]].sock === mapping[k[j]].sock
-                error("duplicate socket detected")
-            end
         end
 
         # println("Awaiting outbound data from $sock_id")
