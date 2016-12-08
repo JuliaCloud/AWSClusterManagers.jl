@@ -58,9 +58,10 @@ function AWSBatchManager(
         region = isempty(region) ? job.region : region
     end
 
+    manager_id = overlay_id(1, Base.cluster_cookie())
     AWSBatchManager(
         Int(np),
-        OverlayNetwork(1, host, port),
+        OverlayNetwork(manager_id, host, port),
         prefix,
         definition,
         queue,

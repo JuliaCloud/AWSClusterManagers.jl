@@ -6,7 +6,8 @@ end
 
 function LocalOverlayManager(np::Integer; broker::Tuple{Any,Integer}=(DEFAULT_HOST, DEFAULT_PORT), manual_spawn::Bool=false)
     host, port = isa(broker, AbstractString) ? (broker, DEFAULT_PORT) : broker
-    LocalOverlayManager(Int(np), OverlayNetwork(1, host, port), manual_spawn)
+    manager_id = overlay_id(1, Base.cluster_cookie())
+    LocalOverlayManager(Int(np), OverlayNetwork(manager_id, host, port), manual_spawn)
 end
 
 num_processes(mgr::LocalOverlayManager) = mgr.np

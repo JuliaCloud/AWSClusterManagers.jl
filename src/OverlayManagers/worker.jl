@@ -8,7 +8,7 @@ function start_worker(oid::Integer, cookie::AbstractString, broker, port::Intege
     dummy = WorkerManager(net)  # Needed for use in `connect`
     Base.init_worker(cookie, dummy)
 
-    manager_id = 1
+    manager_id = overlay_id(1, cookie)
 
     # Inform the manager that the worker is ready
     send(net, manager_id, HELLO_TYPE)
