@@ -1,5 +1,7 @@
 import Base: Semaphore, acquire, release
 
+const BROKER_ID = UInt128(0)
+
 type BrokeredNode
     sock::TCPSocket
     read_access::Semaphore
@@ -28,7 +30,7 @@ function start_broker(host::IPAddr=ip"::", port::Integer=DEFAULT_PORT; self_term
             info("Register: $sock_id")
 
             src = BrokeredNode(sock)
-            if !haskey(mapping, sock_id)
+            if sock_id != BROKER_ID && !haskey(mapping, sock_id)
                 mapping[sock_id] = src
                 registered = true
             else
@@ -36,7 +38,7 @@ function start_broker(host::IPAddr=ip"::", port::Integer=DEFAULT_PORT; self_term
                 registered = false
             end
 
-            msg = OverlayMessage(0, sock_id, registered ? REGISTER_SUCCESS : REGISTER_FAIL, [])
+            msg = OverlayMessage(BROKER_ID, sock_id, registered ? REGISTER_SUCCESS : REGISTER_FAIL, [])
 
             acquire(src.write_access)
             isopen(src.sock) && write(src.sock, msg)
