@@ -6,7 +6,7 @@ import AWSClusterManagers.OverlayManagers: LocalOverlayManager, worker_launched
 
     # Add two workers which will connect to each other
     @test workers() == [1]
-    added = addprocs(LocalOverlayManager(2))
+    added = addprocs(LocalOverlayManager(2, broker=address(broker)))
     @test added == [2, 3]
 
     # Each worker can talk to each other worker
@@ -28,12 +28,12 @@ end
     reset_next_pid()
     broker = spawn_broker()
 
-    mgr = LocalOverlayManager(2, manual_spawn=true)
+    mgr = LocalOverlayManager(2, broker=address(broker), manual_spawn=true)
 
     # Add workers manually so that we have access to their processes
     launch = @schedule addprocs(mgr)
-    worker_a = spawn_local_worker()
-    worker_b = spawn_local_worker()
+    worker_a = spawn_local_worker(broker)
+    worker_b = spawn_local_worker(broker)
     wait(launch)  # will complete once the workers have connected to the manager
 
     @test workers() == [2, 3]
@@ -56,15 +56,15 @@ end
     reset_next_pid()
     broker = spawn_broker()
 
-    mgr = LocalOverlayManager(2, manual_spawn=true)
+    mgr = LocalOverlayManager(2, broker=address(broker), manual_spawn=true)
 
     # Add workers manually so that we have access to their processes
     launch = @schedule addprocs(mgr)
 
     # Manually launch workers individually to ensure they start with the expected pid.
-    worker_a = spawn_local_worker()  # Needs to launch with pid 2
+    worker_a = spawn_local_worker(broker)  # Needs to launch with pid 2
     wait(worker_launched)
-    worker_b = spawn_local_worker()  # Needs to launch with pid 3
+    worker_b = spawn_local_worker(broker)  # Needs to launch with pid 3
     wait(launch)  # will complete once the workers have connected to the manager
 
     @test workers() == [2, 3]
@@ -101,13 +101,23 @@ end
     # Spawn a manager which will wait for workers then terminate without having the chance
     # to send the KILL message to workers. Note: We need to set the cluster_cookie on the
     # manager process so that it accepts our workers.
-    manager = spawn(`$(Base.julia_cmd()) -e "Base.cluster_cookie(\"$cookie\"); using AWSClusterManagers; mgr = LocalOverlayManager(2, manual_spawn=true); addprocs(mgr); close(mgr.network.sock)"`)
+    code = """
+    Base.cluster_cookie(\"$cookie\")
+    using AWSClusterManagers
+    mgr = LocalOverlayManager(2, broker=$(address(broker)), manual_spawn=true)
+    addprocs(mgr)
+    close(mgr.network.sock)
+    """
+    manager = spawn(`$(Base.julia_cmd()) -e $code`)
 
     # TODO: Test that workers are running
 
     # Add workers manually so that we have access to their processes
-    worker_a = spawn_local_worker(2, cookie)
-    worker_b = spawn_local_worker(3, cookie)
+    host, port = address(broker)
+    worker_a = spawn_local_worker(2, cookie, host, port)
+    worker_b = spawn_local_worker(3, cookie, host, port)
+    @test process_running(manager)
+
     wait(manager)  # manager process has terminated
 
     # TODO: A failure will cause use to wait indefinitely...
@@ -131,7 +141,7 @@ end
     code = """
     Base.cluster_cookie("$secondary_cookie")
     using AWSClusterManagers
-    addprocs(LocalOverlayManager(1))
+    addprocs(LocalOverlayManager(1, broker=$(address(broker))))
     @everywhere secondary() = Base.cluster_cookie()
     while true
         assert(remotecall_fetch(secondary, 2) == Base.cluster_cookie())
@@ -146,7 +156,7 @@ end
     @test process_running(secondary_cluster)
 
     # Spawn the primary cluster
-    added = addprocs(LocalOverlayManager(1))
+    added = addprocs(LocalOverlayManager(1, broker=address(broker)))
     @everywhere primary() = Base.cluster_cookie()
 
     @test workers() == [2]

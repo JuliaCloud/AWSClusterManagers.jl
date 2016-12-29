@@ -13,13 +13,14 @@ end
 
 @testset "duplicate id" begin
     broker = spawn_broker()
+    host, port = address(broker)
 
     # Associate ID "1" with the broker
-    net = OverlayNetwork(1)
+    net = OverlayNetwork(1, host, port)
     @test isopen(net.sock)
 
     # Attempt to associate the same ID while the ID is in use
-    @test_throws ErrorException OverlayNetwork(1)
+    @test_throws ErrorException OverlayNetwork(1, host, port)
     @test isopen(net.sock)
 
     close(net.sock)
@@ -28,8 +29,9 @@ end
 
 @testset "send to self" begin
     broker = spawn_broker()
+    host, port = address(broker)
 
-    net = OverlayNetwork(1)
+    net = OverlayNetwork(1, host, port)
     msg = OverlayMessage(1, 1, "helloworld!")
     write(net.sock, msg)
     result = read(net.sock, OverlayMessage)
@@ -42,9 +44,10 @@ end
 
 @testset "echo" begin
     broker = spawn_broker()
+    host, port = address(broker)
 
     @schedule begin
-        _net = OverlayNetwork(2)
+        _net = OverlayNetwork(2, host, port)
         incoming = read(_net.sock, OverlayMessage)
         outgoing = OverlayMessage(2, incoming.src, "REPLY: $(String(incoming.payload))")
         write(_net.sock, outgoing)
@@ -52,7 +55,7 @@ end
     end
     yield()
 
-    net = OverlayNetwork(1)
+    net = OverlayNetwork(1, host, port)
     msg = OverlayMessage(1, 2, "helloworld!")
     write(net.sock, msg)
     result = read(net.sock, OverlayMessage)

@@ -11,8 +11,13 @@ end
 
 function start_broker(host::IPAddr=ip"::", port::Integer=DEFAULT_PORT; self_terminate=false)
     mapping = Dict{OverlayID,BrokeredNode}()
-    server = listen(host, port)
-    info("Starting broker server on $(getipaddr()):$port")
+    if port < 0
+        port, server = listenany(host, DEFAULT_PORT)
+    else
+        server = listen(host, port)
+    end
+
+    info("Starting broker server on $(isa(host, IPv6) ? "[$host]" : host):$port")
 
     function process(sock)
         # `@async` can act strangely sometimes where the same socket can get accidentally
