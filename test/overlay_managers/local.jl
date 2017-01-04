@@ -49,6 +49,10 @@ end
 
     @test process_exited(worker_a)
     @test process_exited(worker_b)
+
+    # Ensure that workers list is up-to-date by attempting to use the shutdown workers
+    @test_throws ProcessExitedException remotecall_fetch(myid, 2) == 2
+    @test_throws ProcessExitedException remotecall_fetch(myid, 3) == 3
     @test workers() == [1]
 end
 
