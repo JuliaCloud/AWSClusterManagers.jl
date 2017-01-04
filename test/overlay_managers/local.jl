@@ -77,17 +77,12 @@ end
 
     # When a node abruptly shuts down the broker informs all nodes of the deregistration.
     # An asynchronous task on the manager will receive this message and cleanup the killed
-    # worker. It could take a little bit of time for the broker to send this message and
-    # for the manager to receive it.
-    slept = 0.0
-    while length(workers()) > 1 && slept < 10
-        sleep(POLL_INTERVAL)
-        slept += POLL_INTERVAL
-    end
+    # worker. Accessing the worker appears to be the only reliable way of cleaning up the
+    # list or workers.
 
-    @test workers() == [3]
     @test remotecall_fetch(myid, 3) == 3
     @test_throws ProcessExitedException remotecall_fetch(myid, 2) == 2
+    @test workers() == [3]  # After we call worker 2 to ensure that it is cleaned up
 
     kill(broker); wait(broker)
 end
