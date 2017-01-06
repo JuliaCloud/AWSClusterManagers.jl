@@ -153,9 +153,11 @@ function kill(manager::OverlayClusterManager, pid::Int, config::WorkerConfig)
     send(manager.network, oid, KILL_TYPE)
 
     # Remove the streams from the node and close them
-    (r_s, w_s) = pop!(manager.network.streams, oid)
-    close(r_s)
-    close(w_s)
+    if haskey(manager.network.streams, oid)
+        (r_s, w_s) = pop!(manager.network.streams, oid)
+        close(r_s)
+        close(w_s)
+    end
 
     # Terminate socket from manager to broker when all workers have been killed
     # Doesn't work?
