@@ -142,9 +142,11 @@ end
     using AWSClusterManagers
     addprocs(LocalOverlayManager(1, broker=$(address(broker))))
     @everywhere secondary() = Base.cluster_cookie()
-    while true
+    timeout, poll = 10.0, 0.1
+    while timeout > 0
         assert(remotecall_fetch(secondary, 2) == Base.cluster_cookie())
-        sleep(0.1)
+        sleep(poll)
+        timeout -= poll
     end
     """
     secondary_cluster = spawn(`$(Base.julia_cmd()) -e $code`)
@@ -166,7 +168,7 @@ end
 
 
     @test process_running(secondary_cluster)
-    kill(secondary_cluster)
+    kill(secondary_cluster); wait(secondary_cluster)
 
     kill(broker); wait(broker)
 end
