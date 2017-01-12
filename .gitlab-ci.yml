@@ -3,8 +3,8 @@
     - osx
   script:
     - curl -s -o setup-julia https://gitlab.invenia.ca/infrastructure/gitlab-ci-helper/raw/master/setup-julia && source setup-julia release
-    - julia -e "symlink(\"$CI_PROJECT_DIR\", Pkg.dir(\"$PKG_NAME\")); Pkg.resolve(); Pkg.build(\"$PKG_NAME\"); Pkg.test(\"$PKG_NAME\")"
-    # - julia --depwarn=no -e 'cd(Pkg.dir(ENV["PKG_NAME"])); Pkg.add("Coverage"); Pkg.checkout("Coverage"); using Coverage; Codecov.submit_local(process_folder(); branch=ENV["CI_BUILD_REF_NAME"], commit=ENV["CI_BUILD_REF"], job=ENV["CI_BUILD_ID"], service="gitlab")'
+    - julia -e "Pkg.clone(pwd()); Pkg.build(\"$PKG_NAME\"); Pkg.test(\"$PKG_NAME\"; coverage=true)"
+    - julia -e "cd(Pkg.dir(\"$PKG_NAME\")); Pkg.add(\"Coverage\"); using Coverage; c, t = get_summary(process_folder()); @printf(\"Test Coverage %.2f%%\\n\", c/t * 100)"
     - bash setup-julia clean
 
 "Julia release, Linux (amd64)":
@@ -13,8 +13,8 @@
     - amd64
   script:
     - curl -s -o setup-julia https://gitlab.invenia.ca/infrastructure/gitlab-ci-helper/raw/master/setup-julia && source setup-julia release
-    - julia -e "symlink(\"$CI_PROJECT_DIR\", Pkg.dir(\"$PKG_NAME\")); Pkg.resolve(); Pkg.build(\"$PKG_NAME\"); Pkg.test(\"$PKG_NAME\")"
-    # - julia --depwarn=no -e 'cd(Pkg.dir(ENV["PKG_NAME"])); Pkg.add("Coverage"); Pkg.checkout("Coverage"); using Coverage; Codecov.submit_local(process_folder(); branch=ENV["CI_BUILD_REF_NAME"], commit=ENV["CI_BUILD_REF"], job=ENV["CI_BUILD_ID"], service="gitlab")'
+    - julia -e "Pkg.clone(pwd()); Pkg.build(\"$PKG_NAME\"); Pkg.test(\"$PKG_NAME\"; coverage=true)"
+    - julia -e "cd(Pkg.dir(\"$PKG_NAME\")); Pkg.add(\"Coverage\"); using Coverage; c, t = get_summary(process_folder()); @printf(\"Test Coverage %.2f%%\\n\", c/t * 100)"
     - bash setup-julia clean
 
 "Julia release, Linux (i386)":
@@ -23,8 +23,8 @@
     - i386
   script:
     - curl -s -o setup-julia https://gitlab.invenia.ca/infrastructure/gitlab-ci-helper/raw/master/setup-julia && source setup-julia release
-    - julia -e "symlink(\"$CI_PROJECT_DIR\", Pkg.dir(\"$PKG_NAME\")); Pkg.resolve(); Pkg.build(\"$PKG_NAME\"); Pkg.test(\"$PKG_NAME\")"
-    # - julia --depwarn=no -e 'cd(Pkg.dir(ENV["PKG_NAME"])); Pkg.add("Coverage"); Pkg.checkout("Coverage"); using Coverage; Codecov.submit_local(process_folder(); branch=ENV["CI_BUILD_REF_NAME"], commit=ENV["CI_BUILD_REF"], job=ENV["CI_BUILD_ID"], service="gitlab")'
+    - julia -e "Pkg.clone(pwd()); Pkg.build(\"$PKG_NAME\"); Pkg.test(\"$PKG_NAME\"; coverage=true)"
+    - julia -e "cd(Pkg.dir(\"$PKG_NAME\")); Pkg.add(\"Coverage\"); using Coverage; c, t = get_summary(process_folder()); @printf(\"Test Coverage %.2f%%\\n\", c/t * 100)"
     - bash setup-julia clean
 
 # Note: Julia 0.6 tests have issues with AWSClusterManagers.jl and sometimes cause the CI build to hang.
