@@ -24,10 +24,11 @@
   script:
     - curl -s -o setup-julia https://gitlab.invenia.ca/infrastructure/gitlab-ci-helper/raw/master/setup-julia && source setup-julia release
     - julia -e "Pkg.clone(pwd()); Pkg.build(\"$PKG_NAME\"); Pkg.test(\"$PKG_NAME\"; coverage=true)"
-    - julia -e "cd(Pkg.dir(\"$PKG_NAME\")); Pkg.add(\"Coverage\"); using Coverage; c, t = get_summary(process_folder()); @printf(\"Test Coverage %.2f%%\\n\", c/t * 100)"
+    # Don't use Coverage.jl on 32-bit (https://github.com/JuliaLang/julia/issues/20020)
     - bash setup-julia clean
 
-# Note: Julia 0.6 tests have issues with AWSClusterManagers.jl and sometimes cause the CI build to hang.
+# Note: Julia 0.6 tests have issues with AWSClusterManagers.jl and sometimes cause the CI build to hang. 
+# We cannot use "allow_failure" here as the processes don't fail they just get stuck.
 
 # "Julia nightly, OS X":
 #   tags:
