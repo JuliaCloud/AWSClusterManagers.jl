@@ -1,31 +1,43 @@
+.test_template: &test_definition
+  before_script:
+    - curl -s -o setup-julia https://gitlab.invenia.ca/infrastructure/gitlab-ci-helper/raw/master/setup-julia
+    - chmod +x setup-julia
+    - ./setup-julia install $JULIA_VERSION
+  script:
+    - source setup-julia export
+    - julia -e "Pkg.clone(pwd()); Pkg.build(\"$PKG_NAME\"); Pkg.test(\"$PKG_NAME\"; coverage=true)"
+    - julia --depwarn=no -e "cd(Pkg.dir(\"$PKG_NAME\")); Pkg.add(\"Coverage\"); using Coverage; c, t = get_summary(process_folder()); @printf(\"Test Coverage %.2f%%\\n\", c/t * 100)"
+  after_script:
+    - ./setup-julia clean
+
+.test_tmp_release: &test_release
+  variables:
+    JULIA_VERSION: release
+  <<: *test_definition
+
+.test_tmp_nightly: &test_nightly
+  variables:
+    JULIA_VERSION: nightly
+  allow_failure: true
+  <<: *test_definition
+
+
 "Julia release, OS X":
   tags:
     - osx
-  script:
-    - curl -s -o setup-julia https://gitlab.invenia.ca/infrastructure/gitlab-ci-helper/raw/master/setup-julia && source setup-julia release
-    - julia -e "Pkg.clone(pwd()); Pkg.build(\"$PKG_NAME\"); Pkg.test(\"$PKG_NAME\"; coverage=true)"
-    - julia -e "cd(Pkg.dir(\"$PKG_NAME\")); Pkg.add(\"Coverage\"); using Coverage; c, t = get_summary(process_folder()); @printf(\"Test Coverage %.2f%%\\n\", c/t * 100)"
-    - bash setup-julia clean
+  <<: *test_release
 
 "Julia release, Linux (amd64)":
   tags:
     - linux
     - amd64
-  script:
-    - curl -s -o setup-julia https://gitlab.invenia.ca/infrastructure/gitlab-ci-helper/raw/master/setup-julia && source setup-julia release
-    - julia -e "Pkg.clone(pwd()); Pkg.build(\"$PKG_NAME\"); Pkg.test(\"$PKG_NAME\"; coverage=true)"
-    - julia -e "cd(Pkg.dir(\"$PKG_NAME\")); Pkg.add(\"Coverage\"); using Coverage; c, t = get_summary(process_folder()); @printf(\"Test Coverage %.2f%%\\n\", c/t * 100)"
-    - bash setup-julia clean
+  <<: *test_release
 
 "Julia release, Linux (i386)":
   tags:
     - linux
     - i386
-  script:
-    - curl -s -o setup-julia https://gitlab.invenia.ca/infrastructure/gitlab-ci-helper/raw/master/setup-julia && source setup-julia release
-    - julia -e "Pkg.clone(pwd()); Pkg.build(\"$PKG_NAME\"); Pkg.test(\"$PKG_NAME\"; coverage=true)"
-    # Don't use Coverage.jl on 32-bit (https://github.com/JuliaLang/julia/issues/20020)
-    - bash setup-julia clean
+  <<: *test_release
 
 # Note: Julia 0.6 tests have issues with AWSClusterManagers.jl and sometimes cause the CI build to hang. 
 # We cannot use "allow_failure" here as the processes don't fail they just get stuck.
@@ -33,28 +45,16 @@
 # "Julia nightly, OS X":
 #   tags:
 #     - osx
-#   script:
-#     - curl -s -o setup-julia https://gitlab.invenia.ca/infrastructure/gitlab-ci-helper/raw/master/setup-julia && source setup-julia nightly
-#     - julia -e "symlink(\"$CI_PROJECT_DIR\", Pkg.dir(\"$PKG_NAME\")); Pkg.resolve(); Pkg.build(\"$PKG_NAME\"); Pkg.test(\"$PKG_NAME\")"
-#     # - julia --depwarn=no -e 'cd(Pkg.dir(ENV["PKG_NAME"])); Pkg.add("Coverage"); Pkg.checkout("Coverage"); using Coverage; Codecov.submit_local(process_folder(); branch=ENV["CI_BUILD_REF_NAME"], commit=ENV["CI_BUILD_REF"], job=ENV["CI_BUILD_ID"], service="gitlab")'
-#     - bash setup-julia clean
+#   <<: *test_nightly
 
 # "Julia nightly, Linux (amd64)":
 #   tags:
 #     - linux
 #     - amd64
-#   script:
-#     - curl -s -o setup-julia https://gitlab.invenia.ca/infrastructure/gitlab-ci-helper/raw/master/setup-julia && source setup-julia nightly
-#     - julia -e "symlink(\"$CI_PROJECT_DIR\", Pkg.dir(\"$PKG_NAME\")); Pkg.resolve(); Pkg.build(\"$PKG_NAME\"); Pkg.test(\"$PKG_NAME\")"
-#     # - julia --depwarn=no -e 'cd(Pkg.dir(ENV["PKG_NAME"])); Pkg.add("Coverage"); Pkg.checkout("Coverage"); using Coverage; Codecov.submit_local(process_folder(); branch=ENV["CI_BUILD_REF_NAME"], commit=ENV["CI_BUILD_REF"], job=ENV["CI_BUILD_ID"], service="gitlab")'
-#     - bash setup-julia clean
+#   <<: *test_nightly
 
 # "Julia nightly, Linux (i386)":
 #   tags:
 #     - linux
 #     - i386
-#   script:
-#     - curl -s -o setup-julia https://gitlab.invenia.ca/infrastructure/gitlab-ci-helper/raw/master/setup-julia && source setup-julia nightly
-#     - julia -e "symlink(\"$CI_PROJECT_DIR\", Pkg.dir(\"$PKG_NAME\")); Pkg.resolve(); Pkg.build(\"$PKG_NAME\"); Pkg.test(\"$PKG_NAME\")"
-#     # - julia --depwarn=no -e 'cd(Pkg.dir(ENV["PKG_NAME"])); Pkg.add("Coverage"); Pkg.checkout("Coverage"); using Coverage; Codecov.submit_local(process_folder(); branch=ENV["CI_BUILD_REF_NAME"], commit=ENV["CI_BUILD_REF"], job=ENV["CI_BUILD_ID"], service="gitlab")'
-#     - bash setup-julia clean
+#   <<: *test_nightly
