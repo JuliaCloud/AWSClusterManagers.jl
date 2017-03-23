@@ -9,4 +9,4 @@ export LocalOverlayManager, launch, manage
 include("OverlayManagers/OverlayManagers.jl")
 using .OverlayManagers
 
-end # module
+end  # module

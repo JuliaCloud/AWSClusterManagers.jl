@@ -1,3 +1,7 @@
+stages:
+  - test
+  - docs
+
 .test_template: &test_definition
   before_script:
     - curl -s -o setup-julia https://gitlab.invenia.ca/infrastructure/gitlab-ci-helper/raw/master/setup-julia
@@ -58,3 +62,24 @@
 #     - linux
 #     - i386
 #   <<: *test_nightly
+
+"Documentation":
+  stage: docs
+  tags:
+    - docs
+  only:
+    - master
+    - develop
+    - docs
+    - tags  # special keyword for all tags
+  before_script:
+    - curl -s -o setup-julia https://gitlab.invenia.ca/infrastructure/gitlab-ci-helper/raw/master/setup-julia
+    - chmod +x setup-julia
+    - ./setup-julia install release
+  script:
+    - source setup-julia export
+    - julia --depwarn=no -e "Pkg.clone(pwd()); Pkg.build(\"$PKG_NAME\"); Pkg.add(\"Documenter\"); Pkg.checkout(\"Documenter\")"
+    - julia --depwarn=no -e "cd(Pkg.dir(\"$PKG_NAME\", \"docs\")); include(\"make.jl\")"
+    - julia --depwarn=no -e "const DOCS_DIR = joinpath(\"/mnt\", \"docs\", \"$CI_PROJECT_NAMESPACE\", \"$CI_PROJECT_NAME\", \"$CI_BUILD_REF_NAME\"); mkpath(DOCS_DIR); cp(Pkg.dir(\"$PKG_NAME\", \"docs\", \"build\"), DOCS_DIR; remove_destination=true, follow_symlinks=true)"
+  after_script:
+    - ./setup-julia clean
