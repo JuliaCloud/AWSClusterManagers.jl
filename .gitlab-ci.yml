@@ -1,4 +1,5 @@
 .test_template: &test_definition
+  coverage: /Test Coverage (\d+\.\d+%)/
   before_script:
     - curl -s -o setup-julia https://gitlab.invenia.ca/infrastructure/gitlab-ci-helper/raw/master/setup-julia
     - chmod +x setup-julia
