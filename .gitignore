@@ -1,8 +1,10 @@
-# System files
-*.swp
-.DS_Store
-
-# Julia code coverage
+# Documenter generated files
+/docs/build/
+/docs/site/
+# GitLabCI generated files
 *.jl.cov
 *.jl.*.cov
 *.jl.mem
+# System files
+*.swp
+.DS_Store
