@@ -1,6 +1,4 @@
-import Base: wait, ==
-export ECSManager
-
+import Base: ==
 using JSON
 
 const MAX_COUNT = 10  # Maximum count value that can be supplied to ECS RunTask
@@ -27,7 +25,7 @@ end
 
 function ECSManager(min_workers::Integer, max_workers::Integer, task_def::AbstractString;
         task_name::AbstractString="", cluster::AbstractString="", region::AbstractString="",
-        timeout::Real=300,
+        timeout::Real=DEFAULT_TIMEOUT,
     )
     ECSManager(min_workers, max_workers, task_def, task_name, cluster, region, timeout)
 end
@@ -39,6 +37,9 @@ end
 function ECSManager(workers::Integer, task_def::AbstractString; kwargs...)
     ECSManager(workers, workers, task_def; kwargs...)
 end
+
+launch_timeout(mgr::ECSManager) = mgr.timeout
+num_workers(mgr::ECSManager) = mgr.min_workers, mgr.max_workers
 
 function ==(a::ECSManager, b::ECSManager)
     return (
