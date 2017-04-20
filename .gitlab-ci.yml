@@ -4,6 +4,11 @@ stages:
   - docs
 
 .test_template: &test_definition
+  artifacts:
+    name: "$CI_JOB_NAME coverage"
+    expire_in: 1 week
+    paths:
+      - "$CI_JOB_NAME coverage/"
   before_script:
     - curl -s -o julia-ci https://gitlab.invenia.ca/infrastructure/gitlab-ci-helper/raw/master/julia-ci
     - chmod +x julia-ci
@@ -11,7 +16,7 @@ stages:
   script:
     - source julia-ci export
     - julia -e "Pkg.clone(pwd()); Pkg.build(\"$PKG_NAME\"); Pkg.test(\"$PKG_NAME\"; coverage=true)"
-    - julia --depwarn=no -e "cd(Pkg.dir(\"$PKG_NAME\")); Pkg.add(\"Coverage\"); using Coverage; c, t = get_summary(process_folder()); @printf(\"Test Coverage %.2f%%\\n\", c/t * 100)"
+    - ./julia-ci coverage
   after_script:
     - ./julia-ci clean
 
