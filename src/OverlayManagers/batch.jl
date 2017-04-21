@@ -1,33 +1,6 @@
-type AWSBatchJob
-    id::String
-    name::String
-    definition::String
-    queue::String
-    region::String
-end
+import ..AWSClusterManagers: AWSBatchJob
 
-function AWSBatchJob()
-    job_id = ENV["AWS_BATCH_JOB_ID"]
-    job_queue = ENV["AWS_BATCH_JQ_NAME"]
-
-    # Get the zone information from the EC2 instance metadata.
-    zone = readstring(pipeline(`curl http://169.254.169.254/latest/meta-data/placement/availability-zone`, stderr=DevNull))
-    region = chop(zone)
-
-    # Requires permissions to access to "batch:DescribeJobs"
-    json = JSON.parse(readstring(`aws --region $region batch describe-jobs --jobs $job_id`))
-    details = first(json["jobs"])
-
-    AWSBatchJob(
-        job_id,
-        details["jobName"],
-        details["jobDefinition"],
-        job_queue,
-        region,
-    )
-end
-
-type AWSBatchManager <: OverlayClusterManager
+type AWSBatchOverlayManager <: OverlayClusterManager
     np::Int
     network::OverlayNetwork
     prefix::AbstractString
@@ -36,7 +9,7 @@ type AWSBatchManager <: OverlayClusterManager
     region::AbstractString
 end
 
-function AWSBatchManager(
+function AWSBatchOverlayManager(
         np::Integer;
         broker=(ip"10.128.247.176", DEFAULT_PORT),
         prefix::AbstractString="",
@@ -59,7 +32,7 @@ function AWSBatchManager(
     end
 
     manager_id = overlay_id(1, Base.cluster_cookie())
-    AWSBatchManager(
+    AWSBatchOverlayManager(
         Int(np),
         OverlayNetwork(manager_id, host, port),
         prefix,
@@ -69,9 +42,9 @@ function AWSBatchManager(
     )
 end
 
-num_processes(mgr::AWSBatchManager) = mgr.np
+num_processes(mgr::AWSBatchOverlayManager) = mgr.np
 
-function spawn(mgr::AWSBatchManager, oid::Integer)
+function spawn(mgr::AWSBatchOverlayManager, oid::Integer)
     cookie = Base.cluster_cookie()
     host = mgr.network.broker_host
     port = mgr.network.broker_port

@@ -1,3 +1,5 @@
+import Base: wait
+
 # Determine the start of the ephemeral port range on this system. Used in `listenany` calls.
 const PORT_HINT = if is_linux()
     parse(Int, first(split(readchomp("/proc/sys/net/ipv4/ip_local_port_range"), '\t')))
@@ -7,12 +9,14 @@ else
     49152  # IANA dynamic or private port range start
 end
 
+const DEFAULT_TIMEOUT = 600  # Wait 10 minutes for container instances to launch
+
 abstract ContainerManager <: ClusterManager
 
-function launch(manager::ContainerManager, params::Dict, launched::Array, c::Condition)
-    min_workers, max_workers = manager.min_workers, manager.max_workers
-    image = manager.image
+launch_timeout(manager::ContainerManager) = DEFAULT_TIMEOUT
 
+function launch(manager::ContainerManager, params::Dict, launched::Array, c::Condition)
+    min_workers, max_workers = num_workers(manager)
     launch_tasks = Vector{Task}(max_workers)
 
     # TODO: Should be using TLS connections.
@@ -52,7 +56,7 @@ function launch(manager::ContainerManager, params::Dict, launched::Array, c::Con
     end
 
     # Await for workers to inform the manager of their address.
-    wait(launch_tasks, manager.timeout, callback)
+    wait(launch_tasks, launch_timeout(manager), callback)
 
     # TODO: Does stopping listening terminate the sockets from `accept`? If so, we could
     # potentially close the socket before we know the name of the connected worker. During
