@@ -30,6 +30,7 @@ mgr = AWSBatchManager(3, 4, definition="d", name="n", queue="q", region="us-west
 kwargs = Dict(:definition => "d", :name => "n", :queue => "q", :region => "ca-central-1")
 
 @test num_workers(AWSBatchManager(3:4; kwargs...)) == (3, 4)
+@test_throws MethodError AWSBatchManager(3:1:4; kwargs...)
 @test_throws MethodError AWSBatchManager(3:2:4; kwargs...)
 
 @test num_workers(AWSBatchManager(5; kwargs...)) == (5, 5)
