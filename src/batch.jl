@@ -8,9 +8,9 @@ using JSON
 immutable AWSBatchManager <: ContainerManager
     min_workers::Int
     max_workers::Int
-    definition::AbstractString
-    name::AbstractString
-    queue::AbstractString
+    job_definition::AbstractString
+    job_name::AbstractString
+    job_queue::AbstractString
     region::AbstractString
     timeout::Float64
 
@@ -72,9 +72,9 @@ function ==(a::AWSBatchManager, b::AWSBatchManager)
     return (
         a.min_workers == b.min_workers &&
         a.max_workers == b.max_workers &&
-        a.prefix == b.prefix &&
-        a.definition == b.definition &&
-        a.queue == b.queue &&
+        a.job_definition == b.job_definition &&
+        a.job_name == b.job_name &&
+        a.job_queue == b.job_queue &&
         a.region == b.region &&
         a.timeout == b.timeout
     )
@@ -92,9 +92,9 @@ function start_containers(mgr::AWSBatchManager, override_cmd::Cmd)
     # connection information back to the manager over a socket.
 
     cmd = `aws --region $(mgr.region) batch submit-job`
-    cmd = `$cmd --job-name $(mgr.name)`
-    cmd = `$cmd --job-queue $(mgr.queue)`
-    cmd = `$cmd --job-definition $(mgr.definition)`
+    cmd = `$cmd --job-name $(mgr.job_name)`
+    cmd = `$cmd --job-queue $(mgr.job_queue)`
+    cmd = `$cmd --job-definition $(mgr.job_definition)`
     overrides = Dict(
         "command" => collect(override_cmd.exec),
     )

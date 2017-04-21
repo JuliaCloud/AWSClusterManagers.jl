@@ -5,9 +5,9 @@ mgr = AWSBatchManager(1, 2, "job-definition", "job-name", "job-queue", "us-east-
 
 @test mgr.min_workers == 1
 @test mgr.max_workers == 2
-@test mgr.definition == "job-definition"
-@test mgr.name == "job-name"
-@test mgr.queue == "job-queue"
+@test mgr.job_definition == "job-definition"
+@test mgr.job_name == "job-name"
+@test mgr.job_queue == "job-queue"
 @test mgr.region == "us-east-1"
 @test mgr.timeout == 600
 
@@ -19,9 +19,9 @@ mgr = AWSBatchManager(3, 4, definition="d", name="n", queue="q", region="us-west
 
 @test mgr.min_workers == 3
 @test mgr.max_workers == 4
-@test mgr.definition == "d"
-@test mgr.name == "n"
-@test mgr.queue == "q"
+@test mgr.job_definition == "d"
+@test mgr.job_name == "n"
+@test mgr.job_queue == "q"
 @test mgr.region == "us-west-1"
 @test mgr.timeout == 5
 
@@ -42,9 +42,9 @@ if haskey(ENV, "AWS_BATCH_JOB_ID")
 
     @test mgr.min_workers == 3
     @test mgr.max_workers == 3
-    @test mgr.definition == job.definition
-    @test mgr.name == job.name
-    @test mgr.queue == job.queue
+    @test mgr.job_definition == job.definition
+    @test mgr.job_name == job.name
+    @test mgr.job_queue == job.queue
     @test mgr.region == job.region
     @test mgr.timeout == AWSClusterManagers.DEFAULT_TIMEOUT
 else
