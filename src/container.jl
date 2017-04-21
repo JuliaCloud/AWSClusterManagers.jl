@@ -9,7 +9,7 @@ else
     49152  # IANA dynamic or private port range start
 end
 
-const DEFAULT_TIMEOUT = 300
+const DEFAULT_TIMEOUT = 600  # Wait 10 minutes for container instances to launch
 
 abstract ContainerManager <: ClusterManager
 
