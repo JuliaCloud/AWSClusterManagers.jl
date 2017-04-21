@@ -5,6 +5,37 @@ using JSON
 # implicitly uses networkMode: host. If this changes to another networking mode AWS Batch
 # jobs may no longer be able to listen to incoming connections.
 
+"""
+    AWSBatchManager(max_workers; kwargs...)
+    AWSBatchManager(min_workers:max_workers; kwargs...)
+    AWSBatchManager(min_workers, max_workers; kwargs...)
+
+A cluster manager which uses workers spawned via Amazon Web Services batch service.
+Typically used within AWS Batch jobs to add additional workers. The number of workers
+spawned may be lower than `max_workers` due to resource contention. Specify `min_workers` if
+you can proceed with less than the requested `max_workers`.
+
+## Arguments
+- `min_workers::Int`: The minimum number of workers to spawn or an exception is thrown
+- `max_workers::Int`: The number of requested workers to spawn
+
+## Keywords
+- `definition::AbstractString`: Name of the AWS batch job definition which dictates
+  properties like the Docker image, IAM role, and command to run
+- `name::AbstractString`: Name of the job inside of AWS batch
+- `region::AbstractString`: The region in which the API requests are sent and in which new
+  worker are spawned. Defaults to "us-east-1". [Available regions for AWS batch](http://docs.aws.amazon.com/general/latest/gr/rande.html#batch_region)
+  can be found in the AWS documentation.
+- `timeout::Float64`: The maximum number of seconds to wait for workers to become available
+  before proceeding without the missing workers.
+
+## Examples
+```julia
+julia> addprocs(AWSBatchManager(3))  # Needs to be run from within a AWS batch job
+```
+"""
+AWSBatchManager
+
 immutable AWSBatchManager <: ContainerManager
     min_workers::Int
     max_workers::Int
@@ -26,7 +57,7 @@ immutable AWSBatchManager <: ContainerManager
         min_workers > 0 || throw(ArgumentError("min workers must be positive"))
         min_workers <= max_workers || throw(ArgumentError("min workers exceeds max workers"))
 
-        # Workers by default inherit the AWS Batch settings from the manager.
+        # Workers by default inherit the AWS batch settings from the manager.
         # Note: only query for default values if we need them as the lookup requires special
         # permissions.
         if isempty(definition) || isempty(name) || isempty(queue)
@@ -81,7 +112,7 @@ function ==(a::AWSBatchManager, b::AWSBatchManager)
 end
 
 function start_containers(mgr::AWSBatchManager, override_cmd::Cmd)
-    # Start new ECS tasks which will report back on to the manager via the open port
+    # Start new AWS batch jobs which will report back on to the manager via the open port
     # we just opened on the manager.
     #
     # Typically Julia workers are started using the hidden flags --bind-to and --worker.
