@@ -29,13 +29,16 @@ immutable AWSBatchManager <: ContainerManager
         # Workers by default inherit the AWS Batch settings from the manager.
         # Note: only query for default values if we need them as the lookup requires special
         # permissions.
-        if isempty(definition) || isempty(name) || isempty(queue) || isempty(region)
+        if isempty(definition) || isempty(name) || isempty(queue)
             job = AWSBatchJob()
 
             definition = isempty(definition) ? job.definition : definition
             name = isempty(name) ? job.name : name  # Maybe append "Worker" to default?
             queue = isempty(queue) ? job.queue : queue
             region = isempty(region) ? job.region : region
+        else
+            # At the moment AWS batch only supports the "us-east-1" region
+            region = isempty(region) ? "us-east-1" : region
         end
 
         new(min_workers, max_workers, definition, name, queue, region, timeout)
