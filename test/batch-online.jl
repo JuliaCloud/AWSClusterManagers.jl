@@ -37,6 +37,12 @@ function register(job_definition::AWSBatchJobDefinition, json::Dict)
     return AWSBatchJobDefinition(j["jobDefinitionName"], j["revision"])
 end
 
+function deregister(job_definition::AWSBatchJobDefinition)
+    isnull(job_definition.revision) && error("Unable to deregister job definition without revision")
+    # deregister has no output and the status appears to always be 0
+    run(`aws batch deregister-job-definition --job-definition $job_definition`)
+end
+
 immutable AWSBatchJob
     id::AbstractString
 end
@@ -84,8 +90,14 @@ if pushed && !dirty
     info("Registering AWS batch job definition: $(JOB_DEFINITION.name)")
 
     # Will be running the HEAD revision of the code remotely
+    # Note: Pkg.checkout doesn't work on untracked branches / SHAs with Julia 0.5.1
     code = """
-    Pkg.clone("git@gitlab.invenia.ca:invenia/AWSClusterManagers.jl", "$rev")
+    Pkg.update()
+    Pkg.clone("git@gitlab.invenia.ca:invenia/AWSClusterManagers.jl")
+    run(`git -C \$(Pkg.dir("AWSClusterManagers")) checkout --detach $rev`)
+    Pkg.resolve()
+    Pkg.build("AWSClusterManagers")
+
     using Memento
     Memento.config("debug"; fmt="{msg}")
     import AWSClusterManagers: AWSBatchManager
@@ -102,7 +114,7 @@ if pushed && !dirty
         "vcpus" => 1,
         "memory" => 1024,
         "command" => [
-            "julia", "-e", replace(code, '\n', "; ")
+            "julia", "-e", replace(code, r"\n+", "; ")
         ]
     )
 
@@ -117,6 +129,9 @@ if pushed && !dirty
         sleep(30)
     end
 
+    # Remove the job definition as it is specific to a revision
+    deregister(job_def)
+
     @test status(job) == Succeeded
 
     output = log(job)
@@ -125,6 +140,7 @@ if pushed && !dirty
     reported_jobs = Set(matchall(r"(?<=Worker \d: )[0-9a-f\-]+", output))
 
     @test num_procs == NUM_WORKERS + 1
+    @test length(reported_jobs) == NUM_WORKERS
     @test spawned_jobs == reported_jobs
 elseif dirty
     warn("Skipping online tests working directory is dirty")

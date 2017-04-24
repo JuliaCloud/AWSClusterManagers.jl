@@ -19,13 +19,15 @@ RUN apt-get update && \
 
 # BinDeps.jl requirements: sudo, make, gcc, unzip, bzip2, xz-utils, unzip
 # Deal with BinDeps system requirements by installing all the packages at one time.
+# git is needed by test/batch-online.jl
 ENV PINNED_PKGS \
 	make \
 	gcc \
 	# gzip \
 	bzip2 \
 	xz-utils \
-	unzip
+	unzip \
+	git
 RUN apt-get update && \
 	apt-get install -y --no-install-recommends $PINNED_PKGS && \
 	rm -rf /var/lib/apt/lists/* && \
