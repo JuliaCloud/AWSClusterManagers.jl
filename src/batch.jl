@@ -132,6 +132,7 @@ function start_containers(mgr::AWSBatchManager, override_cmd::Cmd)
     cmd = `$cmd --container-overrides $(JSON.json(overrides))`
 
     for id in 1:mgr.max_workers
-        run(cmd)
+        j = JSON.parse(readstring(cmd))
+        notice(logger, "Spawning job: $(j["jobId"])")
     end
 end
