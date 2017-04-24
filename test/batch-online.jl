@@ -13,7 +13,13 @@ end
 
 immutable AWSBatchJobDefinition
     name::AbstractString
+    revision::Nullable{Int}
 end
+
+AWSBatchJobDefinition(name::AbstractString) = AWSBatchJobDefinition(name, Nullable{Int}())
+AWSBatchJobDefinition(name::AbstractString, rev::Int) = AWSBatchJobDefinition(name, Nullable{Int}(rev))
+
+Base.string(d::AWSBatchJobDefinition) = isnull(d.revision) ? d.name : "$(d.name):$(get(d.revision))"
 
 function isregistered(job_definition::AWSBatchJobDefinition)
     j = JSON.parse(readstring(`aws batch describe-job-definitions --job-definition-name $(job_definition.name)`))
@@ -22,12 +28,13 @@ function isregistered(job_definition::AWSBatchJobDefinition)
 end
 
 function register(job_definition::AWSBatchJobDefinition, json::Dict)
-    return success(`
+    j = JSON.parse(readstring(`
     aws batch register-job-definition
         --job-definition-name $(job_definition.name)
         --type container
         --container-properties $(JSON.json(json))
-    `)
+    `))
+    return AWSBatchJobDefinition(j["jobDefinitionName"], j["revision"])
 end
 
 immutable AWSBatchJob
@@ -37,7 +44,7 @@ end
 function submit(job_definition::AWSBatchJobDefinition, job_name::AbstractString, job_queue::AbstractString)
     j = JSON.parse(readstring(`
     aws batch submit-job
-        --job-definition $(job_definition.name)
+        --job-definition $job_definition
         --job-name $job_name
         --job-queue $job_queue
     `))
@@ -59,17 +66,19 @@ function log(job::AWSBatchJob)
     return join([event["message"] for event in j["events"]], '\n')
 end
 
+job_def = AWSBatchJobDefinition("aws-batch-cluster-test", 3)
 
-const IMAGE_DEFINITION = "aws-batch-cluster-test"
-const JOB_DEFINITION = AWSBatchJobDefinition("aws-batch-cluster-test")
+
+const IMAGE_DEFINITION = "aws-cluster-managers-test"
+const JOB_DEFINITION = AWSBatchJobDefinition("aws-cluster-managers-test")
 const JOB_NAME = JOB_DEFINITION.name
 const MANAGER_JOB_QUEUE = "Replatforming-Manager"
 const WORKER_JOB_QUEUE = "Replatforming-Worker"
 const NUM_WORKERS = 3
 
-rev = readstring(`git rev-parse HEAD`)
-pushed = !isempty(readstring(`git branch -r --contains $rev`))
-dirty = !isempty(readstring(`git diff --name-only`))
+rev = readchomp(`git rev-parse HEAD`)
+pushed = !isempty(readchomp(`git branch -r --contains $rev`))
+dirty = !isempty(readchomp(`git diff --name-only`))
 
 if pushed && !dirty
     info("Registering AWS batch job definition: $(JOB_DEFINITION.name)")
@@ -97,10 +106,10 @@ if pushed && !dirty
         ]
     )
 
-    register(JOB_DEFINITION, json) || error("Unable to register $JOB_DEFINITION")
+    job_def = register(JOB_DEFINITION, json)
 
     info("Submitting AWS Batch job")
-    job = submit(JOB_DEFINITION, JOB_NAME, MANAGER_JOB_QUEUE)
+    job = submit(job_def, JOB_NAME, MANAGER_JOB_QUEUE)
 
     # If no resources are available it could take around 5 minutes before the job is running
     info("Waiting for AWS Batch job $(job.id) to complete (~5 minutes)")
