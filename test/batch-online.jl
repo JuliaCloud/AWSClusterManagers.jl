@@ -57,9 +57,14 @@ function submit(job_definition::AWSBatchJobDefinition, job_name::AbstractString,
     return AWSBatchJob(j["jobId"])
 end
 
-function status(job::AWSBatchJob)
+function details(job::AWSBatchJob)
     j = JSON.parse(readstring(`aws batch describe-jobs --jobs $(job.id)`))
-    return parse(JobState, j["jobs"][1]["status"])
+    return j["jobs"][1]
+end
+
+function status(job::AWSBatchJob)
+    d = details(job)
+    return parse(JobState, d["status"])
 end
 
 function log(job::AWSBatchJob)
@@ -70,6 +75,10 @@ function log(job::AWSBatchJob)
     log_stream_name = "$job_name/$(job.id)/$task_id"
     j = JSON.parse(readstring(`aws logs get-log-events --log-group-name "/aws/batch/job" --log-stream-name $log_stream_name`))
     return join([event["message"] for event in j["events"]], '\n')
+end
+
+function time_str(secs::Integer)
+    @sprintf("%02d:%02d:%02d", div(secs, 3600), rem(div(secs, 60), 60), rem(secs, 60))
 end
 
 job_def = AWSBatchJobDefinition("aws-batch-cluster-test", 3)
@@ -142,6 +151,20 @@ if pushed && !dirty
     @test num_procs == NUM_WORKERS + 1
     @test length(reported_jobs) == NUM_WORKERS
     @test spawned_jobs == reported_jobs
+
+    # Report some details about the job
+    d = details(job)
+    created_at = Dates.unix2datetime(d["createdAt"] / 1000)
+    started_at = Dates.unix2datetime(d["startedAt"] / 1000)
+    stopped_at = Dates.unix2datetime(d["stoppedAt"] / 1000)
+
+    # TODO: Unless I'm forgetting something just extrating the seconds from the milliseconds
+    # is awkward
+    launch_duration = div(Dates.value(started_at - created_at), 1000)
+    run_duration = div(Dates.value(stopped_at - started_at), 1000)
+
+    info("Job launch duration: $(time_str(launch_duration))")
+    info("Job run duration:    $(time_str(run_duration))")
 elseif dirty
     warn("Skipping online tests working directory is dirty")
 else
