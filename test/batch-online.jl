@@ -67,10 +67,16 @@ const MANAGER_JOB_QUEUE = "Replatforming-Manager"
 const WORKER_JOB_QUEUE = "Replatforming-Worker"
 const NUM_WORKERS = 3
 
-if !isregistered(JOB_DEFINITION)
+rev = readstring(`git rev-parse HEAD`)
+pushed = !isempty(readstring(`git branch -r --contains $rev`))
+dirty = !isempty(readstring(`git diff --name-only`))
+
+if pushed && !dirty
     info("Registering AWS batch job definition: $(JOB_DEFINITION.name)")
 
+    # Will be running the HEAD revision of the code remotely
     code = """
+    Pkg.clone("git@gitlab.invenia.ca:invenia/AWSClusterManagers.jl", "$rev")
     using Memento
     Memento.config("debug"; fmt="{msg}")
     import AWSClusterManagers: AWSBatchManager
@@ -92,23 +98,27 @@ if !isregistered(JOB_DEFINITION)
     )
 
     register(JOB_DEFINITION, json) || error("Unable to register $JOB_DEFINITION")
+
+    info("Submitting AWS Batch job")
+    job = submit(JOB_DEFINITION, JOB_NAME, MANAGER_JOB_QUEUE)
+
+    # If no resources are available it could take around 5 minutes before the job is running
+    info("Waiting for AWS Batch job $(job.id) to complete (~5 minutes)")
+    while status(job) <= Running
+        sleep(30)
+    end
+
+    @test status(job) == Succeeded
+
+    output = log(job)
+    num_procs = parse(Int, match(r"(?<=NumProcs: )\d+", output).match)
+    spawned_jobs = Set(matchall(r"(?<=Spawning job: )[0-9a-f\-]+", output))
+    reported_jobs = Set(matchall(r"(?<=Worker \d: )[0-9a-f\-]+", output))
+
+    @test num_procs == NUM_WORKERS + 1
+    @test spawned_jobs == reported_jobs
+elseif dirty
+    warn("Skipping online tests working directory is dirty")
+else
+    warn("Skipping online tests as commit $rev has not been pushed")
 end
-
-info("Submitting AWS Batch job")
-job = submit(JOB_DEFINITION, JOB_NAME, MANAGER_JOB_QUEUE)
-
-# If no resources are available it could take around 5 minutes before the job is running
-info("Waiting for AWS Batch job $(job.id) to complete (~5 minutes)")
-while status(job) <= Running
-    sleep(30)
-end
-
-@test status(job) == Succeeded
-
-output = log(job)
-num_procs = parse(Int, match(r"(?<=NumProcs: )\d+", output).match)
-spawned_jobs = Set(matchall(r"(?<=Spawning job: )[0-9a-f\-]+", output))
-reported_jobs = Set(matchall(r"(?<=Worker \d: )[0-9a-f\-]+", output))
-
-@test num_procs == NUM_WORKERS + 1
-@test spawned_jobs == reported_jobs
