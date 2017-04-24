@@ -17,7 +17,8 @@ end
 
 function isregistered(job_definition::AWSBatchJobDefinition)
     j = JSON.parse(readstring(`aws batch describe-job-definitions --job-definition-name $(job_definition.name)`))
-    return !isempty(get(j, "jobDefinitions", []))
+    active_definitions = filter!(d -> d["status"] == "ACTIVE", get(j, "jobDefinitions", []))
+    return !isempty(active_definitions)
 end
 
 function register(job_definition::AWSBatchJobDefinition, json::Dict)
@@ -67,11 +68,11 @@ const WORKER_JOB_QUEUE = "Replatforming-Worker"
 const NUM_WORKERS = 3
 
 if !isregistered(JOB_DEFINITION)
-    info("Registering AWS batch job definition: $JOB_DEFINITION")
+    info("Registering AWS batch job definition: $(JOB_DEFINITION.name)")
 
     code = """
     using Memento
-    logger = Memento.config("debug"; fmt="{msg}")
+    Memento.config("debug"; fmt="{msg}")
     import AWSClusterManagers: AWSBatchManager
     addprocs(AWSBatchManager($NUM_WORKERS, queue="$WORKER_JOB_QUEUE"))
     println("NumProcs: ", nprocs())
@@ -97,7 +98,7 @@ info("Submitting AWS Batch job")
 job = submit(JOB_DEFINITION, JOB_NAME, MANAGER_JOB_QUEUE)
 
 # If no resources are available it could take around 5 minutes before the job is running
-info("Waiting for AWS Batch job $(job.id) to complete")
+info("Waiting for AWS Batch job $(job.id) to complete (~5 minutes)")
 while status(job) <= Running
     sleep(30)
 end
