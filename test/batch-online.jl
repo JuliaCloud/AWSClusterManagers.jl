@@ -1,120 +1,25 @@
-using JSON
+isdefined(:TestHelpers) || include("TestHelpers.jl")
 
-@enum JobState Submitted Pending Runnable Starting Running Failed Succeeded
+import TestHelpers: IMAGE_DEFINITION, MANAGER_JOB_QUEUE, WORKER_JOB_QUEUE, JOB_DEFINITION, JOB_NAME
+import TestHelpers: register, deregister, submit, status, log, details, time_str, Running, Succeeded
 
-function Base.parse(::Type{JobState}, s::AbstractString)
-    for state in instances(JobState)
-        if uppercase(string(state)) == s
-            return state
-        end
-    end
-    throw(ArgumentError("Invalid JobState given: \"$s\""))
-end
-
-immutable AWSBatchJobDefinition
-    name::AbstractString
-    revision::Nullable{Int}
-end
-
-AWSBatchJobDefinition(name::AbstractString) = AWSBatchJobDefinition(name, Nullable{Int}())
-AWSBatchJobDefinition(name::AbstractString, rev::Int) = AWSBatchJobDefinition(name, Nullable{Int}(rev))
-
-Base.string(d::AWSBatchJobDefinition) = isnull(d.revision) ? d.name : "$(d.name):$(get(d.revision))"
-
-function isregistered(job_definition::AWSBatchJobDefinition)
-    j = JSON.parse(readstring(`aws batch describe-job-definitions --job-definition-name $(job_definition.name)`))
-    active_definitions = filter!(d -> d["status"] == "ACTIVE", get(j, "jobDefinitions", []))
-    return !isempty(active_definitions)
-end
-
-function register(job_definition::AWSBatchJobDefinition, json::Dict)
-    j = JSON.parse(readstring(`
-    aws batch register-job-definition
-        --job-definition-name $(job_definition.name)
-        --type container
-        --container-properties $(JSON.json(json))
-    `))
-    return AWSBatchJobDefinition(j["jobDefinitionName"], j["revision"])
-end
-
-function deregister(job_definition::AWSBatchJobDefinition)
-    isnull(job_definition.revision) && error("Unable to deregister job definition without revision")
-    # deregister has no output and the status appears to always be 0
-    run(`aws batch deregister-job-definition --job-definition $job_definition`)
-end
-
-immutable AWSBatchJob
-    id::AbstractString
-end
-
-function submit(job_definition::AWSBatchJobDefinition, job_name::AbstractString, job_queue::AbstractString)
-    j = JSON.parse(readstring(`
-    aws batch submit-job
-        --job-definition $job_definition
-        --job-name $job_name
-        --job-queue $job_queue
-    `))
-    return AWSBatchJob(j["jobId"])
-end
-
-function details(job::AWSBatchJob)
-    j = JSON.parse(readstring(`aws batch describe-jobs --jobs $(job.id)`))
-    return j["jobs"][1]
-end
-
-function status(job::AWSBatchJob)
-    d = details(job)
-    return parse(JobState, d["status"])
-end
-
-function log(job::AWSBatchJob)
-    j = JSON.parse(readstring(`aws batch describe-jobs --jobs $(job.id)`))
-    task_id = last(rsplit(j["jobs"][1]["container"]["taskArn"], '/', limit=2))
-    job_name = j["jobs"][1]["jobName"]
-
-    log_stream_name = "$job_name/$(job.id)/$task_id"
-    j = JSON.parse(readstring(`aws logs get-log-events --log-group-name "/aws/batch/job" --log-stream-name $log_stream_name`))
-    return join([event["message"] for event in j["events"]], '\n')
-end
-
-function time_str(secs::Integer)
-    @sprintf("%02d:%02d:%02d", div(secs, 3600), rem(div(secs, 60), 60), rem(secs, 60))
-end
-
-job_def = AWSBatchJobDefinition("aws-batch-cluster-test", 3)
-
-
-const IMAGE_DEFINITION = "aws-cluster-managers-test"
-const JOB_DEFINITION = AWSBatchJobDefinition("aws-cluster-managers-test")
-const JOB_NAME = JOB_DEFINITION.name
-const MANAGER_JOB_QUEUE = "Replatforming-Manager"
-const WORKER_JOB_QUEUE = "Replatforming-Worker"
-const NUM_WORKERS = 3
-
-pkg_dir = abspath(dirname(@__FILE__), "..")
-rev = readchomp(`git -C $pkg_dir rev-parse HEAD`)
-pushed = !isempty(readchomp(`git -C $pkg_dir branch -r --contains $rev`))
-
-# Ignore the test directory when checking for a dirty state.
-dirty_files = split(readchomp(`git -C $pkg_dir diff --name-only`), "\n")
-dirty = !isempty(filter(p -> !startswith(p, "test"), dirty_files))
-
-if pushed && !dirty
+@testset "Spawn" begin
     info("Registering AWS batch job definition: $(JOB_DEFINITION.name)")
+    num_workers = 3
 
     # Will be running the HEAD revision of the code remotely
     # Note: Pkg.checkout doesn't work on untracked branches / SHAs with Julia 0.5.1
     code = """
     Pkg.update()
     Pkg.clone("git@gitlab.invenia.ca:invenia/AWSClusterManagers.jl")
-    run(`git -C \$(Pkg.dir("AWSClusterManagers")) checkout --detach $rev`)
+    run(`git -C \$(Pkg.dir("AWSClusterManagers")) checkout --detach $REV`)
     Pkg.resolve()
     Pkg.build("AWSClusterManagers")
 
     using Memento
     Memento.config("debug"; fmt="{msg}")
     import AWSClusterManagers: AWSBatchManager
-    addprocs(AWSBatchManager($NUM_WORKERS, queue="$WORKER_JOB_QUEUE"))
+    addprocs(AWSBatchManager($num_workers, queue="$WORKER_JOB_QUEUE"))
     println("NumProcs: ", nprocs())
     for i in workers()
         println("Worker \$i: ", remotecall_fetch(() -> ENV["AWS_BATCH_JOB_ID"], i))
@@ -154,8 +59,8 @@ if pushed && !dirty
     spawned_jobs = Set(matchall(r"(?<=Spawning job: )[0-9a-f\-]+", output))
     reported_jobs = Set(matchall(r"(?<=Worker \d: )[0-9a-f\-]+", output))
 
-    @test num_procs == NUM_WORKERS + 1
-    @test length(reported_jobs) == NUM_WORKERS
+    @test num_procs == num_workers + 1
+    @test length(reported_jobs) == num_workers
     @test spawned_jobs == reported_jobs
 
     # Report some details about the job
@@ -171,8 +76,4 @@ if pushed && !dirty
 
     info("Job launch duration: $(time_str(launch_duration))")
     info("Job run duration:    $(time_str(run_duration))")
-elseif dirty
-    warn("Skipping online tests working directory is dirty")
-else
-    warn("Skipping online tests as commit $rev has not been pushed")
 end
