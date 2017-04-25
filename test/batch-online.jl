@@ -91,9 +91,13 @@ const MANAGER_JOB_QUEUE = "Replatforming-Manager"
 const WORKER_JOB_QUEUE = "Replatforming-Worker"
 const NUM_WORKERS = 3
 
-rev = readchomp(`git rev-parse HEAD`)
-pushed = !isempty(readchomp(`git branch -r --contains $rev`))
-dirty = !isempty(readchomp(`git diff --name-only`))
+pkg_dir = abspath(dirname(@__FILE__), "..")
+rev = readchomp(`git -C $pkg_dir rev-parse HEAD`)
+pushed = !isempty(readchomp(`git -C $pkg_dir branch -r --contains $rev`))
+
+# Ignore the test directory when checking for a dirty state.
+dirty_files = split(readchomp(`git -C $pkg_dir diff --name-only`), "\n")
+dirty = !isempty(filter(p -> !startswith(p, "test"), dirty_files))
 
 if pushed && !dirty
     info("Registering AWS batch job definition: $(JOB_DEFINITION.name)")
