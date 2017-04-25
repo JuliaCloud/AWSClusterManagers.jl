@@ -148,7 +148,9 @@ if pushed && !dirty
     @test status(job) == Succeeded
 
     output = log(job)
-    num_procs = parse(Int, match(r"(?<=NumProcs: )\d+", output).match)
+
+    m = match(r"(?<=NumProcs: )\d+", output)
+    num_procs = m !== nothing ? parse(Int, m.match) : -1
     spawned_jobs = Set(matchall(r"(?<=Spawning job: )[0-9a-f\-]+", output))
     reported_jobs = Set(matchall(r"(?<=Worker \d: )[0-9a-f\-]+", output))
 
