@@ -53,21 +53,11 @@ function ==(a::ECSManager, b::ECSManager)
     )
 end
 
-function start_containers(manager::ECSManager, override_cmd::Cmd)
+function spawn_containers(manager::ECSManager, override_cmd::Cmd)
     num_containers = manager.max_workers
     region = manager.region
     cluster = manager.cluster
     task_definition = manager.task_def
-
-    # Start new ECS tasks which will report back on to the manager via the open port
-    # we just opened on the manager.
-    #
-    # Typically Julia workers are started using the hidden flags --bind-to and --worker.
-    # We won't use the `--bind-to` flag as we don't know where the container will be
-    # started and what ports will be available. We don't want to use `--worker COOKIE`
-    # as this essentially runs `start_worker(STDOUT, COOKIE)` which reports the worker
-    # address and port to STDOUT. Instead we'll run the code ourselves and report the
-    # connection information back to the manager over a socket.
 
     r = isempty(region) ? `` : `--region $(region)`
     cmd = `aws $r ecs run-task --count $num_containers --task-definition $task_definition`

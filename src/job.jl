@@ -6,8 +6,15 @@ type AWSBatchJob
     region::String
 end
 
+"""
+    AWSBatchJob()
+
+Perform introspection on the currently running AWS Batch job to discover details such as
+the: job ID, job name, job definition name, job queue, and region.
+"""
 function AWSBatchJob()
-    # Variable names discovered by inspecting the AWS Batch job as a running ECS task
+    # Environmental variables set by the AWS Batch service. They were discovered by
+    # inspecting the running AWS Batch job in the ECS task interface.
     job_id = ENV["AWS_BATCH_JOB_ID"]
     job_queue = ENV["AWS_BATCH_JQ_NAME"]
 
