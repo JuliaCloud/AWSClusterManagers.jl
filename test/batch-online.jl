@@ -12,7 +12,8 @@ import TestHelpers: register, deregister, submit, status, log, details, time_str
     code = """
     Pkg.update()
     Pkg.clone("git@gitlab.invenia.ca:invenia/AWSClusterManagers.jl")
-    run(`git -C \$(Pkg.dir("AWSClusterManagers")) checkout --detach $REV`)
+    cd(Pkg.dir("AWSClusterManagers"))
+    run(`git checkout --detach $REV`)
     Pkg.resolve()
     Pkg.build("AWSClusterManagers")
 
