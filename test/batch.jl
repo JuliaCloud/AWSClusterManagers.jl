@@ -35,7 +35,7 @@ kwargs = Dict(:definition => "d", :name => "n", :queue => "q", :region => "ca-ce
 
 @test num_workers(AWSBatchManager(5; kwargs...)) == (5, 5)
 
-
+# Running outside of the environment of a AWS batch job
 if haskey(ENV, "AWS_BATCH_JOB_ID")
     job = AWSBatchJob()
     mgr = AWSBatchManager(3)
@@ -48,6 +48,5 @@ if haskey(ENV, "AWS_BATCH_JOB_ID")
     @test mgr.region == job.region
     @test mgr.timeout == AWSClusterManagers.DEFAULT_TIMEOUT
 else
-    # Running outside of the environment of a AWS batch job
     @test_throws KeyError AWSBatchManager(3)  # TODO: Custom error?
 end

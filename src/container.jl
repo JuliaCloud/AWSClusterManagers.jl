@@ -1,15 +1,26 @@
 import Base: wait
 
+# Overview of how the ContainerManagers work:
+#
+# 1. Start a TCP server on the manager using a random port within the ephemeral range
+# 2. Spawn additional jobs/tasks using definition overrides to spawn identical versions of
+#    Julia which will connect to the manager over TCP. The Julia function `start_worker` is
+#    run which sends the worker address and port to the manager via the TCP socket.
+# 3. The manager receives all of the the workers addresses and stops the TCP server.
+# 4. Using the reported addresses the manager connects to each of the worker like a typical
+#    cluster manager.
+
 # Determine the start of the ephemeral port range on this system. Used in `listenany` calls.
 const PORT_HINT = if is_linux()
     parse(Int, first(split(readchomp("/proc/sys/net/ipv4/ip_local_port_range"), '\t')))
 elseif is_apple()
-    parse(Int, readstring(`sysctl -n net.inet.ip.portrange.first`))
+    parse(Int, readchomp(`sysctl -n net.inet.ip.portrange.first`))
 else
-    49152  # IANA dynamic or private port range start
+    49152  # IANA dynamic and/or private port range start (https://en.wikipedia.org/wiki/Ephemeral_port)
 end
 
-const DEFAULT_TIMEOUT = 600  # Wait 10 minutes for container instances to launch
+# Seconds to wait for container instances to launch
+const DEFAULT_TIMEOUT = 600  # 10 minutes
 
 abstract ContainerManager <: ClusterManager
 
@@ -19,7 +30,7 @@ function launch(manager::ContainerManager, params::Dict, launched::Array, c::Con
     min_workers, max_workers = num_workers(manager)
     launch_tasks = Vector{Task}(max_workers)
 
-    # TODO: Should be using TLS connections.
+    # TODO: Ideally should be using TLS connections.
     port, server = listenany(ip"::", PORT_HINT)  # Listen on all IPv4 and IPv6 interfaces
     for i in 1:max_workers
         launch_tasks[i] = @schedule begin
@@ -40,11 +51,19 @@ function launch(manager::ContainerManager, params::Dict, launched::Array, c::Con
 
     # Generate command which starts a Julia worker and reports its information back to the
     # manager
+    #
+    # Typically Julia workers are started using the hidden `julia` flags `--bind-to` and
+    # `--worker`. We won't use the `--bind-to` flag as we do not know where the container
+    # will be started and what ports will be available. We don't want to use
+    # `--worker COOKIE` as this essentially runs `start_worker(STDOUT, COOKIE)` which
+    # reports the worker address and port to STDOUT. Instead we'll run the code ourselves
+    # and report the connection information back to the manager over a socket.
     exec = "sock = connect(ip\"$(getipaddr())\", $port); Base.start_worker(sock, \"$(cluster_cookie())\")"
     override_cmd = `julia -e $exec`
 
-    # Starts "max_workers" containers. Non-blocking.
-    start_containers(manager, override_cmd)
+    # Non-blocking spawn of N-containers where N is equal to `max_workers`. Workers will
+    # report back to the manager via the open port we just opened.
+    spawn_containers(manager, override_cmd)
 
     function callback(num_failed)
         num_launched = max_workers - num_failed
@@ -55,7 +74,8 @@ function launch(manager::ContainerManager, params::Dict, launched::Array, c::Con
         end
     end
 
-    # Await for workers to inform the manager of their address.
+    # Wait for workers to inform the manager of their address. If all of the spawned
+    # containers are not launched by the timeout the `callback` will be executed.
     wait(launch_tasks, launch_timeout(manager), callback)
 
     # TODO: Does stopping listening terminate the sockets from `accept`? If so, we could
@@ -70,7 +90,9 @@ function manage(manager::ContainerManager, id::Integer, config::WorkerConfig, op
     # worker to shutdown automatically.
 end
 
-function wait(tasks::AbstractArray{Task}, timeout::Real, timed_out_cb::Function=(n)->nothing)
+# Waits for all of the `tasks` to complete. If we wait longer than the `timeout` the wait is
+# aborted and the `timeout_callback` is called with number of unfinished tasks.
+function wait(tasks::AbstractArray{Task}, timeout::Real, timeout_callback::Function=(n)->nothing)
     start = time()
     unfinished = 0
     for t in tasks
@@ -89,6 +111,6 @@ function wait(tasks::AbstractArray{Task}, timeout::Real, timed_out_cb::Function=
         end
     end
     if unfinished > 0
-        timed_out_cb(unfinished)
+        timeout_callback(unfinished)
     end
 end
