@@ -1,14 +1,24 @@
 import AWSClusterManagers: launch_timeout, num_workers
 
+test_container = Dict("vcpus" => 2, "memory" => 4000)
+
 # Test inner constructor
+<<<<<<< HEAD
 mgr = AWSBatchManager(1, 2, "job-definition", "job-name", "job-queue", 1000, "us-east-1", 600)
+=======
+mgr = AWSBatchManager(1, 2, "job-definition", "job-name", "job-queue", test_container, "us-east-1", 600)
+>>>>>>> Added overriding of the vcpus and memory in batch worker submissions.
 
 @test mgr.min_workers == 1
 @test mgr.max_workers == 2
 @test mgr.job_definition == "job-definition"
 @test mgr.job_name == "job-name"
 @test mgr.job_queue == "job-queue"
+<<<<<<< HEAD
 @test mgr.job_memory == 1000
+=======
+@test mgr.job_container == test_container
+>>>>>>> Added overriding of the vcpus and memory in batch worker submissions.
 @test mgr.region == "us-east-1"
 @test mgr.timeout == 600
 
@@ -22,7 +32,11 @@ mgr = AWSBatchManager(
     definition="d",
     name="n",
     queue="q",
+<<<<<<< HEAD
     memory=1000,
+=======
+    container=test_container,
+>>>>>>> Added overriding of the vcpus and memory in batch worker submissions.
     region="us-west-1",
     timeout=5
 )
@@ -32,7 +46,11 @@ mgr = AWSBatchManager(
 @test mgr.job_definition == "d"
 @test mgr.job_name == "n"
 @test mgr.job_queue == "q"
+<<<<<<< HEAD
 @test mgr.job_memory == 1000
+=======
+@test mgr.job_container == test_container
+>>>>>>> Added overriding of the vcpus and memory in batch worker submissions.
 @test mgr.region == "us-west-1"
 @test mgr.timeout == 5
 
@@ -42,7 +60,11 @@ kwargs = Dict(
     :definition => "d",
     :name => "n",
     :queue => "q",
+<<<<<<< HEAD
     :memory => 1000,
+=======
+    :container => test_container,
+>>>>>>> Added overriding of the vcpus and memory in batch worker submissions.
     :region => "ca-central-1"
 )
 
