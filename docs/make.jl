@@ -15,8 +15,8 @@ makedocs(
     authors = "Curtis Vogt",
     assets = [
         "assets/invenia.css",
-        "assets/batch_workers.svg",
-        "assets/batch_managers.svg",
-        "assets/batch_project.svg",
+        "assets/figures/batch_workers.svg",
+        "assets/figures/batch_managers.svg",
+        "assets/figures/batch_project.svg",
     ],
 )

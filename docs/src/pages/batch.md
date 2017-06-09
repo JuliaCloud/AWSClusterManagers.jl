@@ -42,7 +42,7 @@ The workflow for deploying it on AWS Batch will be:
 
 ### Overview
 
-![Batch Managers](../assets/batch_managers.svg)
+![Batch Managers](../assets/figures/batch_managers.svg)
 
 The client machines on the left (e.g., your laptop) begin by pushing a docker image to ECR, registering a job definition, and submitting a cluster manager batch job.
 The cluster manager job (JobID: 9086737) begins executing `julia demo.jl` which immediately submits 4 more batch jobs (JobIDs: 4636723, 3957289, 8650218 and 7931648) to function as its workers.
@@ -152,7 +152,7 @@ While it is generally preferable to run the AWSBatchManager as a batch job, it c
 In this case, worker batch jobs would be submitted from your local machine and would need to connect back to your machine from Amazon's network.
 Unfortunately, this may result in networking bottlenecks if you're transferring large amounts of data between the manager (you local machine) and the workers (batch jobs).
 
-![Batch Workers](../assets/batch_workers.svg)
+![Batch Workers](../assets/figures/batch_workers.svg)
 
 As with the previous workflow, the client machine on the left begins by pushing a docker image to ECR (so the workers have access to the same code) and registers a job definition (if one doesn't already exist).
 The client machine then runs `julia demo.jl` as the cluster manager which immediately submits 4 batch jobs (JobIDs: 4636723, 3957289, 8650218 and 7931648) to function as its workers.
