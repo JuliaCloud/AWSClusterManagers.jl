@@ -46,7 +46,6 @@ immutable AWSBatchManager <: ContainerManager
     job_name::AbstractString
     job_queue::AbstractString
     job_memory::Integer
-
     region::AbstractString
     timeout::Float64
 
@@ -72,7 +71,6 @@ immutable AWSBatchManager <: ContainerManager
             definition = isempty(definition) ? job.definition : definition
             name = isempty(name) ? job.name : name  # Maybe append "Worker" to default?
             queue = isempty(queue) ? job.queue : queue
-            container = isempty(container) ? job.container : container
             region = isempty(region) ? job.region : region
             memory = if memory == -1
                 round(Integer, job.container["memory"] / job.container["vcpus"])
