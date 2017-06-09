@@ -8,6 +8,10 @@ Julia cluster managers which run within the AWS infrastructure.
 
 ## Installation
 
+```julia
+Pkg.add("AWSClusterManagers")
+```
+
 In order to run AWSClusterManagers you'll need to have the [AWS CLI](https://aws.amazon.com/cli)
 installed. The recommended way to to install this is to use PIP which will have the latest
 version available versus what may be available on your system's package manager.
@@ -16,44 +20,15 @@ version available versus what may be available on your system's package manager.
 pip install awscli
 aws configure
 ```
+## Sample Project Architecture
 
-## AWS Batch Manager
+The details of how the AWSECSManager & AWSBatchManager will be described in more detail shortly, but we'll briefly summarizes a real world application archtecture using the AWSBatchManager.
 
-The AWSBatchManager allows you to use the [AWS Batch](https://aws.amazon.com/batch/) service
-as a Julia cluster. Requirements to use this cluster manager are:
+![Batch Project](docs/src/assets/batch_project.svg)
 
-* [AWS CLI](https://aws.amazon.com/cli) tools are installed and setup
-* An IAM role is setup that allows `batch:SubmitJob` and `batch:DescribeJobs`
-* A Docker image registered with [AWS ECR](https://aws.amazon.com/ecr/) which has Julia
-  installed, AWSClusterManagers.jl, and the AWS CLI.
-
-The AWSBatchManager requires that the running AWS Batch jobs are run using
-["networkMode=host"](http://docs.aws.amazon.com/AmazonECS/latest/developerguide/task_definition_parameters.html#network_mode)
-which is the default for AWS Batch. This is only mentioned for completeness.
-
-### Example
-
-Typical use of this package will take place from within an already running AWS Batch job.
-We'll start by first registering a job definition which requires a registered ECR image and
-an IAM role. Note that the job definition needs to only be registered once and can be
-re-used for multiple job submissions.
-
-```bash
-aws batch register-job-definition --job-definition-name aws-batch-demo --type container --container-properties '
-{
-    "image": "000000000000.dkr.ecr.us-east-1.amazonaws.com/demo:latest",
-    "vcpus": 1,
-    "memory": 1024,
-    "jobRoleArn": "arn:aws:iam::000000000000:role/AWSBatchClusterManagerJobRole",
-    "command": [
-        "julia", "-e", "import AWSClusterManagers: AWSBatchManager; addprocs(AWSBatchManager(3)); println(\"Num Procs: \", nprocs()); @everywhere id = myid(); for i in workers(); println(\"Worker $i: \", remotecall_fetch(() -> id, i)); end"
-    ]
-}'
-```
-
-Once the job definition has been registered we can then run the AWS Batch job. In order to
-run a job you'll need to setup a compute environment with an associated a job queue:
-
-```bash
-aws batch submit-job --job-name aws-batch-demo --job-definition aws-batch-demo --job-queue aws-batch-queue
-```
+The client machines on the left (e.g., your laptop) begin by pushing a docker image to ECR, registering a job definition, and submitting a cluster manager batch job.
+The cluster manager job (JobID: 9086737) begins executing `julia demo.jl` which immediately submits 4 more batch jobs (JobIDs: 4636723, 3957289, 8650218 and 7931648) to function as its workers.
+The manager then waits for the worker jobs to become available and register themselves with the manager.
+Once the workers are available the remainder of the script sees them as ordinary julia worker processes (identified by the integer pid values shown in parentheses).
+Finally, the batch manager exits, releasing all batch resources, and writing all STDOUT & STDERR to CloudWatch logs for the clients to view or download and saving an program results to S3.
+The clients may then choose to view or download the logs/results at a later time.
