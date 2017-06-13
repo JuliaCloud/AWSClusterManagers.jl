@@ -1,13 +1,14 @@
 import AWSClusterManagers: launch_timeout, num_workers
 
 # Test inner constructor
-mgr = AWSBatchManager(1, 2, "job-definition", "job-name", "job-queue", "us-east-1", 600)
+mgr = AWSBatchManager(1, 2, "job-definition", "job-name", "job-queue", 1000, "us-east-1", 600)
 
 @test mgr.min_workers == 1
 @test mgr.max_workers == 2
 @test mgr.job_definition == "job-definition"
 @test mgr.job_name == "job-name"
 @test mgr.job_queue == "job-queue"
+@test mgr.job_memory == 1000
 @test mgr.region == "us-east-1"
 @test mgr.timeout == 600
 
@@ -15,19 +16,35 @@ mgr = AWSBatchManager(1, 2, "job-definition", "job-name", "job-queue", "us-east-
 @test num_workers(mgr) == (1, 2)
 
 # Test keyword support
-mgr = AWSBatchManager(3, 4, definition="d", name="n", queue="q", region="us-west-1", timeout=5)
+mgr = AWSBatchManager(
+    3,
+    4,
+    definition="d",
+    name="n",
+    queue="q",
+    memory=1000,
+    region="us-west-1",
+    timeout=5
+)
 
 @test mgr.min_workers == 3
 @test mgr.max_workers == 4
 @test mgr.job_definition == "d"
 @test mgr.job_name == "n"
 @test mgr.job_queue == "q"
+@test mgr.job_memory == 1000
 @test mgr.region == "us-west-1"
 @test mgr.timeout == 5
 
 # Define the keywords definition, name, queue, and region to avoid calling AWSBatchJob which
 # only works inside of batch jobs.
-kwargs = Dict(:definition => "d", :name => "n", :queue => "q", :region => "ca-central-1")
+kwargs = Dict(
+    :definition => "d",
+    :name => "n",
+    :queue => "q",
+    :memory => 1000,
+    :region => "ca-central-1"
+)
 
 @test num_workers(AWSBatchManager(3:4; kwargs...)) == (3, 4)
 @test_throws MethodError AWSBatchManager(3:1:4; kwargs...)

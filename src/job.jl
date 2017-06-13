@@ -2,6 +2,7 @@ type AWSBatchJob
     id::String
     name::String
     definition::String
+    container::Dict
     queue::String
     region::String
 end
@@ -30,6 +31,7 @@ function AWSBatchJob()
         job_id,
         details["jobName"],
         details["jobDefinition"],
+        details["container"],
         job_queue,
         region,
     )
