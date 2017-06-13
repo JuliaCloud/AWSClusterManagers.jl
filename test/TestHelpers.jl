@@ -1,6 +1,26 @@
 module TestHelpers
 
+# Note: When support for Julia 0.5 is dropped the multiline single-backticks (`) should be
+# replaced by triple-backticks (```).
+
 using JSON
+
+"""
+    readstring(f::Function, cmd::Cmd) -> Any
+
+Read the entire STDOUT stream from the command object and passes it to a function for
+processing. If any exception occurs within the given function the raw STDOUT will be dumped
+before reporting the exception.
+"""
+function readstring(f::Function, cmd::Cmd)
+    output = Base.readstring(cmd)
+    return try
+        f(output)
+    catch
+        warn("Command output could not be processed:\n$output")
+        rethrow()
+    end
+end
 
 @enum JobState Submitted Pending Runnable Starting Running Failed Succeeded
 
@@ -24,19 +44,25 @@ AWSBatchJobDefinition(name::AbstractString, rev::Int) = AWSBatchJobDefinition(na
 Base.string(d::AWSBatchJobDefinition) = isnull(d.revision) ? d.name : "$(d.name):$(get(d.revision))"
 
 function isregistered(job_definition::AWSBatchJobDefinition)
-    j = JSON.parse(readstring(`aws batch describe-job-definitions --job-definition-name $(job_definition.name)`))
-    active_definitions = filter!(d -> d["status"] == "ACTIVE", get(j, "jobDefinitions", []))
-    return !isempty(active_definitions)
+    cmd = `aws batch describe-job-definitions --job-definition-name $(job_definition.name)`
+    return readstring(cmd) do output
+        j = JSON.parse(cmd)
+        active_definitions = filter!(d -> d["status"] == "ACTIVE", get(j, "jobDefinitions", []))
+        !isempty(active_definitions)
+    end
 end
 
 function register(job_definition::AWSBatchJobDefinition, json::Dict)
-    j = JSON.parse(readstring(`
-    aws batch register-job-definition
-        --job-definition-name $(job_definition.name)
-        --type container
-        --container-properties $(JSON.json(json))
-    `))
-    return AWSBatchJobDefinition(j["jobDefinitionName"], j["revision"])
+    cmd = `
+        aws batch register-job-definition
+            --job-definition-name $(job_definition.name)
+            --type container
+            --container-properties $(JSON.json(json))
+        `
+    return readstring(cmd) do output
+        j = JSON.parse(output)
+        AWSBatchJobDefinition(j["jobDefinitionName"], j["revision"])
+    end
 end
 
 function deregister(job_definition::AWSBatchJobDefinition)
@@ -50,18 +76,23 @@ immutable AWSBatchJob
 end
 
 function submit(job_definition::AWSBatchJobDefinition, job_name::AbstractString, job_queue::AbstractString)
-    j = JSON.parse(readstring(`
-    aws batch submit-job
-        --job-definition $job_definition
-        --job-name $job_name
-        --job-queue $job_queue
-    `))
-    return AWSBatchJob(j["jobId"])
+    cmd = `
+        aws batch submit-job
+            --job-definition $job_definition
+            --job-name $job_name
+            --job-queue $job_queue
+        `
+    return readstring(cmd) do output
+        j = JSON.parse(output)
+        AWSBatchJob(j["jobId"])
+    end
 end
 
 function details(job::AWSBatchJob)
-    j = JSON.parse(readstring(`aws batch describe-jobs --jobs $(job.id)`))
-    return j["jobs"][1]
+    return readstring(`aws batch describe-jobs --jobs $(job.id)`) do output
+        j = JSON.parse(output)
+        j["jobs"][1]
+    end
 end
 
 function status(job::AWSBatchJob)
@@ -70,13 +101,24 @@ function status(job::AWSBatchJob)
 end
 
 function log(job::AWSBatchJob)
-    j = JSON.parse(readstring(`aws batch describe-jobs --jobs $(job.id)`))
-    task_id = last(rsplit(j["jobs"][1]["container"]["taskArn"], '/', limit=2))
-    job_name = j["jobs"][1]["jobName"]
+    cmd = `aws batch describe-jobs --jobs $(job.id)`
+    task_id, job_name = readstring(cmd) do output
+        j = JSON.parse(output)
+        task_id = last(rsplit(j["jobs"][1]["container"]["taskArn"], '/', limit=2))
+        job_name = j["jobs"][1]["jobName"]
+        (task_id, job_name)
+    end
 
     log_stream_name = "$job_name/$(job.id)/$task_id"
-    j = JSON.parse(readstring(`aws logs get-log-events --log-group-name "/aws/batch/job" --log-stream-name $log_stream_name`))
-    return join([event["message"] for event in j["events"]], '\n')
+    cmd = `
+        aws logs get-log-events
+            --log-group-name "/aws/batch/job"
+            --log-stream-name $log_stream_name
+        `
+    return readstring(cmd) do output
+        j = JSON.parse(output)
+        join([event["message"] for event in j["events"]], '\n')
+    end
 end
 
 function time_str(secs::Integer)
