@@ -20,6 +20,9 @@ version available versus what may be available on your system's package manager.
 pip install awscli
 aws configure
 ```
+
+Note that the AWS CLI need to be at least version 1.11.78 to work.
+
 ## Sample Project Architecture
 
 The details of how the AWSECSManager & AWSBatchManager will be described in more detail shortly, but we'll briefly summarizes a real world application archtecture using the AWSBatchManager.

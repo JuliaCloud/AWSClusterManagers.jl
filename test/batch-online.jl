@@ -3,6 +3,10 @@ isdefined(:TestHelpers) || include("TestHelpers.jl")
 import TestHelpers: IMAGE_DEFINITION, MANAGER_JOB_QUEUE, WORKER_JOB_QUEUE, JOB_DEFINITION, JOB_NAME
 import TestHelpers: register, deregister, submit, status, log, details, time_str, Running, Succeeded
 
+# Report the AWS CLI version as API changes could be the cause of exceptions here.
+# Note: `aws --version` prints to STDERR instead of STDOUT.
+info(readstring(pipeline(`aws --version`, stderr=`cat`)))
+
 @testset "Spawn" begin
     info("Registering AWS batch job definition: $(JOB_DEFINITION.name)")
     num_workers = 3
