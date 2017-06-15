@@ -13,6 +13,9 @@ difference = cd(() -> readchomp(`git diff --name-only`), PKG_DIR)
 dirty_files = filter!(!isempty, split(difference, "\n"))
 const DIRTY = !isempty(filter(p -> !startswith(p, "test"), dirty_files))
 
+# Load the Mock module
+include("mock.jl")
+
 @testset "AWSClusterManagers" begin
     # include("ecs.jl")
     include("batch.jl")
