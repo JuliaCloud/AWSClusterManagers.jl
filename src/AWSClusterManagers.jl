@@ -2,6 +2,7 @@ module AWSClusterManagers
 
 import Base: launch, manage, cluster_cookie
 using Memento
+using Mocking
 
 export ECSManager, AWSBatchManager, DockerManager
 

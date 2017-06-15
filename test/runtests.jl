@@ -1,3 +1,6 @@
+using Mocking
+Mocking.enable()
+
 using AWSClusterManagers
 using Base.Test
 

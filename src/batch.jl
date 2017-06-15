@@ -150,7 +150,7 @@ function spawn_containers(mgr::AWSBatchManager, override_cmd::Cmd)
 
     # AWS Batch jobs only allow us to spawn a job at a time
     for id in 1:mgr.max_workers
-        j = JSON.parse(readstring(cmd))
+        j = JSON.parse(@mock readstring(cmd))
         notice(logger, "Spawning job: $(j["jobId"])")
     end
 end
