@@ -3,8 +3,7 @@ module AWSClusterManagers
 import Base: launch, manage, cluster_cookie
 using Memento
 
-export ECSManager, AWSBatchManager
-export AWSBatchOverlayManager, LocalOverlayManager
+export ECSManager, AWSBatchManager, DockerManager
 
 logger = get_logger(current_module())
 
