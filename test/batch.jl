@@ -105,10 +105,17 @@ const BATCH_ENVS = (
                 patch = @patch readstring(cmd::AbstractCmd) = TestUtils.readstring(cmd)
 
                 apply(patch) do
-                    # Bring up a single "worker"
-                    procs = addprocs(AWSBatchManager(1))
-                    @test length(procs) == 1
-                    rmprocs(procs; waitfor=5.0)
+                    # Get an initial list of processes
+                    init_procs = procs()
+                    # Add a single AWSBatchManager worker
+                    added_procs = addprocs(AWSBatchManager(1))
+                    # Check that the workers are available
+                    @test length(added_procs) == 1
+                    @test procs() == vcat(init_procs, added_procs)
+                    # Remove the added workers
+                    rmprocs(added_procs; waitfor=5.0)
+                    # Double check that rmprocs worked
+                    @test init_procs == procs()
                 end
             end
         end
