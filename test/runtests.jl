@@ -23,6 +23,9 @@ prints some warnings about the tests being skipped.
 """
 function online(f::Function)
     if ONLINE && PUSHED && !DIRTY
+        # Report the AWS CLI version as API changes could be the cause of exceptions here.
+        # Note: `aws --version` prints to STDERR instead of STDOUT.
+        info(readstring(pipeline(`aws --version`, stderr=`cat`)))
         f()
     elseif !ONLINE
         warn("Environment variable \"AWS_ONLINE\" is not set. Skipping online tests.")
