@@ -90,6 +90,7 @@ const BATCH_ENVS = (
                     @test mgr.job_definition == job.definition
                     @test mgr.job_name == job.name
                     @test mgr.job_queue == job.queue
+                    @test mgr.job_memory == 512
                     @test mgr.region == job.region
                     @test mgr.timeout == AWSClusterManagers.DEFAULT_TIMEOUT
 

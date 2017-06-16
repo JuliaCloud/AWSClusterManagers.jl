@@ -141,13 +141,13 @@ const describe_jobs_resp = """
                 "mountPoints": [],
                 "image": "myproject",
                 "environment": [],
-                "vcpus": 1,
+                "vcpus": 2,
                 "command": [
                     "sleep",
                     "60"
                 ],
                 "volumes": [],
-                "memory": 128,
+                "memory": 1024,
                 "ulimits": []
             },
             "parameters": {},
