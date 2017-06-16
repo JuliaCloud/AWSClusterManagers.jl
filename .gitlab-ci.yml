@@ -49,25 +49,22 @@ stages:
     - i386
   <<: *test_release
 
-# Note: Julia 0.6 tests have issues with AWSClusterManagers.jl and sometimes cause the CI build to hang.
-# We cannot use "allow_failure" here as the processes don't fail they just get stuck.
+"Julia nightly, OS X":
+  tags:
+    - osx
+  <<: *test_nightly
 
-# "Julia nightly, OS X":
-#   tags:
-#     - osx
-#   <<: *test_nightly
+"Julia nightly, Linux (amd64)":
+  tags:
+    - linux
+    - amd64
+  <<: *test_nightly
 
-# "Julia nightly, Linux (amd64)":
-#   tags:
-#     - linux
-#     - amd64
-#   <<: *test_nightly
-
-# "Julia nightly, Linux (i386)":
-#   tags:
-#     - linux
-#     - i386
-#   <<: *test_nightly
+"Julia nightly, Linux (i386)":
+  tags:
+    - linux
+    - i386
+  <<: *test_nightly
 
 
 "Coverage":
