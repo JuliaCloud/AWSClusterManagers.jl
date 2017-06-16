@@ -174,7 +174,7 @@ const submit_job_resp = """
 
 Simple readstring wrapper for `AbstractCmd` types which aren't being actively mocked.
 """
-readstring(cmd::AbstractCmd, pass::Bool=true) = readstring(cmd)
+readstring(cmd::AbstractCmd, pass::Bool=true) = Base.readstring(cmd)
 
 """
     Mock.readstring(cmd::Cmd, pass::Bool=true)
@@ -196,7 +196,7 @@ function readstring(cmd::Cmd, pass::Bool=true)
         end
         return submit_job_resp
     else
-        return readstring(cmd)
+        return Base.readstring(cmd)
     end
 end
 
@@ -211,7 +211,7 @@ function readstring(cmd::CmdRedirect, pass::Bool=true)
     result = if cmd_exec[1] == "curl" && contains(cmd_exec[2], "availability-zone")
         return "us-east-1"
     else
-        return readstring(cmd)
+        return Base.readstring(cmd)
     end
 end
 

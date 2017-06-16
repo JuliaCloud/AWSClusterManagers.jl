@@ -4,16 +4,20 @@ Mocking.enable()
 using AWSClusterManagers
 using Base.Test
 
-const ONLINE = haskey(ENV, "AWS_ONLINE")
+const ONLINE = get(ENV, "AWS_ONLINE", "") in ("true", "1")
 
 const PKG_DIR = abspath(dirname(@__FILE__), "..")
-const REV = cd(() -> readchomp(`git rev-parse HEAD`), PKG_DIR)
-const PUSHED = !isempty(cd(() -> readchomp(`git branch -r --contains $REV`), PKG_DIR))
 
-# Ignore the test directory when checking for a dirty state.
-const DIFFERENCE = cd(() -> readchomp(`git diff --name-only`), PKG_DIR)
-const DIRTY_FILES = filter!(!isempty, split(DIFFERENCE, "\n"))
-const DIRTY = !isempty(filter(p -> !startswith(p, "test"), DIRTY_FILES))
+const PUSHED = let
+    rev = cd(() -> readchomp(`git rev-parse HEAD`), PKG_DIR)
+    !isempty(cd(() -> readchomp(`git branch -r --contains $rev`), PKG_DIR))
+end
+
+const DIRTY = let
+    difference = cd(() -> readchomp(`git diff --name-only`), PKG_DIR)
+    dirty_files = filter!(!isempty, split(difference, "\n"))
+    !isempty(filter(p -> !startswith(p, "test"), dirty_files))
+end
 
 """
     online(f::Function)
@@ -32,7 +36,7 @@ function online(f::Function)
     elseif !PUSHED
         warn("Commit $REV has not been pushed. Skipping online tests.")
     else
-        warn("Working directory is dirty. Skipping online tests.")
+        warn("Working directory outside of \"test\" directory is dirty. Skipping online tests.")
     end
 end
 

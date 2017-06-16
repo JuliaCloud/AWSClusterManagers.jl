@@ -20,11 +20,11 @@ function AWSBatchJob()
     job_queue = ENV["AWS_BATCH_JQ_NAME"]
 
     # Get the zone information from the EC2 instance metadata.
-    zone = (@mock readstring(pipeline(`curl http://169.254.169.254/latest/meta-data/placement/availability-zone`; stderr=DevNull)))
+    zone = @mock readstring(pipeline(`curl http://169.254.169.254/latest/meta-data/placement/availability-zone`; stderr=DevNull))
     region = chop(zone)
 
     # Requires permissions to access to "batch:DescribeJobs"
-    json = JSON.parse((@mock readstring(`aws --region $region batch describe-jobs --jobs $job_id`)))
+    json = JSON.parse(@mock readstring(`aws --region $region batch describe-jobs --jobs $job_id`))
     details = first(json["jobs"])
 
     AWSBatchJob(
