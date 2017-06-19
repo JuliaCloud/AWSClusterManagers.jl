@@ -1,6 +1,3 @@
-import AWSClusterManagers: launch_timeout, num_workers, AWSBatchJob
-import Base: AbstractCmd
-
 const BATCH_ENVS = (
     "AWS_BATCH_JOB_ID" => "bcf0b186-a532-4122-842e-2ccab8d54efb",
     "AWS_BATCH_JQ_NAME" => "HighPriority"

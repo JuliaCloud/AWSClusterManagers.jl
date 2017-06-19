@@ -4,6 +4,9 @@ Mocking.enable()
 using AWSClusterManagers
 using Base.Test
 
+import Base: AbstractCmd
+import AWSClusterManagers: launch_timeout, num_workers, AWSBatchJob
+
 const ONLINE = get(ENV, "AWS_ONLINE", "") in ("true", "1")
 
 const PKG_DIR = abspath(dirname(@__FILE__), "..")
@@ -46,5 +49,6 @@ import TestUtils: register, deregister, submit, status, log, details, time_str, 
 
 @testset "AWSClusterManagers" begin
     # include("ecs.jl")
+    include("docker.jl")
     include("batch.jl")
 end
