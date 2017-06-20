@@ -20,6 +20,12 @@ stages:
   after_script:
     - ./julia-ci clean
 
+
+.test_tmp_05: &test_05
+  variables:
+    JULIA_VERSION: "0.5"
+  <<: *test_definition
+
 .test_tmp_release: &test_release
   variables:
     JULIA_VERSION: release
@@ -31,6 +37,23 @@ stages:
   allow_failure: true
   <<: *test_definition
 
+
+"Julia 0.5, OS X":
+  tags:
+    - osx
+  <<: *test_05
+
+"Julia 0.5, Linux (amd64)":
+  tags:
+    - linux
+    - amd64
+  <<: *test_05
+
+"Julia 0.5, Linux (i386)":
+  tags:
+    - linux
+    - i386
+  <<: *test_05
 
 "Julia release, OS X":
   tags:
