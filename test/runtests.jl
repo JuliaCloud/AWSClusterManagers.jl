@@ -8,10 +8,8 @@ const ONLINE = get(ENV, "AWS_ONLINE", "") in ("true", "1")
 
 const PKG_DIR = abspath(dirname(@__FILE__), "..")
 
-const PUSHED = let
-    rev = cd(() -> readchomp(`git rev-parse HEAD`), PKG_DIR)
-    !isempty(cd(() -> readchomp(`git branch -r --contains $rev`), PKG_DIR))
-end
+const REV = cd(() -> readchomp(`git rev-parse HEAD`), PKG_DIR)
+const PUSHED = !isempty(cd(() -> readchomp(`git branch -r --contains $REV`), PKG_DIR))
 
 const DIRTY = let
     difference = cd(() -> readchomp(`git diff --name-only`), PKG_DIR)
