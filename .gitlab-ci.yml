@@ -3,6 +3,9 @@ stages:
   - coverage
   - docs
 
+variables:
+  AWS_ONLINE: "true"  # Runs the online tests on AWS
+
 .test_template: &test_definition
   artifacts:
     name: "$CI_JOB_NAME coverage"
