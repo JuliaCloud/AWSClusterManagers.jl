@@ -1,9 +1,6 @@
-AWS Batch Cluster Test
-======================
+# Docker
 
-## Building
-
-In order to build this image you need to first build its parent julia-baked:0.5.1.
+In order to build the image you need to first build its parent julia-baked:0.5.1.
 
 ```bash
 time docker build -t aws-cluster-managers-test:latest ./aws-cluster-managers-test

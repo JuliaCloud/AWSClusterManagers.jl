@@ -7,7 +7,7 @@ using Base.Test
 import Base: AbstractCmd
 import AWSClusterManagers: launch_timeout, num_workers, AWSBatchJob
 
-const ONLINE = get(ENV, "AWS_ONLINE", "") in ("true", "1")
+const ONLINE = get(ENV, "LIVE", "") in ("true", "1")
 
 const PKG_DIR = abspath(dirname(@__FILE__), "..")
 
@@ -33,7 +33,7 @@ function online(f::Function)
         info(readstring(pipeline(`aws --version`, stderr=`cat`)))
         f()
     elseif !ONLINE
-        warn("Environment variable \"AWS_ONLINE\" is not set. Skipping online tests.")
+        warn("Environment variable \"LIVE\" is not set. Skipping online tests.")
     elseif !PUSHED
         warn("Commit $REV has not been pushed. Skipping online tests.")
     else
@@ -50,5 +50,5 @@ import TestUtils: register, deregister, submit, status, log, details, time_str, 
 @testset "AWSClusterManagers" begin
     # include("ecs.jl")
     include("docker.jl")
-    include("batch.jl")
+    # include("batch.jl")
 end

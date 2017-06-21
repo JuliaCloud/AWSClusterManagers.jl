@@ -45,4 +45,52 @@
             end
         end
     end
+    @testset "Online" begin
+        online() do
+            num_workers = 3
+            image = "292522074875.dkr.ecr.us-east-1.amazonaws.com/$IMAGE_DEFINITION:latest"
+
+            # docker pull the latest container
+            run(Cmd(map(String, split(readchomp(`aws ecr get-login --region us-east-1`)))))
+            run(`docker pull $image`)
+
+            code = """
+            Pkg.update()
+            Pkg.clone("git@gitlab.invenia.ca:invenia/AWSClusterManagers.jl")
+            cd(Pkg.dir("AWSClusterManagers"))
+            run(`git checkout --detach $REV`)
+            Pkg.resolve()
+            Pkg.build("AWSClusterManagers")
+
+            using Memento
+            Memento.config("debug"; fmt="{msg}")
+            import AWSClusterManagers: DockerManager
+            addprocs(DockerManager($num_workers, "$image"))
+            for i in workers()
+                println("Worker \$i: ", remotecall_fetch(() -> myid(), i))
+            end
+            """
+
+            # Run the code in a docker container, but
+            output = readstring(Cmd([
+                "docker",
+                "run",
+                "--network=host",
+                "-v",
+                "/var/run/docker.sock:/var/run/docker.sock",
+                "-i",
+                image,
+                "julia",
+                "-e",
+                replace(code, r"\n+", "; ")
+            ]))
+
+            m = match(r"(?<=NumProcs: )\d+", output)
+            num_procs = m !== nothing ? parse(Int, m.match) : -1
+            reported_jobs = Set(matchall(r"(?<=Worker \d: )[0-9a-f\-]+", output))
+
+            @test num_procs == num_workers + 1
+            @test length(reported_jobs) == num_workers
+        end
+    end
 end
