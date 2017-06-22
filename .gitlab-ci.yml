@@ -93,6 +93,7 @@ stages:
   stage: test
   variables:
     LIVE: "true"  # Runs the online tests for AWS & docker
+    JULIA_VERSION: release
   before_script:
     - curl -s -o julia-ci https://gitlab.invenia.ca/infrastructure/gitlab-ci-helper/raw/master/julia-ci
     - chmod +x julia-ci
