@@ -66,6 +66,7 @@
             Memento.config("debug"; fmt="{msg}")
             import AWSClusterManagers: DockerManager
             addprocs(DockerManager($num_workers, "$image"))
+            println("NumProcs: ", nprocs())
             for i in workers()
                 println("Worker \$i: ", remotecall_fetch(() -> myid(), i))
             end

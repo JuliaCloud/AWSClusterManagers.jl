@@ -50,5 +50,5 @@ import TestUtils: register, deregister, submit, status, log, details, time_str, 
 @testset "AWSClusterManagers" begin
     # include("ecs.jl")
     include("docker.jl")
-    # include("batch.jl")
+    include("batch.jl")
 end

@@ -4,7 +4,7 @@ stages:
   - docs
 
 variables:
-  AWS_ONLINE: "true"  # Runs the online tests on AWS
+  LIVE: "true"  # Runs the online tests for AWS & docker
 
 .test_template: &test_definition
   artifacts:

@@ -13,7 +13,8 @@ ENV PINNED_PKGS \
 	python27 \
 	python27-six \
 	python27-colorama \
-    docker
+    docker \
+    git
 RUN yum -y install $PKGS $PINNED_PKGS && \
 	echo $PINNED_PKGS | tr -s '\t ' '\n' > /etc/yum/protected.d/awscli.conf && \
 	pip install awscli && \
@@ -50,7 +51,6 @@ ENV PKGS \
 	unzip \
 	epel-release \
 	yum-utils \
-	git \
 	findutils
 RUN yum -y install $PKGS && \
 	yum-config-manager --setopt=assumeyes=1 --save > /dev/null && \
