@@ -147,6 +147,7 @@ stages:
     - ./julia-ci install $JULIA_VERSION
   script:
     - source julia-ci export
+    - export PATH="$PATH:/usr/local/bin"
     - unset SSL_CERT_DIR
     - julia --compilecache=no -e "Pkg.clone(pwd()); Pkg.build(\"$PKG_NAME\"); Pkg.test(\"$PKG_NAME\"; coverage=true)"
     - ./julia-ci coverage
