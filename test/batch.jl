@@ -134,13 +134,6 @@ const BATCH_ENVS = (
             # Will be running the HEAD revision of the code remotely
             # Note: Pkg.checkout doesn't work on untracked branches / SHAs with Julia 0.5.1
             code = """
-            Pkg.update()
-            Pkg.clone("git@gitlab.invenia.ca:invenia/AWSClusterManagers.jl")
-            cd(Pkg.dir("AWSClusterManagers"))
-            run(`git checkout --detach $REV`)
-            Pkg.resolve()
-            Pkg.build("AWSClusterManagers")
-
             using Memento
             Memento.config("debug"; fmt="{msg}")
             import AWSClusterManagers: AWSBatchManager
@@ -152,7 +145,7 @@ const BATCH_ENVS = (
             """
 
             json = Dict(
-                "image" => "292522074875.dkr.ecr.us-east-1.amazonaws.com/$IMAGE_DEFINITION:latest",
+                "image" => "292522074875.dkr.ecr.us-east-1.amazonaws.com/$IMAGE_DEFINITION:$REV",
                 "jobRoleArn" => "arn:aws:iam::292522074875:role/AWSBatchClusterManagerJobRole",
                 "vcpus" => 1,
                 "memory" => 1024,

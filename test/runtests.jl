@@ -12,13 +12,13 @@ const ONLINE = get(ENV, "LIVE", "") in ("true", "1")
 const PKG_DIR = abspath(dirname(@__FILE__), "..")
 
 const REV = cd(() -> readchomp(`git rev-parse HEAD`), PKG_DIR)
-const PUSHED = !isempty(cd(() -> readchomp(`git branch -r --contains $REV`), PKG_DIR))
-
-const DIRTY = let
-    difference = cd(() -> readchomp(`git diff --name-only`), PKG_DIR)
-    dirty_files = filter!(!isempty, split(difference, "\n"))
-    !isempty(filter(p -> !startswith(p, "test"), dirty_files))
-end
+# const PUSHED = !isempty(cd(() -> readchomp(`git branch -r --contains $REV`), PKG_DIR))
+#
+# const DIRTY = let
+#     difference = cd(() -> readchomp(`git diff --name-only`), PKG_DIR)
+#     dirty_files = filter!(!isempty, split(difference, "\n"))
+#     !isempty(filter(p -> !startswith(p, "test"), dirty_files))
+# end
 
 """
     online(f::Function)
@@ -27,17 +27,20 @@ Simply takes a function of test code to run if we are able to run things on AWS 
 prints some warnings about the tests being skipped.
 """
 function online(f::Function)
-    if ONLINE && PUSHED && !DIRTY
+    if ONLINE
         # Report the AWS CLI version as API changes could be the cause of exceptions here.
         # Note: `aws --version` prints to STDERR instead of STDOUT.
         info(readstring(pipeline(`aws --version`, stderr=`cat`)))
+        # Build the docker image for live tests and push it to ecr
+        cd(PKG_DIR) do
+            run(Cmd(map(String, split(readchomp(`aws ecr get-login --region us-east-1`)))))
+            run(`docker build -t 292522074875.dkr.ecr.us-east-1.amazonaws.com/$IMAGE_DEFINITION:$REV .`)
+            run(`docker push 292522074875.dkr.ecr.us-east-1.amazonaws.com/$IMAGE_DEFINITION:$REV`)
+        end
+        # Run our live tests code
         f()
-    elseif !ONLINE
-        warn("Environment variable \"LIVE\" is not set. Skipping online tests.")
-    elseif !PUSHED
-        warn("Commit $REV has not been pushed. Skipping online tests.")
     else
-        warn("Working directory outside of \"test\" directory is dirty. Skipping online tests.")
+        warn("Environment variable \"LIVE\" is not set. Skipping online tests.")
     end
 end
 

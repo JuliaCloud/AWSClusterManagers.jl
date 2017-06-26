@@ -48,20 +48,13 @@
     @testset "Online" begin
         online() do
             num_workers = 3
-            image = "292522074875.dkr.ecr.us-east-1.amazonaws.com/$IMAGE_DEFINITION:latest"
+            image = "292522074875.dkr.ecr.us-east-1.amazonaws.com/$IMAGE_DEFINITION:$REV"
 
             # docker pull the latest container
             run(Cmd(map(String, split(readchomp(`aws ecr get-login --region us-east-1`)))))
             run(`docker pull $image`)
 
             code = """
-            Pkg.update()
-            Pkg.clone("git@gitlab.invenia.ca:invenia/AWSClusterManagers.jl")
-            cd(Pkg.dir("AWSClusterManagers"))
-            run(`git checkout --detach $REV`)
-            Pkg.resolve()
-            Pkg.build("AWSClusterManagers")
-
             using Memento
             Memento.config("debug"; fmt="{msg}")
             import AWSClusterManagers: DockerManager

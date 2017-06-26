@@ -4,6 +4,11 @@ FROM julia-baked:0.5.1
 RUN yum -y update-minimal && \
     yum -y clean all
 
+# Install AWSClusterManagers.jl
+ENV PKG_PATH $JULIA_PKGDIR/$JULIA_PKGVER/AWSClusterManagers
+COPY . $PKG_PATH
+WORKDIR $PKG_PATH
+
 # Install AWSClusterManager.jl prerequisite AWS CLI. Do not use `yum install aws-cli`
 # as that version is typically out of date.
 ENV PKGS \
@@ -20,10 +25,6 @@ RUN yum -y install $PKGS $PINNED_PKGS && \
 	pip install awscli && \
 	yum -y autoremove $PKGS && \
 	yum -y clean all
-
-# TODO: Ideally we should be installing specific versions of packages
-# TODO: Julia currently doesn't throw an exception when some packages cannot be installed
-COPY REQUIRE "$JULIA_PKGDIR/$JULIA_PKGVER/REQUIRE_NEW"
 
 # Add and build the all of the required Julia packages. In order to allow the use of
 # BinDeps.jl we need to temporarily install additional system packages.
@@ -56,11 +57,9 @@ RUN yum -y install $PKGS && \
 	yum-config-manager --setopt=assumeyes=1 --save > /dev/null && \
 	yum-config-manager --enable epel > /dev/null && \
 	yum list installed | tr -s ' ' | cut -d' ' -f1 | sort > /tmp/pre_state && \
-	cd "$JULIA_PKGDIR/$JULIA_PKGVER/" && cat REQUIRE_NEW >> REQUIRE && \
-	update-metadata && julia -e 'Pkg.update(); Pkg.resolve()' && \
+	update-metadata && julia -e 'Pkg.update(); Pkg.resolve(); Pkg.build("AWSClusterManagers")' && \
 	yum list installed | tr -s ' ' | cut -d' ' -f1 | sort > /tmp/post_state && \
 	comm -3 /tmp/pre_state /tmp/post_state | grep $'\t' | sed 's/\t//' | sed 's/\..*//' > /etc/yum/protected.d/julia-pkgs.conf && \
-	rm REQUIRE_NEW /tmp/pre_state /tmp/post_state && \
 	yum-config-manager --disable epel > /dev/null && \
 	for p in $PKGS; do yum -y autoremove $p &>/dev/null && echo "Removed $p" || echo "Skipping removal of $p"; done && \
 	yum -y clean all
