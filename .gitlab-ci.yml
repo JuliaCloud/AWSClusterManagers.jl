@@ -89,11 +89,15 @@ stages:
     - i386
   <<: *test_nightly
 
-"Live julia release, Linux (amd64)":
-  stage: test
+"Julia release, Live, Linux (amd64)":
   variables:
     LIVE: "true"  # Runs the online tests for AWS & docker
     JULIA_VERSION: release
+  artifacts:
+    name: "$CI_JOB_NAME coverage"
+    expire_in: 1 week
+    paths:
+      - "$CI_JOB_NAME coverage/"
   before_script:
     - curl -s -o julia-ci https://gitlab.invenia.ca/infrastructure/gitlab-ci-helper/raw/master/julia-ci
     - chmod +x julia-ci
