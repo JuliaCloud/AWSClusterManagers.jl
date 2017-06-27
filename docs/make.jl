@@ -5,6 +5,7 @@ makedocs(
     format = :html,
     pages = [
         "Home" => "index.md",
+        "Docker" => "pages/docker.md",
         "Batch" => "pages/batch.md",
         "ECS" => "pages/ecs.md",
         "Design" => "pages/design.md",
@@ -18,5 +19,6 @@ makedocs(
         "assets/figures/batch_workers.svg",
         "assets/figures/batch_managers.svg",
         "assets/figures/batch_project.svg",
+        "assets/figures/docker_manager.svg",
     ],
 )

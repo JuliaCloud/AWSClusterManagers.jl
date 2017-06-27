@@ -1,17 +1,38 @@
 import Base: ==
 
-# In order to make a local Docker cluster you'll need to have an available Docker image that
-# has Julia, a version of AWSClusterManagers which includes DockerManager, and the docker
-# cli all baked into the image.
-#
-# You can then create a Docker container which is capable of spawning additional Docker
-# containers via:
-#
-#    docker run --network=host -v /var/run/docker.sock:/var/run/docker.sock --rm -it <image> julia
-#
-# Note that host networking is required for the container to be able to communicate and
-# the local docker UNIX socket needs to be forwarded so we can allow the container to
-# communicate with host Docker process.
+"""
+    DockerManager(num_workers; kwargs...)
+
+A cluster manager which spawns workers via a locally running [Docker](https://docs.docker.com/)
+daemon service. Typically used on a single machine to debug multi-machine julia code.
+
+In order to make a local Docker cluster you'll need to have an available Docker image that
+has Julia, a version of AWSClusterManagers which includes DockerManager, and the docker
+cli all baked into the image.
+
+You can then create a Docker container which is capable of spawning additional Docker
+containers via:
+
+   docker run --network=host -v /var/run/docker.sock:/var/run/docker.sock --rm -it <image> julia
+
+Note that host networking is required for the container to be able to communicate and
+the local docker UNIX socket needs to be forwarded so we can allow the container to
+communicate with host Docker process.
+
+## Arguments
+- `num_workers::Int`: The number of workers to spawn
+
+## Keywords
+- `image::AbstractString`: The docker image to run.
+- `timeout::Real`: The maximum number of seconds to wait for workers to become available
+  before attempting to proceed without the missing workers.
+
+## Examples
+```julia
+julia> addprocs(DockerManager(4, "myproject:latest"))
+```
+"""
+DockerManager
 
 immutable DockerManager <: ContainerManager
     num_workers::Int
