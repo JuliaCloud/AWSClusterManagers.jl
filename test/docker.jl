@@ -72,7 +72,7 @@
                 "-v",
                 "/var/run/docker.sock:/var/run/docker.sock",
                 "-i",
-                image,
+                ECR_IMAGE,
                 "julia",
                 "-e",
                 replace(code, r"\n+", "; ")
