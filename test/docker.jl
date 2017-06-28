@@ -48,17 +48,16 @@
     @testset "Online" begin
         online() do
             num_workers = 3
-            image = "292522074875.dkr.ecr.us-east-1.amazonaws.com/$IMAGE_DEFINITION:$REV"
 
             # docker pull the latest container
             run(Cmd(map(String, split(readchomp(`aws ecr get-login --region us-east-1`)))))
-            run(`docker pull $image`)
+            run(`docker pull $ECR_IMAGE`)
 
             code = """
             using Memento
             Memento.config("debug"; fmt="{msg}")
             import AWSClusterManagers: DockerManager
-            addprocs(DockerManager($num_workers, "$image"))
+            addprocs(DockerManager($num_workers, "$ECR_IMAGE"))
             println("NumProcs: ", nprocs())
             for i in workers()
                 println("Worker \$i: ", remotecall_fetch(() -> myid(), i))

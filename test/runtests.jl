@@ -20,6 +20,14 @@ const REV = cd(() -> readchomp(`git rev-parse HEAD`), PKG_DIR)
 #     !isempty(filter(p -> !startswith(p, "test"), dirty_files))
 # end
 
+# Load the TestUtils.jl module
+include("testutils.jl")
+
+import TestUtils: IMAGE_DEFINITION, MANAGER_JOB_QUEUE, WORKER_JOB_QUEUE, JOB_DEFINITION, JOB_NAME
+import TestUtils: register, deregister, submit, status, log, details, time_str, Running, Succeeded
+
+const ECR_IMAGE = "292522074875.dkr.ecr.us-east-1.amazonaws.com/$IMAGE_DEFINITION:$REV"
+
 """
     online(f::Function)
 
@@ -34,8 +42,8 @@ function online(f::Function)
         # Build the docker image for live tests and push it to ecr
         cd(PKG_DIR) do
             run(Cmd(map(String, split(readchomp(`aws ecr get-login --region us-east-1`)))))
-            run(`docker build -t 292522074875.dkr.ecr.us-east-1.amazonaws.com/$IMAGE_DEFINITION:$REV .`)
-            run(`docker push 292522074875.dkr.ecr.us-east-1.amazonaws.com/$IMAGE_DEFINITION:$REV`)
+            run(`docker build -t $ECR_IMAGE .`)
+            run(`docker push $ECR_IMAGE`)
         end
         # Run our live tests code
         f()
@@ -43,12 +51,6 @@ function online(f::Function)
         warn("Environment variable \"LIVE\" is not set. Skipping online tests.")
     end
 end
-
-# Load the TestUtils.jl module
-include("testutils.jl")
-
-import TestUtils: IMAGE_DEFINITION, MANAGER_JOB_QUEUE, WORKER_JOB_QUEUE, JOB_DEFINITION, JOB_NAME
-import TestUtils: register, deregister, submit, status, log, details, time_str, Running, Succeeded
 
 @testset "AWSClusterManagers" begin
     # include("ecs.jl")

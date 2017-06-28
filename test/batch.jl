@@ -145,7 +145,7 @@ const BATCH_ENVS = (
             """
 
             json = Dict(
-                "image" => "292522074875.dkr.ecr.us-east-1.amazonaws.com/$IMAGE_DEFINITION:$REV",
+                "image" => ECR_IMAGE,
                 "jobRoleArn" => "arn:aws:iam::292522074875:role/AWSBatchClusterManagerJobRole",
                 "vcpus" => 1,
                 "memory" => 1024,
