@@ -41,7 +41,10 @@ function online(f::Function)
         info(readstring(pipeline(`aws --version`, stderr=`cat`)))
         # Build the docker image for live tests and push it to ecr
         cd(PKG_DIR) do
-            run(Cmd(map(String, split(readchomp(`aws ecr get-login --region us-east-1`)))))
+            # Runs `aws ecr get-login`, then extracts and runs the returned `docker login`
+            # command (or `$(aws ecr get-login --region us-east-1)` in bash).
+            output = readchomp(`aws ecr get-login --region us-east-1 --no-include-email`)
+            run(Cmd(map(String, split(output))))
             run(`docker build -t $ECR_IMAGE .`)
             run(`docker push $ECR_IMAGE`)
         end

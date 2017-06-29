@@ -52,7 +52,6 @@
             num_workers = 3
 
             # docker pull the latest container
-            run(Cmd(map(String, split(readchomp(`aws ecr get-login --region us-east-1`)))))
             run(`docker pull $ECR_IMAGE`)
 
             code = """
