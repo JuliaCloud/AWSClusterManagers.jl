@@ -2,7 +2,7 @@ stages:
   - test
   - coverage
   - docs
-  - build
+  - live
 
 .test_template: &test_definition
   artifacts:
@@ -131,8 +131,8 @@ stages:
   after_script:
     - ./julia-ci clean
 
-"Build":
-  stage: build
+"Live Tests":
+  stage: live
   variables:
     LIVE: "true"  # Runs the online tests for AWS & docker
     JULIA_VERSION: release
