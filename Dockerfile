@@ -63,23 +63,3 @@ RUN yum -y install $PKGS && \
 	yum-config-manager --disable epel > /dev/null && \
 	for p in $PKGS; do yum -y autoremove $p &>/dev/null && echo "Removed $p" || echo "Skipping removal of $p"; done && \
 	yum -y clean all
-
-# Create the system image. Improves the startup times of packages by pre-compiling the packages
-# listed in the "userimg.jl" into the default system image.
-COPY userimg.jl "$JULIA_PATH/"
-
-# Note: Need to have libc to avoid: "/usr/bin/ld: cannot find crti.o: No such file or directory"
-ENV PKGS \
-	gcc
-ENV PINNED_PKGS \
-	glibc
-RUN yum -y install $PKGS $PINNED_PKGS && \
-	echo $PINNED_PKGS | tr -s '\t ' '\n' > /etc/yum/protected.d/julia-userimg.conf && \
-	cd $JULIA_PATH/base && \
-	source $JULIA_PATH/Make.user && \
-	$JULIA_PATH/julia -C $MARCH --output-o $JULIA_PATH/userimg.o --sysimage $JULIA_PATH/usr/lib/julia/sys.so --startup-file=no $JULIA_PATH/userimg.jl && \
-	cc -shared -o $JULIA_PATH/userimg.so $JULIA_PATH/userimg.o -ljulia -L$JULIA_PATH/usr/lib && \
-	mv $JULIA_PATH/userimg.o $JULIA_PATH/usr/lib/julia/sys.o && \
-	mv $JULIA_PATH/userimg.so $JULIA_PATH/usr/lib/julia/sys.so && \
-	yum -y autoremove $PKGS && \
-	yum -y clean all
