@@ -66,18 +66,14 @@
             """
 
             # Run the code in a docker container, but
-            output = readstring(Cmd([
-                "docker",
-                "run",
-                "--network=host",
-                "-v",
-                "/var/run/docker.sock:/var/run/docker.sock",
-                "-i",
-                ECR_IMAGE,
-                "julia",
-                "-e",
-                replace(code, r"\n+", "; ")
-            ]))
+            output = readstring(`
+                docker run
+                --network=host
+                -v /var/run/docker.sock:/var/run/docker.sock
+                -i $ECR_IMAGE
+                julia -e $(replace(code, r"\n+", "; "))
+                `
+            )
 
             m = match(r"(?<=NumProcs: )\d+", output)
             num_procs = m !== nothing ? parse(Int, m.match) : -1
