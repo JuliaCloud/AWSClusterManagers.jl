@@ -56,7 +56,6 @@ function online(f::Function)
 end
 
 @testset "AWSClusterManagers" begin
-    # include("ecs.jl")
     include("docker.jl")
     include("batch.jl")
 end
