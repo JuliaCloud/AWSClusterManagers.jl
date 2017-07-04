@@ -10,7 +10,6 @@ logger = get_logger(current_module())
 
 include("job.jl")
 include("container.jl")
-include("ecs.jl")
 include("batch.jl")
 include("docker.jl")
 
