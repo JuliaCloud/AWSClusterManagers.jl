@@ -86,17 +86,19 @@ function spawn_containers(mgr::DockerManager, override_cmd::Cmd)
     end
 end
 
+const CGROUP_REGEX = r"/docker/(?<container_id>[0-9a-f]{64})\b"
+
 # Determine the container ID of the currently running container
 function container_id()
     id = ""
     isfile("/proc/self/cgroup") || return id
-    prefix = "/docker/"
     open("/proc/self/cgroup") do fp
         while !eof(fp)
             line = chomp(readline(fp))
             value = split(line, ':')[3]
-            if startswith(value, prefix)
-                id = value[(length(prefix) + 1):end]
+            m = match(CGROUP_REGEX, value)
+            if m !== nothing
+                id = m[:container_id]
                 break
             end
         end
