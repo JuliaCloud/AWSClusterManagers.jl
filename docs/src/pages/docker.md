@@ -11,8 +11,8 @@ In the future, worker containers could be run across multiple hosts using [docke
 ## Usage
 
 In order to build the AWSClusterManagers docker container you should first build the
-julia-baked:0.5.1 docker image (or pull it down from ECR).
-More details on getting the julia-baked:0.5.1 image can be found in our [Dockerfiles repository](https://gitlab.invenia.ca/invenia/Dockerfiles/tree/master/julia-baked).
+julia-baked:0.6 docker image (or pull it down from ECR).
+More details on getting the julia-baked:0.6 image can be found in our [Dockerfiles repository](https://gitlab.invenia.ca/invenia/Dockerfiles/tree/master/julia-baked).
 
 ```bash
 docker build -t aws-cluster-managers-test:latest .
@@ -31,14 +31,14 @@ The client machine on the left (e.g., you laptop) begins by starting an interact
 the image "myproject".
 ```bash
 docker run --network=host -v /var/run/docker.sock:/var/run/docker.sock --rm -it myproject:latest julia
-                _
-    _       _ _(_)_     |  A fresh approach to technical computing
-   (_)     | (_) (_)    |  Documentation: http://docs.julialang.org
-    _ _   _| |_  __ _   |  Type "?help" for help.
-   | | | | | | |/ _` |  |
-   | | |_| | | | (_| |  |  Version 0.5.1 (2017-03-05 13:25 UTC)
- _/  |\__'_|_|_|\__'_|  |
-|__/                    |  x86_64-amazon-linux
+               _
+   _       _ _(_)_     |  A fresh approach to technical computing
+  (_)     | (_) (_)    |  Documentation: https://docs.julialang.org
+   _ _   _| |_  __ _   |  Type "?help" for help.
+  | | | | | | |/ _` |  |
+  | | |_| | | | (_| |  |  Version 0.6.0 (2017-06-19 13:05 UTC)
+ _/ |\__'_|_|_|\__'_|  |
+|__/                   |  x86_64-amazon-linux
 
 julia>
 ```
