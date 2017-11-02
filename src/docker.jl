@@ -34,7 +34,7 @@ julia> addprocs(DockerManager(4, "myproject:latest"))
 """
 DockerManager
 
-immutable DockerManager <: ContainerManager
+struct DockerManager <: ContainerManager
     num_workers::Int
     image::AbstractString
     timeout::Float64

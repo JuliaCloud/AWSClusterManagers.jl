@@ -34,7 +34,7 @@ function Base.parse(::Type{JobState}, s::AbstractString)
     throw(ArgumentError("Invalid JobState given: \"$s\""))
 end
 
-immutable AWSBatchJobDefinition
+struct AWSBatchJobDefinition
     name::AbstractString
     revision::Nullable{Int}
 end
@@ -72,7 +72,7 @@ function deregister(job_definition::AWSBatchJobDefinition)
     run(`aws batch deregister-job-definition --job-definition $job_definition`)
 end
 
-immutable AWSBatchJob
+struct AWSBatchJob
     id::AbstractString
 end
 

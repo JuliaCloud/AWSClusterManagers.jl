@@ -22,7 +22,7 @@ end
 # Seconds to wait for container instances to launch
 const DEFAULT_TIMEOUT = 600  # 10 minutes
 
-abstract ContainerManager <: ClusterManager
+abstract type ContainerManager <: ClusterManager end
 
 launch_timeout(manager::ContainerManager) = DEFAULT_TIMEOUT
 

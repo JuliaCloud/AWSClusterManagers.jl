@@ -1,4 +1,4 @@
-type AWSBatchJob
+mutable struct AWSBatchJob
     id::String
     name::String
     definition::String

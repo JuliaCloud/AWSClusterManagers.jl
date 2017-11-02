@@ -39,7 +39,7 @@ julia> addprocs(AWSBatchManager(3))  # Needs to be run from within a running AWS
 """
 AWSBatchManager
 
-immutable AWSBatchManager <: ContainerManager
+struct AWSBatchManager <: ContainerManager
     min_workers::Int
     max_workers::Int
     job_definition::AbstractString
