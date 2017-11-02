@@ -1,4 +1,5 @@
 import Base: wait
+import Compat: Sys
 
 # Overview of how the ContainerManagers work:
 #
@@ -11,9 +12,9 @@ import Base: wait
 #    cluster manager.
 
 # Determine the start of the ephemeral port range on this system. Used in `listenany` calls.
-const PORT_HINT = if is_linux()
+const PORT_HINT = if Sys.islinux()
     parse(Int, first(split(readchomp("/proc/sys/net/ipv4/ip_local_port_range"), '\t')))
-elseif is_apple()
+elseif Sys.isapple()
     parse(Int, readchomp(`sysctl -n net.inet.ip.portrange.first`))
 else
     49152  # IANA dynamic and/or private port range start (https://en.wikipedia.org/wiki/Ephemeral_port)
