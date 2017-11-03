@@ -7,7 +7,7 @@ using JSON
 import Base: AbstractCmd, CmdRedirect
 
 export IMAGE_DEFINITION, MANAGER_JOB_QUEUE, WORKER_JOB_QUEUE, JOB_DEFINITION, JOB_NAME,
-    register, deregister, submit, status, log, details, time_str,
+    register, deregister, submit, status, log_messages, details, time_str,
     Running, Succeeded, ignore_stderr
 
 """
@@ -105,7 +105,7 @@ function status(job::AWSBatchJob)
     return parse(JobState, d["status"])
 end
 
-function log(job::AWSBatchJob)
+function log_messages(job::AWSBatchJob)
     cmd = `aws batch describe-jobs --jobs $(job.id)`
     task_id, job_name = readstring(cmd) do output
         j = JSON.parse(output)
@@ -114,7 +114,9 @@ function log(job::AWSBatchJob)
         (task_id, job_name)
     end
 
-    log_stream_name = "$job_name/$(job.id)/$task_id"
+    # CloudWatch log stream name format:
+    # http://docs.aws.amazon.com/batch/latest/userguide/job_states.html
+    log_stream_name = "$job_name/default/$task_id"
     cmd = `
         aws logs get-log-events
             --log-group-name "/aws/batch/job"

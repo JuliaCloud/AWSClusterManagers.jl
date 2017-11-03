@@ -172,7 +172,7 @@ const BATCH_ENVS = (
 
             @test status(job) == Succeeded
 
-            output = log(job)
+            output = log_messages(job)
 
             m = match(r"(?<=NumProcs: )\d+", output)
             num_procs = m !== nothing ? parse(Int, m.match) : -1
