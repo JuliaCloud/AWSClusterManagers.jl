@@ -1,8 +1,5 @@
 module TestUtils
 
-# Note: When support for Julia 0.5 is dropped the multiline single-backticks (`) should be
-# replaced by triple-backticks (```).
-
 using JSON
 import Base: AbstractCmd, CmdRedirect
 
@@ -58,12 +55,12 @@ function isregistered(job_definition::AWSBatchJobDefinition)
 end
 
 function register(job_definition::AWSBatchJobDefinition, json::Dict)
-    cmd = `
+    cmd = ```
         aws batch register-job-definition
             --job-definition-name $(job_definition.name)
             --type container
             --container-properties $(JSON.json(json))
-        `
+        ```
     return readstring(cmd) do output
         j = JSON.parse(output)
         AWSBatchJobDefinition(j["jobDefinitionName"], j["revision"])
@@ -81,12 +78,12 @@ struct AWSBatchJob
 end
 
 function submit(job_definition::AWSBatchJobDefinition, job_name::AbstractString, job_queue::AbstractString)
-    cmd = `
+    cmd = ```
         aws batch submit-job
             --job-definition $job_definition
             --job-name $job_name
             --job-queue $job_queue
-        `
+        ```
     return readstring(cmd) do output
         j = JSON.parse(output)
         AWSBatchJob(j["jobId"])
@@ -117,11 +114,11 @@ function log_messages(job::AWSBatchJob)
     # CloudWatch log stream name format:
     # http://docs.aws.amazon.com/batch/latest/userguide/job_states.html
     log_stream_name = "$job_name/default/$task_id"
-    cmd = `
+    cmd = ```
         aws logs get-log-events
             --log-group-name "/aws/batch/job"
             --log-stream-name $log_stream_name
-        `
+        ```
     return readstring(cmd) do output
         j = JSON.parse(output)
         join([event["message"] for event in j["events"]], '\n')
