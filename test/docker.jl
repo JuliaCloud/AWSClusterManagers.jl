@@ -1,4 +1,5 @@
 @testset "DockerManager" begin
+    # A docker image name which is expected to not exist on the local system.
     mock_image = "x5cn2a7hzq4k"
 
     @testset "Constructors" begin
