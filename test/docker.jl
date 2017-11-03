@@ -43,7 +43,9 @@
             patch = @patch readstring(cmd::AbstractCmd) = TestUtils.readstring(cmd, false)
 
             @test_throws ErrorException apply(patch) do
-                ignore_stderr() do  # Suppress "unhandled task error" message
+                # Suppress "unhandled task error" message
+                # https://github.com/JuliaLang/julia/issues/12403
+                ignore_stderr() do
                     addprocs(DockerManager(1, mock_image, 1.0))
                 end
             end

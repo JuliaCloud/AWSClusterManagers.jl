@@ -121,7 +121,9 @@ const BATCH_ENVS = (
                 patch = @patch readstring(cmd::AbstractCmd) = TestUtils.readstring(cmd, false)
 
                 @test_throws ErrorException apply(patch) do
-                    ignore_stderr() do  # Suppress "unhandled task error" message
+                    # Suppress "unhandled task error" message
+                    # https://github.com/JuliaLang/julia/issues/12403
+                    ignore_stderr() do
                         addprocs(AWSBatchManager(1; timeout=1.0))
                     end
                 end
