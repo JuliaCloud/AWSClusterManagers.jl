@@ -6,6 +6,10 @@ module TestUtils
 using JSON
 import Base: AbstractCmd, CmdRedirect
 
+export IMAGE_DEFINITION, MANAGER_JOB_QUEUE, WORKER_JOB_QUEUE, JOB_DEFINITION, JOB_NAME,
+    register, deregister, submit, status, log, details, time_str,
+    Running, Succeeded, ignore_stderr
+
 """
     readstring(f::Function, cmd::Cmd) -> Any
 
@@ -219,6 +223,19 @@ function readstring(cmd::CmdRedirect, pass::Bool=true)
         return "us-east-1"
     else
         return Base.readstring(cmd)
+    end
+end
+
+function ignore_stderr(body::Function)
+    # Note: we could use /dev/null on linux systems
+    stderr = Base.STDERR
+    path, io = mktemp()
+    redirect_stderr(io)
+    try
+        return body()
+    finally
+        redirect_stderr(stderr)
+        rm(path)
     end
 end
 

@@ -42,8 +42,10 @@
         @testset "Worker Timeout" begin
             patch = @patch readstring(cmd::AbstractCmd) = TestUtils.readstring(cmd, false)
 
-            apply(patch) do
-                @test_throws ErrorException addprocs(DockerManager(1, mock_image, 1.0))
+            @test_throws ErrorException apply(patch) do
+                ignore_stderr() do  # Suppress "unhandled task error" message
+                    addprocs(DockerManager(1, mock_image, 1.0))
+                end
             end
         end
     end

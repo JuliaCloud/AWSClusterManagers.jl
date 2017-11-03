@@ -120,8 +120,10 @@ const BATCH_ENVS = (
             withenv(BATCH_ENVS...) do
                 patch = @patch readstring(cmd::AbstractCmd) = TestUtils.readstring(cmd, false)
 
-                apply(patch) do
-                    @test_throws ErrorException addprocs(AWSBatchManager(1; timeout=1.0))
+                @test_throws ErrorException apply(patch) do
+                    ignore_stderr() do  # Suppress "unhandled task error" message
+                        addprocs(AWSBatchManager(1; timeout=1.0))
+                    end
                 end
             end
         end

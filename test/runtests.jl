@@ -22,9 +22,7 @@ const REV = cd(() -> readchomp(`git rev-parse HEAD`), PKG_DIR)
 
 # Load the TestUtils.jl module
 include("testutils.jl")
-
-import TestUtils: IMAGE_DEFINITION, MANAGER_JOB_QUEUE, WORKER_JOB_QUEUE, JOB_DEFINITION, JOB_NAME
-import TestUtils: register, deregister, submit, status, log, details, time_str, Running, Succeeded
+using TestUtils
 
 const ECR_IMAGE = "292522074875.dkr.ecr.us-east-1.amazonaws.com/$IMAGE_DEFINITION:$REV"
 
