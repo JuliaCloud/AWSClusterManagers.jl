@@ -1,10 +1,11 @@
 module TestUtils
 
-# Note: When support for Julia 0.5 is dropped the multiline single-backticks (`) should be
-# replaced by triple-backticks (```).
-
 using JSON
 import Base: AbstractCmd, CmdRedirect
+
+export IMAGE_DEFINITION, MANAGER_JOB_QUEUE, WORKER_JOB_QUEUE, JOB_DEFINITION, JOB_NAME,
+    register, deregister, submit, status, log_messages, details, time_str,
+    Running, Succeeded, ignore_stderr
 
 """
     readstring(f::Function, cmd::Cmd) -> Any
@@ -34,7 +35,7 @@ function Base.parse(::Type{JobState}, s::AbstractString)
     throw(ArgumentError("Invalid JobState given: \"$s\""))
 end
 
-immutable AWSBatchJobDefinition
+struct AWSBatchJobDefinition
     name::AbstractString
     revision::Nullable{Int}
 end
@@ -54,12 +55,12 @@ function isregistered(job_definition::AWSBatchJobDefinition)
 end
 
 function register(job_definition::AWSBatchJobDefinition, json::Dict)
-    cmd = `
+    cmd = ```
         aws batch register-job-definition
             --job-definition-name $(job_definition.name)
             --type container
             --container-properties $(JSON.json(json))
-        `
+        ```
     return readstring(cmd) do output
         j = JSON.parse(output)
         AWSBatchJobDefinition(j["jobDefinitionName"], j["revision"])
@@ -72,17 +73,17 @@ function deregister(job_definition::AWSBatchJobDefinition)
     run(`aws batch deregister-job-definition --job-definition $job_definition`)
 end
 
-immutable AWSBatchJob
+struct AWSBatchJob
     id::AbstractString
 end
 
 function submit(job_definition::AWSBatchJobDefinition, job_name::AbstractString, job_queue::AbstractString)
-    cmd = `
+    cmd = ```
         aws batch submit-job
             --job-definition $job_definition
             --job-name $job_name
             --job-queue $job_queue
-        `
+        ```
     return readstring(cmd) do output
         j = JSON.parse(output)
         AWSBatchJob(j["jobId"])
@@ -101,7 +102,7 @@ function status(job::AWSBatchJob)
     return parse(JobState, d["status"])
 end
 
-function log(job::AWSBatchJob)
+function log_messages(job::AWSBatchJob)
     cmd = `aws batch describe-jobs --jobs $(job.id)`
     task_id, job_name = readstring(cmd) do output
         j = JSON.parse(output)
@@ -110,12 +111,14 @@ function log(job::AWSBatchJob)
         (task_id, job_name)
     end
 
-    log_stream_name = "$job_name/$(job.id)/$task_id"
-    cmd = `
+    # CloudWatch log stream name format:
+    # http://docs.aws.amazon.com/batch/latest/userguide/job_states.html
+    log_stream_name = "$job_name/default/$task_id"
+    cmd = ```
         aws logs get-log-events
             --log-group-name "/aws/batch/job"
             --log-stream-name $log_stream_name
-        `
+        ```
     return readstring(cmd) do output
         j = JSON.parse(output)
         join([event["message"] for event in j["events"]], '\n')
@@ -219,6 +222,19 @@ function readstring(cmd::CmdRedirect, pass::Bool=true)
         return "us-east-1"
     else
         return Base.readstring(cmd)
+    end
+end
+
+function ignore_stderr(body::Function)
+    # Note: we could use /dev/null on linux systems
+    stderr = Base.STDERR
+    path, io = mktemp()
+    redirect_stderr(io)
+    try
+        return body()
+    finally
+        redirect_stderr(stderr)
+        rm(path)
     end
 end
 

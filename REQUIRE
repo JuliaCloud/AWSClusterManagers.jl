@@ -1,4 +1,5 @@
-julia 0.5
+julia 0.6
 JSON
 Memento
-Mocking
+Mocking 0.4
+Compat 0.27

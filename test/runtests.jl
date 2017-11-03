@@ -22,11 +22,10 @@ const REV = cd(() -> readchomp(`git rev-parse HEAD`), PKG_DIR)
 
 # Load the TestUtils.jl module
 include("testutils.jl")
+using Main.TestUtils
 
-import TestUtils: IMAGE_DEFINITION, MANAGER_JOB_QUEUE, WORKER_JOB_QUEUE, JOB_DEFINITION, JOB_NAME
-import TestUtils: register, deregister, submit, status, log, details, time_str, Running, Succeeded
-
-const ECR_IMAGE = "292522074875.dkr.ecr.us-east-1.amazonaws.com/$IMAGE_DEFINITION:$REV"
+const REPO_URI = "292522074875.dkr.ecr.us-east-1.amazonaws.com"
+const ECR_IMAGE = "$REPO_URI/$IMAGE_DEFINITION:$REV"
 
 """
     online(f::Function)
@@ -45,6 +44,12 @@ function online(f::Function)
             # command (or `$(aws ecr get-login --region us-east-1)` in bash).
             output = readchomp(`aws ecr get-login --region us-east-1 --no-include-email`)
             run(Cmd(map(String, split(output))))
+
+            # Pull the latest "julia-baked:0.6" on the local system
+            run(`docker pull $REPO_URI/julia-baked:0.6`)
+            run(`docker tag $REPO_URI/julia-baked:0.6 julia-baked:0.6`)
+
+            # Build and push the AWSClusterManagers docker image
             run(`docker build -t $ECR_IMAGE .`)
             run(`docker push $ECR_IMAGE`)
         end

@@ -1,4 +1,4 @@
-FROM julia-baked:0.5.1
+FROM julia-baked:0.6
 
 # Get security updates
 RUN yum -y update-minimal && \
@@ -9,6 +9,11 @@ ENV PKG_PATH $JULIA_PKGDIR/$JULIA_PKGVER/AWSClusterManagers
 COPY . $PKG_PATH
 WORKDIR $PKG_PATH
 
+# When AWSClusterManagers.jl is a git repository then Pkg.update will expect to HEAD
+# to be a branch which is tracked. An easier alternative is make the package no longer
+# be a git repository.
+RUN [ -d .git ] && rm -rf .git
+
 # Install AWSClusterManager.jl prerequisite AWS CLI. Do not use `yum install aws-cli`
 # as that version is typically out of date.
 ENV PKGS \
@@ -18,8 +23,7 @@ ENV PINNED_PKGS \
 	python27 \
 	python27-six \
 	python27-colorama \
-    docker \
-    git
+    docker
 RUN yum -y install $PKGS $PINNED_PKGS && \
 	echo $PINNED_PKGS | tr -s '\t ' '\n' > /etc/yum/protected.d/awscli.conf && \
 	pip install awscli && \
@@ -57,7 +61,7 @@ RUN yum -y install $PKGS && \
 	yum-config-manager --setopt=assumeyes=1 --save > /dev/null && \
 	yum-config-manager --enable epel > /dev/null && \
 	yum list installed | tr -s ' ' | cut -d' ' -f1 | sort > /tmp/pre_state && \
-	update-metadata && julia -e 'Pkg.update(); Pkg.resolve(); Pkg.build("AWSClusterManagers")' && \
+	julia -e 'using PrivateMetadata; PrivateMetadata.update(); Pkg.update(); Pkg.resolve(); Pkg.build("AWSClusterManagers")' && \
 	yum list installed | tr -s ' ' | cut -d' ' -f1 | sort > /tmp/post_state && \
 	comm -3 /tmp/pre_state /tmp/post_state | grep $'\t' | sed 's/\t//' | sed 's/\..*//' > /etc/yum/protected.d/julia-pkgs.conf && \
 	yum-config-manager --disable epel > /dev/null && \

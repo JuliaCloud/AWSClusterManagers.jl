@@ -1,4 +1,5 @@
 @testset "DockerManager" begin
+    # A docker image name which is expected to not exist on the local system.
     mock_image = "x5cn2a7hzq4k"
 
     @testset "Constructors" begin
@@ -42,8 +43,12 @@
         @testset "Worker Timeout" begin
             patch = @patch readstring(cmd::AbstractCmd) = TestUtils.readstring(cmd, false)
 
-            apply(patch) do
-                @test_throws ErrorException addprocs(DockerManager(1, mock_image, 1.0))
+            @test_throws ErrorException apply(patch) do
+                # Suppress "unhandled task error" message
+                # https://github.com/JuliaLang/julia/issues/12403
+                ignore_stderr() do
+                    addprocs(DockerManager(1, mock_image, 1.0))
+                end
             end
         end
     end

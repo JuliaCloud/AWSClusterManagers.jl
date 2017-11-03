@@ -1,10 +1,10 @@
 stages:
   - test
+  - live
   - coverage
   - docs
-  - live
 
-.test_template: &test_definition
+.test_shell: &test_shell
   artifacts:
     name: "$CI_JOB_NAME coverage"
     expire_in: 1 week
@@ -16,126 +16,92 @@ stages:
     - ./julia-ci install $JULIA_VERSION
   script:
     - source julia-ci export
-    - julia --compilecache=no -e "Pkg.clone(pwd()); Pkg.build(\"$PKG_NAME\"); Pkg.test(\"$PKG_NAME\"; coverage=true)"
+    - julia -e "Pkg.clone(pwd())"
+    - OPTIONS=$(julia --depwarn=no -e "using Mocking; print(DISABLE_PRECOMPILE_STR)")
+    - julia $OPTIONS -e "Pkg.build(\"$PKG_NAME\"); Pkg.test(\"$PKG_NAME\"; coverage=true)"
     - ./julia-ci coverage
   after_script:
     - ./julia-ci clean
 
-
-.test_tmp_05: &test_05
+.test_shell_06: &test_shell_06
   variables:
-    JULIA_VERSION: "0.5"
-  <<: *test_definition
+    JULIA_VERSION: "0.6"
+  <<: *test_shell
 
-.test_tmp_release: &test_release
+.test_shell_07-: &test_shell_07-
   variables:
-    JULIA_VERSION: release
-  <<: *test_definition
-
-.test_tmp_nightly: &test_nightly
-  variables:
-    JULIA_VERSION: nightly
+    JULIA_VERSION: "0.7-"
   allow_failure: true
-  <<: *test_definition
+  <<: *test_shell
 
 
-"Julia 0.5, OS X":
-  tags:
-    - osx
-  <<: *test_05
-
-"Julia 0.5, Linux (amd64)":
-  tags:
-    - linux
-    - amd64
-  <<: *test_05
-
-"Julia 0.5, Linux (i386)":
-  tags:
-    - linux
-    - i386
-  <<: *test_05
-
-"Julia release, OS X":
-  tags:
-    - osx
-  <<: *test_release
-
-"Julia release, Linux (amd64)":
-  tags:
-    - linux
-    - amd64
-  <<: *test_release
-
-"Julia release, Linux (i386)":
-  tags:
-    - linux
-    - i386
-  <<: *test_release
-
-"Julia nightly, OS X":
-  tags:
-    - osx
-  <<: *test_nightly
-
-"Julia nightly, Linux (amd64)":
-  tags:
-    - linux
-    - amd64
-  <<: *test_nightly
-
-"Julia nightly, Linux (i386)":
-  tags:
-    - linux
-    - i386
-  <<: *test_nightly
-
-"Coverage":
-  stage: coverage
-  coverage: /Test Coverage (\d+\.\d+%)/
+.test_docker: &test_docker
   artifacts:
-    name: combined_coverage
+    name: coverage
     expire_in: 1 week
     paths:
-      - combined_coverage/
+      - "$CI_JOB_NAME coverage/"
+  script:
+    - julia -e "Pkg.clone(pwd())"
+    - OPTIONS=$(julia --depwarn=no -e "using Mocking; print(DISABLE_PRECOMPILE_STR)")
+    - julia $OPTIONS -e "Pkg.build(\"$PKG_NAME\"); Pkg.test(\"$PKG_NAME\"; coverage=true)"
+    - julia-coverage $PKG_NAME
+
+.test_docker_06: &test_docker_06
+  image: 292522074875.dkr.ecr.us-east-1.amazonaws.com/julia-gitlab-ci:0.6
+  <<: *test_docker
+
+
+"0.6 (Mac)":
+  tags:
+    - mac
+    - shell-ci
+  <<: *test_shell_06
+
+"0.6 (Linux, 64-bit)":
   tags:
     - linux
-    - amd64
-  script:
-    - genhtml --version
-    - mkdir $CI_PROJECT_DIR/combined_coverage
-    - cp -r $CI_PROJECT_DIR/src $CI_PROJECT_DIR/combined_coverage/
-    - ls */*.info | xargs -I{} echo "--summary \"{}\"" | xargs lcov --directory src
-    - echo "Test Coverage $(genhtml -o $CI_PROJECT_DIR/combined_coverage --no-prefix */coverage.info 2>&1 | grep lines | awk '{print $2}')"
-    - find $CI_PROJECT_DIR/combined_coverage -type f -name "*.jl" -delete
+    - 64-bit
+    - docker-ci
+  <<: *test_docker_06
 
-
-"Documentation":
-  stage: docs
+"0.6 (Linux, 32-bit)":
   tags:
-    - docs
-  only:
-    - master
-    - develop
-    - docs
-    - tags  # special keyword for all tags
-  before_script:
-    - curl -s -o julia-ci https://gitlab.invenia.ca/infrastructure/gitlab-ci-helper/raw/master/julia-ci
-    - chmod +x julia-ci
-    - ./julia-ci install release
-  script:
-    - source julia-ci export
-    - julia --depwarn=no -e "Pkg.clone(pwd()); Pkg.build(\"$PKG_NAME\"); Pkg.add(\"Documenter\"); Pkg.checkout(\"Documenter\")"
-    - julia --depwarn=no -e "cd(Pkg.dir(\"$PKG_NAME\", \"docs\")); include(\"make.jl\")"
-    - julia --depwarn=no -e "const DOCS_DIR = joinpath(\"/mnt\", \"docs\", \"$CI_PROJECT_NAMESPACE\", \"$CI_PROJECT_NAME\", \"$CI_BUILD_REF_NAME\"); mkpath(DOCS_DIR); cp(Pkg.dir(\"$PKG_NAME\", \"docs\", \"build\"), DOCS_DIR; remove_destination=true, follow_symlinks=true)"
-  after_script:
-    - ./julia-ci clean
+    - linux
+    - 32-bit
+    - shell-ci
+  <<: *test_shell_06
 
+"0.7- (Mac)":
+  tags:
+    - mac
+    - shell-ci
+  <<: *test_shell_07-
+
+"0.7- (Linux, 64-bit)":
+  tags:
+    - linux
+    - 64-bit
+    - shell-ci
+  <<: *test_shell_07-
+
+"0.7- (Linux, 32-bit)":
+  tags:
+    - linux
+    - 32-bit
+    - shell-ci
+  <<: *test_shell_07-
+
+# Live test run as a separate stage to avoid running these expensive tests if the basic tests fail.
 "Live Tests":
   stage: live
+  tags:
+    - linux
+    - docker
+    - ecr
   variables:
     LIVE: "true"  # Runs the online tests for AWS & docker
-    JULIA_VERSION: release
+    JULIA_VERSION: "0.6"
   artifacts:
     name: "$CI_JOB_NAME coverage"
     expire_in: 1 week
@@ -149,13 +115,55 @@ stages:
     - source julia-ci export
     - export PATH="$PATH:/usr/local/bin"
     - unset SSL_CERT_DIR
-    - julia --compilecache=no -e "Pkg.clone(pwd()); Pkg.build(\"$PKG_NAME\"); Pkg.test(\"$PKG_NAME\"; coverage=true)"
+    - julia -e "Pkg.clone(pwd())"
+    - OPTIONS=$(julia --depwarn=no -e "using Mocking; print(DISABLE_PRECOMPILE_STR)")
+    - julia $OPTIONS -e "Pkg.build(\"$PKG_NAME\"); Pkg.test(\"$PKG_NAME\"; coverage=true)"
     - ./julia-ci coverage
   after_script:
     - ./julia-ci clean
     - $(/usr/local/bin/aws ecr get-login --region us-east-1)
     - docker rmi 292522074875.dkr.ecr.us-east-1.amazonaws.com/aws-cluster-managers-test:$CI_COMMIT_SHA
+
+
+"Coverage":
+  stage: coverage
+  coverage: /Test Coverage (\d+\.\d+%)/
+  artifacts:
+    name: combined_coverage
+    expire_in: 1 week
+    paths:
+      - combined_coverage/
   tags:
     - linux
-    - docker
-    - ecr
+    - 64-bit  # LCOV version 1.9 on 32-bit Wheezy is too old
+    - shell-ci
+  script:
+    - genhtml --version
+    - mkdir $CI_PROJECT_DIR/combined_coverage
+    - cp -r $CI_PROJECT_DIR/src $CI_PROJECT_DIR/combined_coverage/
+    - ls */*.info | xargs -I{} echo "--summary \"{}\"" | xargs lcov --directory src
+    - echo "Test Coverage $(genhtml -o $CI_PROJECT_DIR/combined_coverage --no-prefix */coverage.info 2>&1 | grep lines | awk '{print $2}')"
+    - find $CI_PROJECT_DIR/combined_coverage -type f -name "*.jl" -delete
+
+
+"Documentation":
+  stage: docs
+  tags:
+    - docs
+    - shell-ci
+  only:
+    - master
+    - develop
+    - docs
+    - tags  # special keyword for all tags
+  before_script:
+    - curl -s -o julia-ci https://gitlab.invenia.ca/infrastructure/gitlab-ci-helper/raw/master/julia-ci
+    - chmod +x julia-ci
+    - ./julia-ci install 0.6
+  script:
+    - source julia-ci export
+    - julia --depwarn=no -e "Pkg.clone(pwd()); Pkg.build(\"$PKG_NAME\"); Pkg.add(\"Documenter\"); Pkg.checkout(\"Documenter\")"
+    - julia --depwarn=no -e "cd(Pkg.dir(\"$PKG_NAME\", \"docs\")); include(\"make.jl\")"
+    - julia --depwarn=no -e "const DOCS_DIR = joinpath(\"/mnt\", \"docs\", \"$CI_PROJECT_NAMESPACE\", \"$CI_PROJECT_NAME\", \"$CI_BUILD_REF_NAME\"); mkpath(DOCS_DIR); cp(Pkg.dir(\"$PKG_NAME\", \"docs\", \"build\"), DOCS_DIR; remove_destination=true, follow_symlinks=true)"
+  after_script:
+    - ./julia-ci clean
