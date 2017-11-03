@@ -22,7 +22,7 @@ const REV = cd(() -> readchomp(`git rev-parse HEAD`), PKG_DIR)
 
 # Load the TestUtils.jl module
 include("testutils.jl")
-using TestUtils
+using Main.TestUtils
 
 const ECR_IMAGE = "292522074875.dkr.ecr.us-east-1.amazonaws.com/$IMAGE_DEFINITION:$REV"
 
