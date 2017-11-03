@@ -9,15 +9,10 @@ ENV PKG_PATH $JULIA_PKGDIR/$JULIA_PKGVER/AWSClusterManagers
 COPY . $PKG_PATH
 WORKDIR $PKG_PATH
 
-# Ensure AWSClusterManagers.jl is on a branch which is tracked to appease Pkg.update
-ENV PKGS \
-	git
-RUN yum -y install $PKGS && \
-	git fetch origin +:refs/remotes/origin/HEAD && \
-	git checkout --detach HEAD && (git branch -D head 2>/dev/null || true) && \
-	git checkout -b head HEAD && git branch --set-upstream-to=origin/HEAD && \
-	yum -y autoremove $PKGS && \
-	yum -y clean all
+# When AWSClusterManagers.jl is a git repository then Pkg.update will expect to HEAD
+# to be a branch which is tracked. An easier alternative is make the package no longer
+# be a git repository.
+RUN [ -d .git ] && rm -rf .git
 
 # Install AWSClusterManager.jl prerequisite AWS CLI. Do not use `yum install aws-cli`
 # as that version is typically out of date.
