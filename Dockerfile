@@ -9,11 +9,13 @@ ENV PKG_PATH $JULIA_PKGDIR/$JULIA_PKGVER/AWSClusterManagers
 COPY . $PKG_PATH
 WORKDIR $PKG_PATH
 
-# Ensure current branch of AWSClusterManagers.jl is tracked to appease Pkg.update
+# Ensure AWSClusterManagers.jl is on a branch which is tracked to appease Pkg.update
 ENV PKGS \
 	git
 RUN yum -y install $PKGS && \
-	if ! git rev-parse --abbrev-ref --symbolic-full-name @{u}; then git branch --set-upstream-to=origin/HEAD; fi && \
+	git fetch origin +:refs/remotes/origin/HEAD && \
+	git checkout --detach HEAD && (git branch -D head 2>/dev/null || true) && \
+	git checkout -b head HEAD && git branch --set-upstream-to=origin/HEAD && \
 	yum -y autoremove $PKGS && \
 	yum -y clean all
 
