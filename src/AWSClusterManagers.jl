@@ -4,7 +4,7 @@ import Base: launch, manage, cluster_cookie
 using Memento
 using Mocking
 
-export ECSManager, AWSBatchManager, DockerManager
+export ECSManager, AWSBatchManager, DockerManager, BatchEnvironmentError
 
 logger = get_logger(current_module())
 
