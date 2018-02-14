@@ -71,7 +71,7 @@ const BATCH_ENVS = (
         @testset "AWS Defaults" begin
             # Running outside of the environment of an AWS batch job
             if !haskey(ENV, "AWS_BATCH_JOB_ID")
-                @test_throws KeyError AWSBatchManager(3)  # TODO: Custom error?
+                @test_throws BatchEnvironmentError AWSBatchManager(3)
             end
 
             # Mock being run on an AWS batch job

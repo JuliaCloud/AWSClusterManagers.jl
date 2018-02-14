@@ -1,3 +1,14 @@
+import Base: showerror
+
+struct BatchEnvironmentError <: Exception
+    message::String
+end
+
+function showerror(io::IO, e::BatchEnvironmentError)
+    print(io, "BatchEnvironmentError: ")
+    print(io, message)
+end
+
 mutable struct AWSBatchJob
     id::String
     name::String
@@ -14,6 +25,13 @@ Perform introspection on the currently running AWS Batch job to discover details
 the: job ID, job name, job definition name, job queue, and region.
 """
 function AWSBatchJob()
+    if !haskey(ENV, "AWS_BATCH_JOB_ID")
+        throw(BatchEnvironmentError(
+            "Unable to perform AWS Batch introspection when not running within an " *
+            "AWS Batch job"
+        ))
+    end
+
     # Environmental variables set by the AWS Batch service. They were discovered by
     # inspecting the running AWS Batch job in the ECS task interface.
     job_id = ENV["AWS_BATCH_JOB_ID"]
