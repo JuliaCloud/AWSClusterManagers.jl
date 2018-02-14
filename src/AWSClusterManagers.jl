@@ -7,7 +7,12 @@ using Compat: @__MODULE__
 
 export ECSManager, AWSBatchManager, DockerManager
 
-logger = get_logger(@__MODULE__)
+const logger = getlogger(@__MODULE__)
+
+function __init__()
+    # https://invenia.github.io/Memento.jl/latest/faq/pkg-usage.html
+    Memento.register(logger)
+end
 
 include("job.jl")
 include("container.jl")
