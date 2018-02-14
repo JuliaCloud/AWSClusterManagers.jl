@@ -24,12 +24,14 @@ requested `max_workers`.
 - `definition::AbstractString`: Name of the AWS Batch job definition which dictates
   properties of the job including the Docker image, IAM role, and command to run
 - `name::AbstractString`: Name of the job inside of AWS Batch
+- `queue::AbstractString`: The job queue in which workers are submitted. Can be either the
+  queue name or the Amazon Resource Name (ARN) of the queue.
 - `memory::Integer`: Memory limit (in MiB) for the job container. The container will be killed
   if it exceeds this value.
 - `region::AbstractString`: The region in which the API requests are sent and in which new
   worker are spawned. Defaults to "us-east-1". [Available regions for AWS batch](http://docs.aws.amazon.com/general/latest/gr/rande.html#batch_region)
   can be found in the AWS documentation.
-- `timeout::Float64`: The maximum number of seconds to wait for workers to become available
+- `timeout::Real`: The maximum number of seconds to wait for workers to become available
   before attempting to proceed without the missing workers.
 
 ## Examples
