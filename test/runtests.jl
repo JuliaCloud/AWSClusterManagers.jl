@@ -1,5 +1,5 @@
 using Mocking
-Mocking.enable()
+Mocking.enable(force=true)
 
 using AWSClusterManagers
 using Base.Test

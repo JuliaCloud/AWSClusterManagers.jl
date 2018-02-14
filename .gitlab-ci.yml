@@ -16,9 +16,7 @@ stages:
     - ./julia-ci install $JULIA_VERSION
   script:
     - source julia-ci export
-    - julia -e "Pkg.clone(pwd())"
-    - OPTIONS=$(julia --depwarn=no -e "using Mocking; print(DISABLE_PRECOMPILE_STR)")
-    - julia $OPTIONS -e "Pkg.build(\"$PKG_NAME\"); Pkg.test(\"$PKG_NAME\"; coverage=true)"
+    - julia -e "Pkg.clone(pwd()); Pkg.build(\"$PKG_NAME\"); Pkg.test(\"$PKG_NAME\"; coverage=true)"
     - ./julia-ci coverage
   after_script:
     - ./julia-ci clean
@@ -42,9 +40,7 @@ stages:
     paths:
       - "$CI_JOB_NAME coverage/"
   script:
-    - julia -e "Pkg.clone(pwd())"
-    - OPTIONS=$(julia --depwarn=no -e "using Mocking; print(DISABLE_PRECOMPILE_STR)")
-    - julia $OPTIONS -e "Pkg.build(\"$PKG_NAME\"); Pkg.test(\"$PKG_NAME\"; coverage=true)"
+    - julia -e "Pkg.clone(pwd()); Pkg.build(\"$PKG_NAME\"); Pkg.test(\"$PKG_NAME\"; coverage=true)"
     - julia-coverage $PKG_NAME
 
 .test_docker_06: &test_docker_06
@@ -115,9 +111,7 @@ stages:
     - source julia-ci export
     - export PATH="$PATH:/usr/local/bin"
     - unset SSL_CERT_DIR
-    - julia -e "Pkg.clone(pwd())"
-    - OPTIONS=$(julia --depwarn=no -e "using Mocking; print(DISABLE_PRECOMPILE_STR)")
-    - julia $OPTIONS -e "Pkg.build(\"$PKG_NAME\"); Pkg.test(\"$PKG_NAME\"; coverage=true)"
+    - julia -e "Pkg.clone(pwd()); Pkg.build(\"$PKG_NAME\"); Pkg.test(\"$PKG_NAME\"; coverage=true)"
     - ./julia-ci coverage
   after_script:
     - ./julia-ci clean
