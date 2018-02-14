@@ -140,7 +140,8 @@ const BATCH_ENVS = (
             code = """
             using Memento
             Memento.config("debug"; fmt="{msg}")
-            import AWSClusterManagers: AWSBatchManager
+            using AWSClusterManagers: AWSBatchManager
+            setlevel!(getlogger(AWSClusterManagers), "debug")
             addprocs(AWSBatchManager($num_workers, queue="$WORKER_JOB_QUEUE"))
             println("NumProcs: ", nprocs())
             for i in workers()
