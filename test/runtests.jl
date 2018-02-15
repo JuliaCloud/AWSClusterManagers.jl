@@ -27,6 +27,35 @@ using Main.TestUtils
 const REPO_URI = "292522074875.dkr.ecr.us-east-1.amazonaws.com"
 const ECR_IMAGE = "$REPO_URI/$IMAGE_DEFINITION:$REV"
 
+function docker_build(tag::AbstractString="")
+    opts = isempty(tag) ? `` : `-t $tag`
+    run(`docker build $opts $PKG_DIR`)
+end
+
+function batch_build(image::AbstractString)
+    # Report the AWS CLI version as API changes could be the cause of exceptions here.
+    # Note: `aws --version` prints to STDERR instead of STDOUT.
+    info(readstring(pipeline(`aws --version`, stderr=`cat`)))
+
+    # Build the docker image for live tests and push it to ecr
+
+    # Runs `aws ecr get-login`, then extracts and runs the returned `docker login`
+    # command (or `$(aws ecr get-login --region us-east-1)` in bash).
+    output = readchomp(`aws ecr get-login --no-include-email`)
+    run(Cmd(map(String, split(output))))
+
+    # Pull the latest "julia-baked:0.6" on the local system
+    run(`docker pull $REPO_PREFIX/julia-baked:0.6`)
+    run(`docker tag $REPO_PREFIX/julia-baked:0.6 julia-baked:0.6`)
+
+    # Build and push the AWSClusterManagers docker image
+    docker_build(image)
+    run(`docker push $image`)
+
+    # Temporary
+    # run(`aws batch update-compute-environment --compute-environment Demo --compute-resources desiredvCpus=4`)
+end
+
 """
     online(f::Function)
 
@@ -35,26 +64,7 @@ prints some warnings about the tests being skipped.
 """
 function online(f::Function)
     if ONLINE
-        # Report the AWS CLI version as API changes could be the cause of exceptions here.
-        # Note: `aws --version` prints to STDERR instead of STDOUT.
-        info(readstring(pipeline(`aws --version`, stderr=`cat`)))
-        # Build the docker image for live tests and push it to ecr
-        cd(PKG_DIR) do
-            # Runs `aws ecr get-login`, then extracts and runs the returned `docker login`
-            # command (or `$(aws ecr get-login --region us-east-1)` in bash).
-            output = readchomp(`aws ecr get-login --region us-east-1 --no-include-email`)
-            run(Cmd(map(String, split(output))))
-
-            # Pull the latest "julia-baked:0.6" on the local system
-            run(`docker pull $REPO_URI/julia-baked:0.6`)
-            run(`docker tag $REPO_URI/julia-baked:0.6 julia-baked:0.6`)
-
-            # Build and push the AWSClusterManagers docker image
-            run(`docker build -t $ECR_IMAGE .`)
-            run(`docker push $ECR_IMAGE`)
-        end
-        # Run our live tests code
-        f()
+        f()  # Run our live tests code
     else
         warn("Environment variable \"LIVE\" is not set. Skipping online tests.")
     end

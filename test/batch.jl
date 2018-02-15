@@ -132,6 +132,8 @@ const BATCH_ENVS = (
     end
     @testset "Online" begin
         online() do
+            batch_build(ECR_IMAGE)
+
             info("Registering AWS batch job definition: $(JOB_DEFINITION.name)")
             num_workers = 3
 

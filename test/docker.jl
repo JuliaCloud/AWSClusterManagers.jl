@@ -54,11 +54,9 @@
     end
     @testset "Online" begin
         online() do
+            docker_build(ECR_IMAGE)
+
             num_workers = 3
-
-            # docker pull the latest container
-            run(`docker pull $ECR_IMAGE`)
-
             code = """
             using Memento
             Memento.config("debug"; fmt="{msg}")
