@@ -7,10 +7,13 @@ using Base.Test
 import Base: AbstractCmd
 import AWSClusterManagers: launch_timeout, num_workers, AWSBatchJob
 
-const ONLINE = get(ENV, "LIVE", "") in ("true", "1")
+# Report the AWS CLI version as API changes could be the cause of exceptions here.
+# Note: `aws --version` prints to STDERR instead of STDOUT.
+info(readstring(pipeline(`aws --version`, stderr=`cat`)))
 
-const PKG_DIR = abspath(dirname(@__FILE__), "..")
+const ONLINE = get(ENV, "LIVE", "false") in ("true", "1")
 
+const PKG_DIR = abspath(@__DIR__, "..")
 const REV = cd(() -> readchomp(`git rev-parse HEAD`), PKG_DIR)
 # const PUSHED = !isempty(cd(() -> readchomp(`git branch -r --contains $REV`), PKG_DIR))
 #
@@ -20,40 +23,56 @@ const REV = cd(() -> readchomp(`git rev-parse HEAD`), PKG_DIR)
 #     !isempty(filter(p -> !startswith(p, "test"), dirty_files))
 # end
 
+const DEFAULT_ECR_URI = "292522074875.dkr.ecr.us-east-1.amazonaws.com/aws-cluster-managers-test"
+const ECR_URI = replace(get(ENV, "ECR_URI", DEFAULT_ECR_URI), r"\:[^\:]+$", "")
+const ECR_IMAGE = "$ECR_URI:$REV"
+
 # Load the TestUtils.jl module
 include("testutils.jl")
 using Main.TestUtils
 
-const REPO_URI = "292522074875.dkr.ecr.us-east-1.amazonaws.com"
-const ECR_IMAGE = "$REPO_URI/$IMAGE_DEFINITION:$REV"
+"""
+Build the Docker image used for AWSDockerManager tests.
+"""
+function docker_manager_build(image=ECR_IMAGE)
+    if docker_login()
+        # Pull the latest "julia-baked:0.6" on the local system
+        # TODO: If pulling fails we should still try and build the image as we may have a
+        # local copy of the image.
+        docker_pull(
+            "292522074875.dkr.ecr.us-east-1.amazonaws.com/julia-baked:0.6",
+            ["julia-baked:0.6"],
+        )
+    end
 
-function docker_build(tag::AbstractString="")
-    opts = isempty(tag) ? `` : `-t $tag`
-    run(`docker build $opts $PKG_DIR`)
+    docker_build(image)
+
+    return image
 end
 
-function batch_build(image::AbstractString)
-    # Report the AWS CLI version as API changes could be the cause of exceptions here.
-    # Note: `aws --version` prints to STDERR instead of STDOUT.
-    info(readstring(pipeline(`aws --version`, stderr=`cat`)))
+"""
+Build the Docker image used for AWSBatchManager tests and push it to ECR.
+"""
+function batch_manager_build(image=ECR_IMAGE)
+    # Pull in the latest "julia-baked:0.6" for building the AWSClusterManagers Docker image.
+    # If we cannot login we'll attempt to use base image that is currently available.
+    if docker_login()
+        docker_pull(
+            "292522074875.dkr.ecr.us-east-1.amazonaws.com/julia-baked:0.6",
+            ["julia-baked:0.6"],
+        )
+    end
 
-    # Build the docker image for live tests and push it to ecr
-
-    # Runs `aws ecr get-login`, then extracts and runs the returned `docker login`
-    # command (or `$(aws ecr get-login --region us-east-1)` in bash).
-    output = readchomp(`aws ecr get-login --no-include-email`)
-    run(Cmd(map(String, split(output))))
-
-    # Pull the latest "julia-baked:0.6" on the local system
-    run(`docker pull $REPO_PREFIX/julia-baked:0.6`)
-    run(`docker tag $REPO_PREFIX/julia-baked:0.6 julia-baked:0.6`)
-
-    # Build and push the AWSClusterManagers docker image
     docker_build(image)
-    run(`docker push $image`)
+
+    # Push the image to ECR. Note: this step is what requires `image` to be a full URI
+    docker_login()
+    docker_push(image)
 
     # Temporary
     # run(`aws batch update-compute-environment --compute-environment Demo --compute-resources desiredvCpus=4`)
+
+    return image
 end
 
 """

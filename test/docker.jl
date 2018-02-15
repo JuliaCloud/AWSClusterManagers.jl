@@ -54,7 +54,7 @@
     end
     @testset "Online" begin
         online() do
-            docker_build(ECR_IMAGE)
+            image = docker_manager_build()
 
             num_workers = 3
             code = """
@@ -71,13 +71,13 @@
             """
 
             # Run the code in a docker container, but
-            output = readstring(`
+            output = readstring(```
                 docker run
                 --network=host
                 -v /var/run/docker.sock:/var/run/docker.sock
-                -i $ECR_IMAGE
+                -i $image
                 julia -e $(replace(code, r"\n+", "; "))
-                `
+                ```
             )
 
             m = match(r"(?<=NumProcs: )\d+", output)

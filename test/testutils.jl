@@ -4,8 +4,41 @@ using JSON
 import Base: AbstractCmd, CmdRedirect
 
 export IMAGE_DEFINITION, MANAGER_JOB_QUEUE, WORKER_JOB_QUEUE, JOB_DEFINITION, JOB_NAME,
+    docker_login, docker_pull, docker_push, docker_build,
     register, deregister, submit, status, log_messages, details, time_str,
     Running, Succeeded, ignore_stderr
+
+const PKG_DIR = abspath(@__DIR__, "..")
+
+
+function docker_login(registry_ids::Vector{<:Integer}=Int[])
+    # Runs `aws ecr get-login`, then extracts and runs the returned `docker login`
+    # command (or `$(aws ecr get-login --region us-east-1)` in bash).
+    # Note: using `--registry-ids` doesn't cause a login to fail if you don't have access.
+    output = readchomp(`aws ecr get-login --no-include-email`)
+    docker_login = Cmd(map(String, split(output)))
+    success(pipeline(docker_login, stdout=STDOUT, stderr=STDERR))
+end
+
+function docker_pull(image::AbstractString, tags::Vector{<:AbstractString}=String[])
+    run(`docker pull $image`)
+    for tag in tags
+        run(`docker tag $image $tag`)
+    end
+end
+
+function docker_push(image::AbstractString)
+    run(`docker push $image`)
+end
+
+function docker_build(tag::AbstractString="")
+    opts = isempty(tag) ? `` : `-t $tag`
+    run(`docker build $opts $PKG_DIR`)
+end
+
+
+#####
+
 
 """
     readstring(f::Function, cmd::Cmd) -> Any

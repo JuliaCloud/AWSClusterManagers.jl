@@ -132,7 +132,7 @@ const BATCH_ENVS = (
     end
     @testset "Online" begin
         online() do
-            batch_build(ECR_IMAGE)
+            image = batch_manager_build()
 
             info("Registering AWS batch job definition: $(JOB_DEFINITION.name)")
             num_workers = 3
@@ -152,7 +152,7 @@ const BATCH_ENVS = (
             """
 
             json = Dict(
-                "image" => ECR_IMAGE,
+                "image" => image,
                 "jobRoleArn" => "arn:aws:iam::292522074875:role/AWSBatchClusterManagerJobRole",
                 "vcpus" => 1,
                 "memory" => 1024,
