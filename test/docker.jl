@@ -62,11 +62,13 @@
             code = """
             using Memento
             Memento.config("debug"; fmt="{msg}")
-            import AWSClusterManagers: DockerManager
-            addprocs(DockerManager($num_workers, "$ECR_IMAGE"))
+            using AWSClusterManagers: DockerManager
+            setlevel!(getlogger(AWSClusterManagers), "debug")
+            addprocs(DockerManager($num_workers))
             println("NumProcs: ", nprocs())
+            @everywhere using AWSClusterManagers: container_id
             for i in workers()
-                println("Worker \$i: ", remotecall_fetch(() -> myid(), i))
+                println("Worker \$i: ", remotecall_fetch(() -> container_id(), i))
             end
             """
 
@@ -82,10 +84,15 @@
 
             m = match(r"(?<=NumProcs: )\d+", output)
             num_procs = m !== nothing ? parse(Int, m.match) : -1
-            reported_jobs = Set(matchall(r"(?<=Worker \d: )[0-9a-f\-]+", output))
+
+            # Spawned is the list container IDs reported by the manager upon launch while
+            # reported is the self-reported container ID of each worker.
+            spawned_ids = Set(matchall(r"(?<=Spawning container: )[0-9a-f\-]+", output))
+            reported_ids = Set(matchall(r"(?<=Worker \d: )[0-9a-f\-]+", output))
 
             @test num_procs == num_workers + 1
-            @test length(reported_jobs) == num_workers
+            @test length(reported_ids) == num_workers
+            @test spawned_ids == reported_ids
         end
     end
 end

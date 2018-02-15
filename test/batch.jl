@@ -179,6 +179,9 @@ const BATCH_ENVS = (
 
             m = match(r"(?<=NumProcs: )\d+", output)
             num_procs = m !== nothing ? parse(Int, m.match) : -1
+
+            # Spawned is the list AWS Batch job IDs reported by the manager upon launch
+            # while reported is the self-reported job ID of each worker.
             spawned_jobs = Set(matchall(r"(?<=Spawning job: )[0-9a-f\-]+", output))
             reported_jobs = Set(matchall(r"(?<=Worker \d: )[0-9a-f\-]+", output))
 
