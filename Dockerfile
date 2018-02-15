@@ -14,7 +14,7 @@ WORKDIR $PKG_PATH
 # When AWSClusterManagers.jl is a git repository then Pkg.update will expect to HEAD
 # to be a branch which is tracked. An easier alternative is make the package no longer
 # be a git repository.
-RUN [ -d .git ] && rm -rf .git
+RUN [ -d .git ] && rm -rf .git || true
 
 # Install AWSClusterManagers.jl prerequisite AWS CLI. Avoid using `yum install aws-cli`
 # as that version is typically out of date. Installing `pip install awscli` makes sure
