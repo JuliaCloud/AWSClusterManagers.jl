@@ -6,16 +6,6 @@ ENV PKG_NAME "AWSClusterManagers"
 RUN yum -y update-minimal && \
     yum -y clean all
 
-# Install AWSClusterManagers.jl
-ENV PKG_PATH $JULIA_PKGDIR/$JULIA_PKGVER/$PKG_NAME
-COPY . $PKG_PATH
-WORKDIR $PKG_PATH
-
-# When AWSClusterManagers.jl is a git repository then Pkg.update will expect to HEAD
-# to be a branch which is tracked. An easier alternative is make the package no longer
-# be a git repository.
-RUN [ -d .git ] && rm -rf .git || true
-
 # Install AWSClusterManagers.jl prerequisite AWS CLI. Avoid using `yum install aws-cli`
 # as that version is typically out of date. Installing `pip install awscli` makes sure
 # we have the latest version and is smaller than using the bundle.
@@ -40,6 +30,16 @@ ENV PINNED_PKGS \
 RUN yum -y install $PINNED_PKGS && \
     echo $PINNED_PKGS | tr -s '\t ' '\n' > /etc/yum/protected.d/docker.conf && \
     yum -y clean all
+
+# Install AWSClusterManagers.jl
+ENV PKG_PATH $JULIA_PKGDIR/$JULIA_PKGVER/$PKG_NAME
+COPY . $PKG_PATH
+WORKDIR $PKG_PATH
+
+# When AWSClusterManagers.jl is a git repository then Pkg.update will expect to HEAD
+# to be a branch which is tracked. An easier alternative is make the package no longer
+# be a git repository.
+RUN [ -d .git ] && rm -rf .git || true
 
 # Add and build the all of the required Julia packages. In order to allow the use of
 # BinDeps.jl we need to temporarily install additional system packages.
