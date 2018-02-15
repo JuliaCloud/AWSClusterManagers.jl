@@ -70,7 +70,7 @@ const BATCH_ENVS = (
         end
         @testset "AWS Defaults" begin
             # Running outside of the environment of an AWS batch job
-            if !haskey(ENV, "AWS_BATCH_JOB_ID")
+            withenv("AWS_BATCH_JOB_ID" => nothing) do
                 @test_throws BatchEnvironmentError AWSBatchManager(3)
             end
 
