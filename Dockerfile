@@ -17,18 +17,18 @@ RUN [ -d .git ] && rm -rf .git
 # Install AWSClusterManager.jl prerequisite AWS CLI. Do not use `yum install aws-cli`
 # as that version is typically out of date.
 ENV PKGS \
-	python27-pip \
-	python27-setuptools
+    python27-pip \
+    python27-setuptools
 ENV PINNED_PKGS \
-	python27 \
-	python27-six \
-	python27-colorama \
+    python27 \
+    python27-six \
+    python27-colorama \
     docker
 RUN yum -y install $PKGS $PINNED_PKGS && \
-	echo $PINNED_PKGS | tr -s '\t ' '\n' > /etc/yum/protected.d/awscli.conf && \
-	pip install awscli && \
-	yum -y autoremove $PKGS && \
-	yum -y clean all
+    echo $PINNED_PKGS | tr -s '\t ' '\n' > /etc/yum/protected.d/awscli.conf && \
+    pip install awscli && \
+    yum -y autoremove $PKGS && \
+    yum -y clean all
 
 # Add and build the all of the required Julia packages. In order to allow the use of
 # BinDeps.jl we need to temporarily install additional system packages.
@@ -47,23 +47,23 @@ RUN yum -y install $PKGS $PINNED_PKGS && \
 #   (https://aws.amazon.com/premiumsupport/knowledge-center/ec2-enable-epel/)
 # - update-metadata runtime requirements: git, findutils
 ENV PKGS \
-	sudo \
-	make \
-	gcc \
-	gcc-c++ \
-	bzip2 \
-	xz \
-	unzip \
-	epel-release \
-	yum-utils \
-	findutils
+    sudo \
+    make \
+    gcc \
+    gcc-c++ \
+    bzip2 \
+    xz \
+    unzip \
+    epel-release \
+    yum-utils \
+    findutils
 RUN yum -y install $PKGS && \
-	yum-config-manager --setopt=assumeyes=1 --save > /dev/null && \
-	yum-config-manager --enable epel > /dev/null && \
-	yum list installed | tr -s ' ' | cut -d' ' -f1 | sort > /tmp/pre_state && \
-	julia -e 'using PrivateMetadata; PrivateMetadata.update(); Pkg.update(); Pkg.resolve(); Pkg.build("AWSClusterManagers")' && \
-	yum list installed | tr -s ' ' | cut -d' ' -f1 | sort > /tmp/post_state && \
-	comm -3 /tmp/pre_state /tmp/post_state | grep $'\t' | sed 's/\t//' | sed 's/\..*//' > /etc/yum/protected.d/julia-pkgs.conf && \
-	yum-config-manager --disable epel > /dev/null && \
-	for p in $PKGS; do yum -y autoremove $p &>/dev/null && echo "Removed $p" || echo "Skipping removal of $p"; done && \
-	yum -y clean all
+    yum-config-manager --setopt=assumeyes=1 --save > /dev/null && \
+    yum-config-manager --enable epel > /dev/null && \
+    yum list installed | tr -s ' ' | cut -d' ' -f1 | sort > /tmp/pre_state && \
+    julia -e 'using PrivateMetadata; PrivateMetadata.update(); Pkg.update(); Pkg.resolve(); Pkg.build("AWSClusterManagers")' && \
+    yum list installed | tr -s ' ' | cut -d' ' -f1 | sort > /tmp/post_state && \
+    comm -3 /tmp/pre_state /tmp/post_state | grep $'\t' | sed 's/\t//' | sed 's/\..*//' > /etc/yum/protected.d/julia-pkgs.conf && \
+    yum-config-manager --disable epel > /dev/null && \
+    for p in $PKGS; do yum -y autoremove $p &>/dev/null && echo "Removed $p" || echo "Skipping removal of $p"; done && \
+    yum -y clean all
