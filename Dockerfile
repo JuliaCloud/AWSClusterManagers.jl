@@ -1,11 +1,13 @@
 FROM julia-baked:0.6
 
+ENV PKG_NAME "AWSClusterManagers"
+
 # Get security updates
 RUN yum -y update-minimal && \
     yum -y clean all
 
 # Install AWSClusterManagers.jl
-ENV PKG_PATH $JULIA_PKGDIR/$JULIA_PKGVER/AWSClusterManagers
+ENV PKG_PATH $JULIA_PKGDIR/$JULIA_PKGVER/$PKG_NAME
 COPY . $PKG_PATH
 WORKDIR $PKG_PATH
 
@@ -14,20 +16,29 @@ WORKDIR $PKG_PATH
 # be a git repository.
 RUN [ -d .git ] && rm -rf .git
 
-# Install AWSClusterManager.jl prerequisite AWS CLI. Do not use `yum install aws-cli`
-# as that version is typically out of date.
+# Install AWSClusterManagers.jl prerequisite AWS CLI. Avoid using `yum install aws-cli`
+# as that version is typically out of date. Installing `pip install awscli` makes sure
+# we have the latest version and is smaller than using the bundle.
+# https://docs.aws.amazon.com/cli/latest/userguide/awscli-install-linux.html#awscli-install-linux-awscli
+# https://docs.aws.amazon.com/cli/latest/userguide/awscli-install-bundle.html
 ENV PKGS \
     python27-pip \
     python27-setuptools
 ENV PINNED_PKGS \
     python27 \
     python27-six \
-    python27-colorama \
-    docker
+    python27-colorama
 RUN yum -y install $PKGS $PINNED_PKGS && \
     echo $PINNED_PKGS | tr -s '\t ' '\n' > /etc/yum/protected.d/awscli.conf && \
     pip install awscli && \
     yum -y autoremove $PKGS && \
+    yum -y clean all
+
+# Install AWSClusterManagers.jl test requirement: Docker
+ENV PINNED_PKGS \
+    docker
+RUN yum -y install $PINNED_PKGS && \
+    echo $PINNED_PKGS | tr -s '\t ' '\n' > /etc/yum/protected.d/docker.conf && \
     yum -y clean all
 
 # Add and build the all of the required Julia packages. In order to allow the use of
@@ -61,9 +72,12 @@ RUN yum -y install $PKGS && \
     yum-config-manager --setopt=assumeyes=1 --save > /dev/null && \
     yum-config-manager --enable epel > /dev/null && \
     yum list installed | tr -s ' ' | cut -d' ' -f1 | sort > /tmp/pre_state && \
-    julia -e 'using PrivateMetadata; PrivateMetadata.update(); Pkg.update(); Pkg.resolve(); Pkg.build("AWSClusterManagers")' && \
+    julia -e "using PrivateMetadata; PrivateMetadata.update(); Pkg.update(); Pkg.resolve(); Pkg.build(\"$PKG_NAME\")" && \
     yum list installed | tr -s ' ' | cut -d' ' -f1 | sort > /tmp/post_state && \
     comm -3 /tmp/pre_state /tmp/post_state | grep $'\t' | sed 's/\t//' | sed 's/\..*//' > /etc/yum/protected.d/julia-pkgs.conf && \
     yum-config-manager --disable epel > /dev/null && \
     for p in $PKGS; do yum -y autoremove $p &>/dev/null && echo "Removed $p" || echo "Skipping removal of $p"; done && \
     yum -y clean all
+
+# Run the non-live tests
+CMD ["julia", "-e", "Pkg.test(ENV[\"PKG_NAME\"])"]
