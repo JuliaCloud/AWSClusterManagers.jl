@@ -18,7 +18,7 @@ const STACK_NAME = get(ENV, "STACK_NAME", "")
 const ONLINE = get(ENV, "LIVE", "false") in ("true", "1")
 
 const PKG_DIR = abspath(@__DIR__, "..")
-const REV = cd(() -> readchomp(`git rev-parse HEAD`), PKG_DIR)
+const REV = cd(() -> readchomp(`git rev-parse --short HEAD`), PKG_DIR)
 # const PUSHED = !isempty(cd(() -> readchomp(`git branch -r --contains $REV`), PKG_DIR))
 #
 # const DIRTY = let
