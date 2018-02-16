@@ -52,8 +52,8 @@
             end
         end
     end
-    @testset "Online" begin
-        online() do
+    if "docker" in ONLINE
+        @testset "Online" begin
             image = docker_manager_build()
 
             num_workers = 3
@@ -92,5 +92,7 @@
             @test length(reported_ids) == num_workers
             @test spawned_ids == reported_ids
         end
+    else
+        warn("Environment variable \"ONLINE\" does not contain \"docker\". Skipping online Docker tests.")
     end
 end

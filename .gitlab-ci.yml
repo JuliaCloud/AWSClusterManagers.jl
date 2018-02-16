@@ -24,11 +24,13 @@ stages:
 .test_shell_06: &test_shell_06
   variables:
     JULIA_VERSION: "0.6"
+    ONLINE: ""
   <<: *test_shell
 
 .test_shell_07-: &test_shell_07-
   variables:
     JULIA_VERSION: "0.7-"
+    ONLINE: ""
   allow_failure: true
   <<: *test_shell
 
@@ -39,6 +41,8 @@ stages:
     expire_in: 1 week
     paths:
       - "$CI_JOB_NAME coverage/"
+  variables:
+    ONLINE: ""
   script:
     - julia -e "Pkg.clone(pwd()); Pkg.build(\"$PKG_NAME\"); Pkg.test(\"$PKG_NAME\"; coverage=true)"
     - julia-coverage $PKG_NAME
@@ -95,14 +99,14 @@ stages:
     - linux
     - docker
     - ecr
-  variables:
-    LIVE: "true"  # Runs the online tests for AWS & docker
-    JULIA_VERSION: "0.6"
   artifacts:
     name: "$CI_JOB_NAME coverage"
     expire_in: 1 week
     paths:
       - "$CI_JOB_NAME coverage/"
+  variables:
+    ONLINE: "docker, batch"  # Runs the online tests for AWS Batch & Docker
+    JULIA_VERSION: "0.6"
   before_script:
     - curl -s -o julia-ci https://gitlab.invenia.ca/infrastructure/gitlab-ci-helper/raw/master/julia-ci
     - chmod +x julia-ci

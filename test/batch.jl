@@ -130,8 +130,9 @@ const BATCH_ENVS = (
             end
         end
     end
-    @testset "Online" begin
-        online() do
+
+    if "batch" in ONLINE
+        @testset "Online" begin
             image = batch_manager_build()
 
             info("Registering AWS batch job definition: $(STACK["JobDefinitionName"])")
@@ -205,5 +206,7 @@ const BATCH_ENVS = (
             info("Job launch duration: $(time_str(launch_duration))")
             info("Job run duration:    $(time_str(run_duration))")
         end
+    else
+        warn("Environment variable \"ONLINE\" does not contain \"batch\". Skipping online AWS Batch tests.")
     end
 end

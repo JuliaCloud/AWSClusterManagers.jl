@@ -15,7 +15,7 @@ using .TestUtils
 info(readstring(pipeline(`aws --version`, stderr=`cat`)))
 
 const STACK_NAME = get(ENV, "STACK_NAME", "")
-const ONLINE = get(ENV, "LIVE", "false") in ("true", "1")
+const ONLINE = strip.(split(get(ENV, "ONLINE", "docker"), r"\s*,\s*"))
 
 const PKG_DIR = abspath(@__DIR__, "..")
 const REV = cd(() -> readchomp(`git rev-parse --short HEAD`), PKG_DIR)
@@ -74,20 +74,6 @@ function batch_manager_build(image=ECR_IMAGE)
     # run(`aws batch update-compute-environment --compute-environment Demo --compute-resources desiredvCpus=4`)
 
     return image
-end
-
-"""
-    online(f::Function)
-
-Simply takes a function of test code to run if we are able to run things on AWS otherwise
-prints some warnings about the tests being skipped.
-"""
-function online(f::Function)
-    if ONLINE
-        f()  # Run our live tests code
-    else
-        warn("Environment variable \"LIVE\" is not set. Skipping online tests.")
-    end
 end
 
 @testset "AWSClusterManagers" begin
