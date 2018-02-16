@@ -70,6 +70,10 @@
             end
             """
 
+            # Make sure that the UNIX socket that the Docker daemon listens to exists.
+            # Without this we will be unable to spawn worker containers.
+            @test ispath("/var/run/docker.sock")
+
             # Run the code in a docker container, but
             output = readstring(```
                 docker run
