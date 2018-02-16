@@ -10,12 +10,14 @@ import AWSClusterManagers: launch_timeout, num_workers, AWSBatchJob
 include("testutils.jl")
 using .TestUtils
 
-# Report the AWS CLI version as API changes could be the cause of exceptions here.
-# Note: `aws --version` prints to STDERR instead of STDOUT.
-info(readstring(pipeline(`aws --version`, stderr=`cat`)))
-
 const STACK_NAME = get(ENV, "STACK_NAME", "")
 const ONLINE = strip.(split(get(ENV, "ONLINE", ""), r"\s*,\s*"))
+
+# Report the AWS CLI version as API changes could be the cause of exceptions here.
+# Note: `aws --version` prints to STDERR instead of STDOUT.
+if "docker" in ONLINE || "batch" in ONLINE
+    info(readstring(pipeline(`aws --version`, stderr=`cat`)))
+end
 
 const GIT_DIR = joinpath(@__DIR__, "..", ".git")
 const REV = try
