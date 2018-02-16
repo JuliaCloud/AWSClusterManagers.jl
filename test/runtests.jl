@@ -17,15 +17,12 @@ info(readstring(pipeline(`aws --version`, stderr=`cat`)))
 const STACK_NAME = get(ENV, "STACK_NAME", "")
 const ONLINE = strip.(split(get(ENV, "ONLINE", "docker"), r"\s*,\s*"))
 
-const PKG_DIR = abspath(@__DIR__, "..")
-const REV = cd(() -> readchomp(`git rev-parse --short HEAD`), PKG_DIR)
-# const PUSHED = !isempty(cd(() -> readchomp(`git branch -r --contains $REV`), PKG_DIR))
-#
-# const DIRTY = let
-#     difference = cd(() -> readchomp(`git diff --name-only`), PKG_DIR)
-#     dirty_files = filter!(!isempty, split(difference, "\n"))
-#     !isempty(filter(p -> !startswith(p, "test"), dirty_files))
-# end
+const GIT_DIR = joinpath(@__DIR__, "..", ".git")
+const REV = try
+    readchomp(`git --git-dir $GIT_DIR rev-parse --short HEAD`)
+catch
+    "latest"  # Only needed as a fallback for when git isn't installed
+end
 
 const STACK = isempty(STACK_NAME) ? LEGACY_STACK : stack_outputs(STACK_NAME)
 const ECR_IMAGE = "$(STACK["RepositoryURI"]):$REV"
@@ -36,6 +33,12 @@ const ECR_IMAGE = "$(STACK["RepositoryURI"]):$REV"
 Build the Docker image used for AWSDockerManager tests.
 """
 function docker_manager_build(image=ECR_IMAGE)
+    # If this code is being executed from within a Docker container assume that the current
+    # image can be used as the image for the manager.
+    if !isempty(AWSClusterManagers.container_id())
+        return AWSClusterManagers.image_id()
+    end
+
     if docker_login()
         # Pull the latest "julia-baked:0.6" on the local system
         # TODO: If pulling fails we should still try and build the image as we may have a

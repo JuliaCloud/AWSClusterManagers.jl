@@ -79,5 +79,6 @@ RUN yum -y install $PKGS && \
     for p in $PKGS; do yum -y autoremove $p &>/dev/null && echo "Removed $p" || echo "Skipping removal of $p"; done && \
     yum -y clean all
 
-# Run the non-live tests
+# To run these tests make sure to run docker with these flags:
+# `docker run -v /var/run/docker.sock:/var/run/docker.sock ...`
 CMD ["julia", "-e", "Pkg.test(ENV[\"PKG_NAME\"])"]
