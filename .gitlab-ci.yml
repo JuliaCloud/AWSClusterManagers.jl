@@ -1,6 +1,6 @@
 stages:
   - test
-  - live
+  - online-test
   - coverage
   - docs
 
@@ -92,9 +92,9 @@ stages:
     - shell-ci
   <<: *test_shell_07-
 
-# Live test run as a separate stage to avoid running these expensive tests if the basic tests fail.
-"Live Tests":
-  stage: live
+# Online test run as a separate stage to avoid running these expensive tests if the basic tests fail.
+"Online Tests":
+  stage: online-test
   tags:
     - linux
     - docker
