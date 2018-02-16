@@ -23,6 +23,59 @@ aws configure
 
 Note that the AWS CLI need to be at least version 1.11.78 to work.
 
+
+## Testing
+
+Testing AWSClusterManagers can be performed on your local system using:
+
+```julia
+Pkg.test("AWSClusterManagers")
+```
+
+Adjustments can be made to the tests with the environmental variables `ONLINE` and
+`AWS_STACKNAME`:
+
+- `ONLINE`: Should contain a comma separated list which contain elements from the set
+  "docker" and/or "batch".  Including "docker" will run the online Docker tests (requires
+  [Docker](https://www.docker.com/community-edition) to be installed) and "batch" will run
+  AWS Batch tests (see `AWS_STACKNAME` for details).
+- `AWS_STACKNAME`: Switch the AWS Batch tests to use the stack specified instead of using
+  the legacy "stack". If set, it is expected that the stack already exists in the current
+  AWS profile. If unset, it is the legacy "stack" will be used which requires that the
+  current AWS profile has access to legacy resources. Note that `AWS_STACKNAME` is only
+  used if `ONLINE` contains "batch".
+
+If you wish you can run the tests entirely inside of a Docker container which can be
+generated from the included [Dockerfile](Dockerfile). You'll need to include the `-v`
+option to be able to run the online Docker tests.
+
+```bash
+docker run --rm -e ONLINE=docker -v /var/run/docker.sock:/var/run/docker.sock <image>
+```
+
+### Online Docker tests
+
+To run the online Docker tests you'll need to have [Docker](https://www.docker.com/community-edition)
+installed. Additionally you'll also need access to pull down the image
+"292522074875.dkr.ecr.us-east-1.amazonaws.com/julia-baked" using your current AWS profile.
+If your current profile doesn't have access then ask `@sudo` in [#techsupport](https://invenia.slack.com/messages/C02A3K084/)
+to "Please grant account ID <ACCOUNT_ID> permissions to the [`julia-baked`](https://console.aws.amazon.com/ecs/home?region=us-east-1#/repositories/julia-baked#permissions) repo".
+Make sure to replace `<ACCOUNT_ID>` with the results of `aws sts get-caller-identity --query Account`.
+
+### Online AWS Batch tests
+
+To run the online AWS Batch tests you need all of the requirements as specified in [Online Docker tests](#online-docker-tests)
+and one of the following:
+
+- The current AWS profile uses the Invenia "legacy" account ID (292522074875)
+- The current AWS profile has an aws-batch-manager-test stack running and `AWS_STACKNAME` is set
+
+To make an aws-batch-manager-test compatible stack you can use the included CloudFormation
+template [aws-batch-manager-test.yml](aws-batch-manager-test.yml). Alternatively you should
+be able to use your own custom stack but it will be required to have at a minimum the named
+outputs as shown in the the included template.
+
+
 ## Sample Project Architecture
 
 The details of how the AWSECSManager & AWSBatchManager will be described in more detail shortly, but we'll briefly summarizes a real world application archtecture using the AWSBatchManager.

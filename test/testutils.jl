@@ -1,11 +1,74 @@
 module TestUtils
 
 using JSON
+using IterTools
 import Base: AbstractCmd, CmdRedirect
 
-export IMAGE_DEFINITION, MANAGER_JOB_QUEUE, WORKER_JOB_QUEUE, JOB_DEFINITION, JOB_NAME,
-    register, deregister, submit, status, log_messages, details, time_str,
-    Running, Succeeded, ignore_stderr
+export LEGACY_STACK, docker_login, docker_pull, docker_push, docker_build, stack_outputs,
+    AWSBatchJobDefinition, register, deregister, submit, status, log_messages, details,
+    time_str, Running, Succeeded, ignore_stderr
+
+const PKG_DIR = abspath(@__DIR__, "..")
+
+const LEGACY_STACK = Dict(
+    "ManagerJobQueue"   => "Replatforming-Manager",     # Can be the name or ARN
+    "WorkerJobQueue"    => "Replatforming-Worker",      # Can be the name or ARN
+    "JobDefinitionName" => "aws-cluster-managers-test",
+    "JobName"           => "aws-cluster-managers-test",
+    "JobRoleArn"        => "arn:aws:iam::292522074875:role/AWSBatchClusterManagerJobRole",
+    "RepositoryURI"     => "292522074875.dkr.ecr.us-east-1.amazonaws.com/aws-cluster-managers-test",
+)
+
+
+function docker_login(registry_ids::Vector{<:Integer}=Int[])
+    # Runs `aws ecr get-login`, then extracts and runs the returned `docker login`
+    # command (or `$(aws ecr get-login --region us-east-1)` in bash).
+    # Note: using `--registry-ids` doesn't cause a login to fail if you don't have access.
+    output = readchomp(`aws ecr get-login --no-include-email`)
+    docker_login = Cmd(map(String, split(output)))
+    success(pipeline(docker_login, stdout=STDOUT, stderr=STDERR))
+end
+
+function docker_pull(image::AbstractString, tags::Vector{<:AbstractString}=String[])
+    run(`docker pull $image`)
+    for tag in tags
+        run(`docker tag $image $tag`)
+    end
+end
+
+function docker_push(image::AbstractString)
+    run(`docker push $image`)
+end
+
+function docker_build(tag::AbstractString="")
+    opts = isempty(tag) ? `` : `-t $tag`
+    run(`docker build $opts $PKG_DIR`)
+end
+
+function stack_outputs(stack_name::AbstractString)
+    output = readchomp(```
+        aws cloudformation describe-stacks
+            --stack-name $stack_name
+            --query 'Stacks[].Outputs[]'
+            --output text
+        ```)
+    stack = Dict(partition(split(output, r"[\n\t]"), 2))
+
+    # Copy specific keys into a more generic name
+    for k in ("ManagerJobQueue", "WorkerJobQueue")
+        if haskey(stack, "$(k)Arn")
+            stack[k] = stack["$(k)Arn"]
+        elseif haskey(stack, "$(k)Name")
+            stack[k] = stack["$(k)Name"]
+        end
+    end
+
+    return stack
+end
+
+
+#####
+
 
 """
     readstring(f::Function, cmd::Cmd) -> Any
@@ -40,6 +103,7 @@ struct AWSBatchJobDefinition
     revision::Nullable{Int}
 end
 
+# Note: you can either use the job definition name or the ARN
 AWSBatchJobDefinition(name::AbstractString) = AWSBatchJobDefinition(name, Nullable{Int}())
 AWSBatchJobDefinition(name::AbstractString, rev::Int) = AWSBatchJobDefinition(name, Nullable{Int}(rev))
 
@@ -129,12 +193,6 @@ function time_str(secs::Integer)
     @sprintf("%02d:%02d:%02d", div(secs, 3600), rem(div(secs, 60), 60), rem(secs, 60))
 end
 
-const IMAGE_DEFINITION = "aws-cluster-managers-test"
-const JOB_DEFINITION = AWSBatchJobDefinition("aws-cluster-managers-test")
-const JOB_NAME = JOB_DEFINITION.name
-const MANAGER_JOB_QUEUE = "Replatforming-Manager"
-const WORKER_JOB_QUEUE = "Replatforming-Worker"
-
 const describe_jobs_resp = """
 {
     "jobs": [
@@ -195,14 +253,14 @@ function readstring(cmd::Cmd, pass::Bool=true)
             script = join(overrides["command"][3:end], " ")
             @spawn run(Cmd(["julia", "-e", "$script"]))
         else
-            @spawn run(Cmd(["julia", "-e", "println(\"Failed to come online\")"]))
+            @spawn run(Cmd(["julia", "-e", "println(STDERR, \"Failed to come online\")"]))
         end
         return submit_job_resp
     elseif "docker" in cmd.exec
         if pass
             @spawn run(Cmd(["julia", "-e", "$(cmd.exec[end])"]))
         else
-            @spawn run(Cmd(["julia", "-e", "println(\"Failed to come online\")"]))
+            @spawn run(Cmd(["julia", "-e", "println(STDERR, \"Failed to come online\")"]))
         end
         return lowercase(randstring(12))
     else

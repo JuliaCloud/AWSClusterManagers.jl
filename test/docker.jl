@@ -52,40 +52,51 @@
             end
         end
     end
-    @testset "Online" begin
-        online() do
+    if "docker" in ONLINE
+        @testset "Online" begin
+            image = docker_manager_build()
+
             num_workers = 3
-
-            # docker pull the latest container
-            run(`docker pull $ECR_IMAGE`)
-
             code = """
             using Memento
             Memento.config("debug"; fmt="{msg}")
-            import AWSClusterManagers: DockerManager
-            addprocs(DockerManager($num_workers, "$ECR_IMAGE"))
+            using AWSClusterManagers: DockerManager
+            setlevel!(getlogger(AWSClusterManagers), "debug")
+            addprocs(DockerManager($num_workers))
             println("NumProcs: ", nprocs())
+            @everywhere using AWSClusterManagers: container_id
             for i in workers()
-                println("Worker \$i: ", remotecall_fetch(() -> myid(), i))
+                println("Worker \$i: ", remotecall_fetch(() -> container_id(), i))
             end
             """
 
-            # Run the code in a docker container, but
-            output = readstring(`
+            # Make sure that the UNIX socket that the Docker daemon listens to exists.
+            # Without this we will be unable to spawn worker containers.
+            @test ispath("/var/run/docker.sock")
+
+            # Run the code in a docker container, but replace the newlines with semi-colons.
+            output = readstring(```
                 docker run
                 --network=host
                 -v /var/run/docker.sock:/var/run/docker.sock
-                -i $ECR_IMAGE
+                -i $image
                 julia -e $(replace(code, r"\n+", "; "))
-                `
+                ```
             )
 
             m = match(r"(?<=NumProcs: )\d+", output)
             num_procs = m !== nothing ? parse(Int, m.match) : -1
-            reported_jobs = Set(matchall(r"(?<=Worker \d: )[0-9a-f\-]+", output))
+
+            # Spawned is the list container IDs reported by the manager upon launch while
+            # reported is the self-reported container ID of each worker.
+            spawned_ids = Set(matchall(r"(?<=Spawning container: )[0-9a-f\-]+", output))
+            reported_ids = Set(matchall(r"(?<=Worker \d: )[0-9a-f\-]+", output))
 
             @test num_procs == num_workers + 1
-            @test length(reported_jobs) == num_workers
+            @test length(reported_ids) == num_workers
+            @test spawned_ids == reported_ids
         end
+    else
+        warn("Environment variable \"ONLINE\" does not contain \"docker\". Skipping online Docker tests.")
     end
 end
