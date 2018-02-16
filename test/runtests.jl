@@ -15,7 +15,7 @@ using .TestUtils
 info(readstring(pipeline(`aws --version`, stderr=`cat`)))
 
 const STACK_NAME = get(ENV, "STACK_NAME", "")
-const ONLINE = strip.(split(get(ENV, "ONLINE", "docker"), r"\s*,\s*"))
+const ONLINE = strip.(split(get(ENV, "ONLINE", ""), r"\s*,\s*"))
 
 const GIT_DIR = joinpath(@__DIR__, "..", ".git")
 const REV = try
