@@ -134,7 +134,7 @@ const BATCH_ENVS = (
         online() do
             image = batch_manager_build()
 
-            info("Registering AWS batch job definition: $(JOB_DEFINITION.name)")
+            info("Registering AWS batch job definition: $(STACK["JobDefinitionName"])")
             num_workers = 3
 
             # Will be running the HEAD revision of the code remotely
@@ -144,7 +144,7 @@ const BATCH_ENVS = (
             Memento.config("debug"; fmt="{msg}")
             using AWSClusterManagers: AWSBatchManager
             setlevel!(getlogger(AWSClusterManagers), "debug")
-            addprocs(AWSBatchManager($num_workers, queue="$WORKER_JOB_QUEUE"))
+            addprocs(AWSBatchManager($num_workers, queue="$(STACK["WorkerJobQueue"])"))
             println("NumProcs: ", nprocs())
             for i in workers()
                 println("Worker \$i: ", remotecall_fetch(() -> ENV["AWS_BATCH_JOB_ID"], i))
@@ -153,7 +153,7 @@ const BATCH_ENVS = (
 
             json = Dict(
                 "image" => image,
-                "jobRoleArn" => "arn:aws:iam::292522074875:role/AWSBatchClusterManagerJobRole",
+                "jobRoleArn" => STACK["JobRoleArn"],
                 "vcpus" => 1,
                 "memory" => 1024,
                 "command" => [
@@ -161,10 +161,10 @@ const BATCH_ENVS = (
                 ]
             )
 
-            job_def = register(JOB_DEFINITION, json)
+            job_def = register(AWSBatchJobDefinition(STACK["JobDefinitionName"]), json)
 
             info("Submitting AWS Batch job")
-            job = submit(job_def, JOB_NAME, MANAGER_JOB_QUEUE)
+            job = submit(job_def, STACK["JobName"], STACK["ManagerJobQueue"])
 
             # If no resources are available it could take around 5 minutes before the job is running
             info("Waiting for AWS Batch job $(job.id) to complete (~5 minutes)")

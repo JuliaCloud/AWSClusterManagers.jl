@@ -7,10 +7,14 @@ using Base.Test
 import Base: AbstractCmd
 import AWSClusterManagers: launch_timeout, num_workers, AWSBatchJob
 
+include("testutils.jl")
+using .TestUtils
+
 # Report the AWS CLI version as API changes could be the cause of exceptions here.
 # Note: `aws --version` prints to STDERR instead of STDOUT.
 info(readstring(pipeline(`aws --version`, stderr=`cat`)))
 
+const STACK_NAME = get(ENV, "STACK_NAME", "")
 const ONLINE = get(ENV, "LIVE", "false") in ("true", "1")
 
 const PKG_DIR = abspath(@__DIR__, "..")
@@ -23,13 +27,10 @@ const REV = cd(() -> readchomp(`git rev-parse HEAD`), PKG_DIR)
 #     !isempty(filter(p -> !startswith(p, "test"), dirty_files))
 # end
 
-const DEFAULT_ECR_URI = "292522074875.dkr.ecr.us-east-1.amazonaws.com/aws-cluster-managers-test"
-const ECR_URI = replace(get(ENV, "ECR_URI", DEFAULT_ECR_URI), r"\:[^\:]+$", "")
-const ECR_IMAGE = "$ECR_URI:$REV"
+const STACK = isempty(STACK_NAME) ? LEGACY_STACK : stack_outputs(STACK_NAME)
+const ECR_IMAGE = "$(STACK["RepositoryURI"]):$REV"
 
-# Load the TestUtils.jl module
-include("testutils.jl")
-using Main.TestUtils
+
 
 """
 Build the Docker image used for AWSDockerManager tests.

@@ -1,14 +1,23 @@
 module TestUtils
 
 using JSON
+using IterTools
 import Base: AbstractCmd, CmdRedirect
 
-export IMAGE_DEFINITION, MANAGER_JOB_QUEUE, WORKER_JOB_QUEUE, JOB_DEFINITION, JOB_NAME,
-    docker_login, docker_pull, docker_push, docker_build,
-    register, deregister, submit, status, log_messages, details, time_str,
-    Running, Succeeded, ignore_stderr
+export LEGACY_STACK, docker_login, docker_pull, docker_push, docker_build, stack_outputs,
+    AWSBatchJobDefinition, register, deregister, submit, status, log_messages, details,
+    time_str, Running, Succeeded, ignore_stderr
 
 const PKG_DIR = abspath(@__DIR__, "..")
+
+const LEGACY_STACK = Dict(
+    "ManagerJobQueue"   => "Replatforming-Manager",     # Can be the name or ARN
+    "WorkerJobQueue"    => "Replatforming-Worker",      # Can be the name or ARN
+    "JobDefinitionName" => "aws-cluster-managers-test",
+    "JobName"           => "aws-cluster-managers-test",
+    "JobRoleArn"        => "arn:aws:iam::292522074875:role/AWSBatchClusterManagerJobRole",
+    "RepositoryURI"     => "292522074875.dkr.ecr.us-east-1.amazonaws.com/aws-cluster-managers-test",
+)
 
 
 function docker_login(registry_ids::Vector{<:Integer}=Int[])
@@ -34,6 +43,27 @@ end
 function docker_build(tag::AbstractString="")
     opts = isempty(tag) ? `` : `-t $tag`
     run(`docker build $opts $PKG_DIR`)
+end
+
+function stack_outputs(stack_name::AbstractString)
+    output = readchomp(```
+        aws cloudformation describe-stacks
+            --stack-name $stack_name
+            --query 'Stacks[].Outputs[]'
+            --output text
+        ```)
+    stack = Dict(partition(split(output, r"[\n\t]"), 2))
+
+    # Copy specific keys into a more generic name
+    for k in ("ManagerJobQueue", "WorkerJobQueue")
+        if haskey(stack, "$(k)Arn")
+            stack[k] = stack["$(k)Arn"]
+        elseif haskey(stack, "$(k)Name")
+            stack[k] = stack["$(k)Name"]
+        end
+    end
+
+    return stack
 end
 
 
@@ -73,6 +103,7 @@ struct AWSBatchJobDefinition
     revision::Nullable{Int}
 end
 
+# Note: you can either use the job definition name or the ARN
 AWSBatchJobDefinition(name::AbstractString) = AWSBatchJobDefinition(name, Nullable{Int}())
 AWSBatchJobDefinition(name::AbstractString, rev::Int) = AWSBatchJobDefinition(name, Nullable{Int}(rev))
 
@@ -161,12 +192,6 @@ end
 function time_str(secs::Integer)
     @sprintf("%02d:%02d:%02d", div(secs, 3600), rem(div(secs, 60), 60), rem(secs, 60))
 end
-
-const IMAGE_DEFINITION = "aws-cluster-managers-test"
-const JOB_DEFINITION = AWSBatchJobDefinition("aws-cluster-managers-test")
-const JOB_NAME = JOB_DEFINITION.name
-const MANAGER_JOB_QUEUE = "Replatforming-Manager"
-const WORKER_JOB_QUEUE = "Replatforming-Worker"
 
 const describe_jobs_resp = """
 {
