@@ -10,7 +10,7 @@ import AWSClusterManagers: launch_timeout, num_workers, AWSBatchJob
 include("testutils.jl")
 using .TestUtils
 
-const STACK_NAME = get(ENV, "STACK_NAME", "")
+const AWS_STACKNAME = get(ENV, "AWS_STACKNAME", "")
 const ONLINE = strip.(split(get(ENV, "ONLINE", ""), r"\s*,\s*"))
 
 # Report the AWS CLI version as API changes could be the cause of exceptions here.
@@ -26,7 +26,7 @@ catch
     "latest"  # Only needed as a fallback for when git isn't installed
 end
 
-const STACK = isempty(STACK_NAME) ? LEGACY_STACK : stack_outputs(STACK_NAME)
+const STACK = isempty(AWS_STACKNAME) ? LEGACY_STACK : stack_outputs(AWS_STACKNAME)
 const ECR_IMAGE = "$(STACK["RepositoryURI"]):$REV"
 
 
