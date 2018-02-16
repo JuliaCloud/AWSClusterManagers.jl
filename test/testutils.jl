@@ -253,14 +253,14 @@ function readstring(cmd::Cmd, pass::Bool=true)
             script = join(overrides["command"][3:end], " ")
             @spawn run(Cmd(["julia", "-e", "$script"]))
         else
-            @spawn run(Cmd(["julia", "-e", "println(\"Failed to come online\")"]))
+            @spawn run(Cmd(["julia", "-e", "println(STDERR, \"Failed to come online\")"]))
         end
         return submit_job_resp
     elseif "docker" in cmd.exec
         if pass
             @spawn run(Cmd(["julia", "-e", "$(cmd.exec[end])"]))
         else
-            @spawn run(Cmd(["julia", "-e", "println(\"Failed to come online\")"]))
+            @spawn run(Cmd(["julia", "-e", "println(STDERR, \"Failed to come online\")"]))
         end
         return lowercase(randstring(12))
     else
