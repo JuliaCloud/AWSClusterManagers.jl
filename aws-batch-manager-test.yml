@@ -1,0 +1,247 @@
+# Creates a bare bones AWS Batch environment used to test the AWSBatchManager from AWSClusterManagers.jl.
+#
+# ```
+# aws cloudformation create-stack \
+#   --stack-name aws-batch-manager-test \
+#   --template-body file://aws-batch-manager-test.yml \
+#   --capabilities CAPABILITY_NAMED_IAM
+# ```
+
+AWSTemplateFormatVersion: 2010-09-09
+Description: >-
+  A bare bones AWS Batch environment used to test the AWSBatchManager from AWSClusterManagers.jl.
+
+# https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/parameters-section-structure.html#aws-specific-parameter-types
+Parameters:
+  VPCCidrBlock:
+    # https://docs.aws.amazon.com/AmazonVPC/latest/UserGuide/VPC_Subnets.html#VPC_Sizing
+    Description: >-
+      The IP address range used for batch instances in the new VPC.
+    Type: String
+    Default: 10.0.0.0/16
+    AllowedPattern: "(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})/(\\d{1,2})"
+  MinvCpus:
+    Description: >-
+      The minimum number of VCPUs to be available. Setting to 1 or higher makes jobs start
+      faster but will cost us more when instances are idle. Note you cannot decrease the
+      minimum number of VCPUs with a stack update.
+    Type: Number
+    Default: 0
+  MaxvCpus:
+    Description: >-
+      The maximum number of VCPUs. Typically this number does not need to be touched
+    Type: Number
+    Default: 8
+  ProvisioningModel:
+    Description: Spot instances are cheaper than on-demand but can be abruptly terminated
+    Type: String
+    Default: spot
+    AllowedValues:
+      - on-demand
+      - spot
+Conditions:
+  OnDemandComputeEnvironment: !Equals [!Ref ProvisioningModel, on-demand]
+
+Resources:
+  ComputeEnvironment:
+    Type: AWS::Batch::ComputeEnvironment
+    Properties:
+      Type: MANAGED
+      ComputeEnvironmentName: !Sub ${AWS::StackName}
+      ComputeResources:
+        Type: !If [OnDemandComputeEnvironment, EC2, SPOT]
+        BidPercentage: 100
+        MinvCpus: !Ref MinvCpus
+        DesiredvCpus: !Ref MinvCpus
+        MaxvCpus: !Ref MaxvCpus
+        InstanceTypes:
+          - optimal
+        Subnets:
+          - !Ref Subnet
+        SecurityGroupIds:
+          - !Ref SecurityGroup
+        InstanceRole: !Ref IamInstanceProfile
+        SpotIamFleetRole: !Ref BatchSpotFleetRole
+      ServiceRole: !Ref BatchServiceRole
+  ManagerJobQueue:
+    Type: AWS::Batch::JobQueue
+    Properties:
+      JobQueueName: !Sub ${AWS::StackName}-Managers
+      Priority: 2  # Managers should have a higher priority relative to workers
+      ComputeEnvironmentOrder:
+        - Order: 1
+          ComputeEnvironment: !Ref ComputeEnvironment
+  WorkerJobQueue:
+    Type: AWS::Batch::JobQueue
+    Properties:
+      JobQueueName: !Sub ${AWS::StackName}-Workers
+      Priority: 1
+      ComputeEnvironmentOrder:
+        - Order: 1
+          ComputeEnvironment: !Ref ComputeEnvironment
+
+  IamInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Roles:
+        - !Ref EcsInstanceRole
+  EcsInstanceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2008-10-17
+        Statement:
+          - Sid: ''
+            Effect: Allow
+            Principal:
+              Service: ec2.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonEC2ContainerServiceforEC2Role
+  BatchServiceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: batch.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSBatchServiceRole
+
+  # http://docs.aws.amazon.com/batch/latest/userguide/spot_fleet_IAM_role.html
+  BatchSpotFleetRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: spotfleet.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonEC2SpotFleetTaggingRole
+
+  SecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: EC2 Security Group for instances launched in the VPC by Batch
+      VpcId: !Ref VPC
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: !Ref VPCCidrBlock
+  Subnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      CidrBlock: !Ref VPCCidrBlock
+      VpcId: !Ref VPC
+      MapPublicIpOnLaunch: True
+  RouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+  SubnetRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref RouteTable
+      SubnetId: !Ref Subnet
+  Route:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref RouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+  VPCGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref VPC
+      InternetGatewayId: !Ref InternetGateway
+
+  #============================================#
+
+  # Role for AWSClusterManagers.jl for managers/workers
+  JLBatchJobRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ecs-tasks.amazonaws.com  # Note: Shouldn't be batch.amazonaws.com
+            Action: sts:AssumeRole
+
+  JLBatchManagerPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      Description: >-
+        Allow a AWSBatchManager to spawn workers and perform introspection
+      ManagedPolicyName: !Sub ${AWS::StackName}-ClusterManagerPolicy
+      Roles:
+        - !Ref JLBatchJobRole
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Action:
+              - batch:SubmitJob
+              - batch:DescribeJobs
+            Resource: '*'
+
+  JLBatchJobIngress:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      Description: Allows Julia managers/workers to connect to each other on any port
+      GroupId: !Ref SecurityGroup
+      IpProtocol: -1  # All protocols (TCP, UDP, ICMP) on all ports
+      SourceSecurityGroupId: !Ref SecurityGroup
+
+  # Note: It would be nice to use this as the base job definition and make use of overrides
+  # when starting the test manager
+  # See: https://gitlab.invenia.ca/invenia/AWSClusterManagers.jl/issues/19
+
+  # JobDefinition:
+  #   Type: AWS::Batch::JobDefinition
+  #   Properties:
+  #     Type: container
+  #     ContainerProperties:
+  #       Image: !Sub "${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${ECR}:latest",
+  #       JobRoleArn: !Ref JLBatchJobRole
+  #       Vcpus: 1
+  #       Memory: 1024
+  #       # By default this job should fail
+  #       Command:
+  #         - exit
+  #         - 1
+
+  ECR:
+    Type: AWS::ECR::Repository
+    # Note: Doesn't work. ECR repositories will not be deleted when the stack is deleted if
+    # the repo contains any images. Delete the repo manually first to solve this.
+    DeletionPolicy: Delete
+    Properties:
+      RepositoryName: !Sub ${AWS::StackName}
+
+Outputs:
+  # JobDefinitionArn:
+    # Value: !Ref JobDefinition
+  JobName:
+    Value: aws-cluster-managers-test
+  JobDefinitionName:
+    Value: aws-cluster-managers-test
+  ComputeEnvironmentArn:
+    Value: !Ref ComputeEnvironment
+  ManagerJobQueueArn:
+    Value: !Ref ManagerJobQueue
+  WorkerJobQueueArn:
+    Value: !Ref WorkerJobQueue
+  JobRoleArn:
+    Value: !GetAtt JLBatchJobRole.Arn
+  RepositoryURI:
+    Value: !Sub ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${ECR}
