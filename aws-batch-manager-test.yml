@@ -47,7 +47,6 @@ Resources:
     Type: AWS::Batch::ComputeEnvironment
     Properties:
       Type: MANAGED
-      ComputeEnvironmentName: !Sub ${AWS::StackName}
       ComputeResources:
         Type: !If [OnDemandComputeEnvironment, EC2, SPOT]
         BidPercentage: 100
@@ -66,7 +65,6 @@ Resources:
   ManagerJobQueue:
     Type: AWS::Batch::JobQueue
     Properties:
-      JobQueueName: !Sub ${AWS::StackName}-Managers
       Priority: 2  # Managers should have a higher priority relative to workers
       ComputeEnvironmentOrder:
         - Order: 1
@@ -74,7 +72,6 @@ Resources:
   WorkerJobQueue:
     Type: AWS::Batch::JobQueue
     Properties:
-      JobQueueName: !Sub ${AWS::StackName}-Workers
       Priority: 1
       ComputeEnvironmentOrder:
         - Order: 1
@@ -182,7 +179,6 @@ Resources:
     Properties:
       Description: >-
         Allow a AWSBatchManager to spawn workers and perform introspection
-      ManagedPolicyName: !Sub ${AWS::StackName}-ClusterManagerPolicy
       Roles:
         - !Ref JLBatchJobRole
       PolicyDocument:
@@ -226,15 +222,15 @@ Resources:
     # the repo contains any images. Delete the repo manually first to solve this.
     DeletionPolicy: Delete
     Properties:
-      RepositoryName: !Sub ${AWS::StackName}
+      RepositoryName: !Ref AWS::StackName  # Named to be consistent with JobDefinitionName
 
 Outputs:
   # JobDefinitionArn:
     # Value: !Ref JobDefinition
   JobName:
-    Value: aws-cluster-managers-test
+    Value: !Ref AWS::StackName
   JobDefinitionName:
-    Value: aws-cluster-managers-test
+    Value: !Ref AWS::StackName
   ComputeEnvironmentArn:
     Value: !Ref ComputeEnvironment
   ManagerJobQueueArn:
