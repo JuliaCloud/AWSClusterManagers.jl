@@ -74,7 +74,7 @@
             # Without this we will be unable to spawn worker containers.
             @test ispath("/var/run/docker.sock")
 
-            # Run the code in a docker container, but
+            # Run the code in a docker container, but replace the newlines with semi-colons.
             output = readstring(```
                 docker run
                 --network=host
