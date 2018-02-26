@@ -1,3 +1,9 @@
+# Return the long image SHA256 identifier using various ways of referencing images
+function full_image_sha(image::AbstractString)
+    json = JSON.parse(readstring(`docker inspect $image`))
+    return last(split(json[1]["Id"], ':'))
+end
+
 @testset "DockerManager" begin
     # A docker image name which is expected to not exist on the local system.
     mock_image = "x5cn2a7hzq4k"
@@ -54,7 +60,7 @@
     end
     if "docker" in ONLINE
         @testset "Online" begin
-            image = docker_manager_build()
+            image_name = docker_manager_build()
 
             num_workers = 3
             code = """
@@ -66,7 +72,9 @@
             println("NumProcs: ", nprocs())
             @everywhere using AWSClusterManagers: container_id
             for i in workers()
-                println("Worker \$i: ", remotecall_fetch(() -> container_id(), i))
+                container = remotecall_fetch(container_id, i)
+                println("Worker container \$i: \$container")
+                println("Worker image \$i: \$(AWSClusterManagers.image_id(container))")
             end
             """
 
@@ -79,7 +87,7 @@
                 docker run
                 --network=host
                 -v /var/run/docker.sock:/var/run/docker.sock
-                -i $image
+                -i $image_name
                 julia -e $(replace(code, r"\n+", "; "))
                 ```
             )
@@ -89,12 +97,14 @@
 
             # Spawned is the list container IDs reported by the manager upon launch while
             # reported is the self-reported container ID of each worker.
-            spawned_ids = Set(matchall(r"(?<=Spawning container: )[0-9a-f\-]+", output))
-            reported_ids = Set(matchall(r"(?<=Worker \d: )[0-9a-f\-]+", output))
+            spawned_containers = matchall(r"(?<=Spawning container: )[0-9a-f\-]+", output)
+            reported_containers = matchall(r"(?<=Worker container \d: )[0-9a-f\-]+", output)
+            reported_images = matchall(r"(?<=Worker image \d: )[0-9a-f\-]+", output)
 
             @test num_procs == num_workers + 1
-            @test length(reported_ids) == num_workers
-            @test spawned_ids == reported_ids
+            @test length(reported_containers) == num_workers
+            @test Set(spawned_containers) == Set(reported_containers)
+            @test all(full_image_sha(image_name) .== reported_images)
         end
     else
         warn("Environment variable \"ONLINE\" does not contain \"docker\". Skipping online Docker tests.")
