@@ -133,7 +133,7 @@ const BATCH_ENVS = (
 
     if "batch" in ONLINE
         @testset "Online" begin
-            image = batch_manager_build()
+            image_name = batch_manager_build()
 
             info("Registering AWS batch job definition: $(STACK["JobDefinitionName"])")
             num_workers = 3
@@ -153,7 +153,7 @@ const BATCH_ENVS = (
             """
 
             json = Dict(
-                "image" => image,
+                "image" => image_name,
                 "jobRoleArn" => STACK["JobRoleArn"],
                 "vcpus" => 1,
                 "memory" => 1024,
@@ -185,12 +185,20 @@ const BATCH_ENVS = (
 
             # Spawned is the list AWS Batch job IDs reported by the manager upon launch
             # while reported is the self-reported job ID of each worker.
-            spawned_jobs = Set(matchall(r"(?<=Spawning job: )[0-9a-f\-]+", output))
-            reported_jobs = Set(matchall(r"(?<=Worker \d: )[0-9a-f\-]+", output))
+            spawned_jobs = matchall(r"(?<=Spawning job: )[0-9a-f\-]+", output)
+            reported_jobs = matchall(r"(?<=Worker \d: )[0-9a-f\-]+", output)
 
             @test num_procs == num_workers + 1
             @test length(reported_jobs) == num_workers
-            @test spawned_jobs == reported_jobs
+            @test Set(spawned_jobs) == Set(reported_jobs)
+
+            # Determine the image name from AWS Batch job IDs.
+            # Note: AWSBatchJob exists in both AWSClusterManagers and TestUtils.
+            job_image_name(job_id::AbstractString) = job_image_name(TestUtils.AWSBatchJob(job_id))
+            job_image_name(job::TestUtils.AWSBatchJob) = details(job)["container"]["image"]
+
+            @test image_name == job_image_name(job)  # Manager's image
+            @test all(image_name .== job_image_name.(spawned_jobs))
 
             # Report some details about the job
             d = details(job)
