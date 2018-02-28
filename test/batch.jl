@@ -147,8 +147,10 @@ const BATCH_ENVS = (
             setlevel!(getlogger(AWSClusterManagers), "debug")
             addprocs(AWSBatchManager($num_workers, queue="$(STACK["WorkerJobQueue"])"))
             println("NumProcs: ", nprocs())
+            @everywhere using AWSClusterManagers: container_id
             for i in workers()
-                println("Worker \$i: ", remotecall_fetch(() -> ENV["AWS_BATCH_JOB_ID"], i))
+                println("Worker container \$i: ", remotecall_fetch(container_id, i))
+                println("Worker job \$i: ", remotecall_fetch(() -> ENV["AWS_BATCH_JOB_ID"], i))
             end
             """
 
@@ -186,11 +188,15 @@ const BATCH_ENVS = (
             # Spawned is the list AWS Batch job IDs reported by the manager upon launch
             # while reported is the self-reported job ID of each worker.
             spawned_jobs = matchall(r"(?<=Spawning job: )[0-9a-f\-]+", output)
-            reported_jobs = matchall(r"(?<=Worker \d: )[0-9a-f\-]+", output)
+            reported_jobs = matchall(r"(?<=Worker job \d: )[0-9a-f\-]+", output)
+            reported_containers = matchall(r"(?<=Worker container \d: )[0-9a-f]*", output)
 
             @test num_procs == num_workers + 1
             @test length(reported_jobs) == num_workers
             @test Set(spawned_jobs) == Set(reported_jobs)
+
+            # Ensure that the container IDs were found
+            @test all(.!isempty.(reported_containers))
 
             # Determine the image name from AWS Batch job IDs.
             # Note: AWSBatchJob exists in both AWSClusterManagers and TestUtils.
