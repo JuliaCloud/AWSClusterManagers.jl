@@ -107,7 +107,7 @@ function container_id()
 end
 
 # Determine the image ID of the currently running container
-function image_id()
-    json = JSON.parse(readstring(`docker container inspect $(container_id())`))
+function image_id(container_id::AbstractString=container_id())
+    json = JSON.parse(readstring(`docker container inspect $container_id`))
     return last(split(json[1]["Image"], ':'))
 end
