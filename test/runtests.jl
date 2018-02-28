@@ -82,6 +82,7 @@ function batch_manager_build(image=ECR_IMAGE)
 end
 
 @testset "AWSClusterManagers" begin
+    include("container.jl")
     include("docker.jl")
     include("batch.jl")
 end
