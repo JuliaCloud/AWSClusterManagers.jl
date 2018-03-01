@@ -34,7 +34,8 @@ requested `max_workers`.
   properties of the job including the Docker image, IAM role, and command to run
 - `name::AbstractString`: Name of the job inside of AWS Batch
 - `queue::AbstractString`: The job queue in which workers are submitted. Can be either the
-  queue name or the Amazon Resource Name (ARN) of the queue.
+  queue name or the Amazon Resource Name (ARN) of the queue. If not set will default to
+  the environmental variable "WORKER_JOB_QUEUE".
 - `memory::Integer`: Memory limit (in MiB) for the job container. The container will be killed
   if it exceeds this value.
 - `region::AbstractString`: The region in which the API requests are sent and in which new
@@ -72,6 +73,11 @@ struct AWSBatchManager <: ContainerManager
     )
         min_workers > 0 || throw(ArgumentError("min workers must be positive"))
         min_workers <= max_workers || throw(ArgumentError("min workers exceeds max workers"))
+
+        # Default the queue to using the WORKER_JOB_QUEUE environmental variable.
+        if isempty(queue)
+            queue = get(ENV, "WORKER_JOB_QUEUE", "")
+        end
 
         # Workers by default inherit the AWS batch settings from the manager.
         # Note: only query for default values if we need them as the lookup requires special

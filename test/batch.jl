@@ -98,6 +98,28 @@ const BATCH_ENVS = (
                 end
             end
         end
+
+        @testset "Queue environmental variable" begin
+            # Mock being run on an AWS batch job
+            withenv("WORKER_JOB_QUEUE" => "worker", BATCH_ENVS...) do
+                patches = [
+                    @patch readstring(cmd::AbstractCmd) = TestUtils.readstring(cmd)
+                    @patch describe_jobs(dict::Dict) = TestUtils.describe_jobs(dict)
+                ]
+
+                apply(patches) do
+                    # Fall back to using the WORKER_JOB_QUEUE environmental variable
+                    job = BatchJob()
+                    mgr = AWSBatchManager(3)
+                    @test job.queue != "worker"
+                    @test mgr.job_queue == "worker"
+
+                    # Use the queue passed in
+                    mgr = AWSBatchManager(3, queue="special")
+                    @test mgr.job_queue == "special"
+                end
+            end
+        end
     end
     @testset "Adding procs" begin
         @testset "Worker Succeeds" begin
@@ -206,7 +228,7 @@ const BATCH_ENVS = (
 
             # Ensure that the container IDs were found
             @test all(.!isempty.(reported_containers))
-            
+
             # Determine the image name from an AWS Batch job ID.
             job_image_name(job_id::AbstractString) = job_image_name(BatchJob(; id=job_id))
             job_image_name(job::BatchJob) = AWSTools.describe(job)["container"]["image"]
