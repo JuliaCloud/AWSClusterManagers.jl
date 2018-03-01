@@ -1,12 +1,18 @@
 module TestUtils
 
-using JSON
+using AWSSDK
+using AWSTools
 using IterTools
+using JSON
+using Memento
+using XMLDict
+
 import Base: AbstractCmd, CmdRedirect
+import AWSSDK.CloudFormation: describe_stacks
+import AWSSDK.ECR: get_authorization_token
 
 export LEGACY_STACK, docker_login, docker_pull, docker_push, docker_build, stack_outputs,
-    AWSBatchJobDefinition, register, deregister, submit, status, log_messages, details,
-    time_str, Running, Succeeded, ignore_stderr
+    log_messages, time_str, ignore_stderr
 
 const PKG_DIR = abspath(@__DIR__, "..")
 
@@ -19,14 +25,20 @@ const LEGACY_STACK = Dict(
     "RepositoryURI"     => "292522074875.dkr.ecr.us-east-1.amazonaws.com/aws-cluster-managers-test",
 )
 
+logger = Memento.config("info"; fmt="[{level} | {name}]: {msg}")
+
 
 function docker_login(registry_ids::Vector{<:Integer}=Int[])
-    # Runs `aws ecr get-login`, then extracts and runs the returned `docker login`
-    # command (or `$(aws ecr get-login --region us-east-1)` in bash).
-    # Note: using `--registry-ids` doesn't cause a login to fail if you don't have access.
-    output = readchomp(`aws ecr get-login --no-include-email`)
-    docker_login = Cmd(map(String, split(output)))
-    success(pipeline(docker_login, stdout=STDOUT, stderr=STDERR))
+    # Gets the AWS ECR authorization token and runs the docker login command
+    # Note: using `registryIds` doesn't cause a login to fail if you don't have access.
+    resp = get_authorization_token()
+    authorization_data = first(resp["authorizationData"])
+    token = String(base64decode(authorization_data["authorizationToken"]))
+    username, password = split(token, ':')
+    endpoint = authorization_data["proxyEndpoint"]
+
+    login = `docker login -u $username -p $password $endpoint`
+    success(pipeline(login, stdout=STDOUT, stderr=STDERR))
 end
 
 function docker_pull(image::AbstractString, tags::Vector{<:AbstractString}=String[])
@@ -46,13 +58,8 @@ function docker_build(tag::AbstractString="")
 end
 
 function stack_outputs(stack_name::AbstractString)
-    output = readchomp(```
-        aws cloudformation describe-stacks
-            --stack-name $stack_name
-            --query 'Stacks[].Outputs[]'
-            --output text
-        ```)
-    stack = Dict(partition(split(output, r"[\n\t]"), 2))
+    output = describe_stacks(Dict("StackName" => stack_name))
+    stack = xml_dict(output["DescribeStacksResult"])["Stacks"]["member"]
 
     # Copy specific keys into a more generic name
     for k in ("ManagerJobQueue", "WorkerJobQueue")
@@ -87,113 +94,22 @@ function readstring(f::Function, cmd::Cmd)
     end
 end
 
-@enum JobState Submitted Pending Runnable Starting Running Failed Succeeded
+"""
+    log_messages(job::BatchJob) -> String
 
-function Base.parse(::Type{JobState}, s::AbstractString)
-    for state in instances(JobState)
-        if uppercase(string(state)) == s
-            return state
-        end
-    end
-    throw(ArgumentError("Invalid JobState given: \"$s\""))
-end
-
-struct AWSBatchJobDefinition
-    name::AbstractString
-    revision::Nullable{Int}
-end
-
-# Note: you can either use the job definition name or the ARN
-AWSBatchJobDefinition(name::AbstractString) = AWSBatchJobDefinition(name, Nullable{Int}())
-AWSBatchJobDefinition(name::AbstractString, rev::Int) = AWSBatchJobDefinition(name, Nullable{Int}(rev))
-
-Base.string(d::AWSBatchJobDefinition) = isnull(d.revision) ? d.name : "$(d.name):$(get(d.revision))"
-
-function isregistered(job_definition::AWSBatchJobDefinition)
-    cmd = `aws batch describe-job-definitions --job-definition-name $(job_definition.name)`
-    return readstring(cmd) do output
-        j = JSON.parse(cmd)
-        active_definitions = filter!(d -> d["status"] == "ACTIVE", get(j, "jobDefinitions", []))
-        !isempty(active_definitions)
-    end
-end
-
-function register(job_definition::AWSBatchJobDefinition, json::Dict)
-    cmd = ```
-        aws batch register-job-definition
-            --job-definition-name $(job_definition.name)
-            --type container
-            --container-properties $(JSON.json(json))
-        ```
-    return readstring(cmd) do output
-        j = JSON.parse(output)
-        AWSBatchJobDefinition(j["jobDefinitionName"], j["revision"])
-    end
-end
-
-function deregister(job_definition::AWSBatchJobDefinition)
-    isnull(job_definition.revision) && error("Unable to deregister job definition without revision")
-    # deregister has no output and the status appears to always be 0
-    run(`aws batch deregister-job-definition --job-definition $job_definition`)
-end
-
-struct AWSBatchJob
-    id::AbstractString
-end
-
-function submit(job_definition::AWSBatchJobDefinition, job_name::AbstractString, job_queue::AbstractString)
-    cmd = ```
-        aws batch submit-job
-            --job-definition $job_definition
-            --job-name $job_name
-            --job-queue $job_queue
-        ```
-    return readstring(cmd) do output
-        j = JSON.parse(output)
-        AWSBatchJob(j["jobId"])
-    end
-end
-
-function details(job::AWSBatchJob)
-    return readstring(`aws batch describe-jobs --jobs $(job.id)`) do output
-        j = JSON.parse(output)
-        j["jobs"][1]
-    end
-end
-
-function status(job::AWSBatchJob)
-    d = details(job)
-    return parse(JobState, d["status"])
-end
-
-function log_messages(job::AWSBatchJob)
-    cmd = `aws batch describe-jobs --jobs $(job.id)`
-    task_id, job_name = readstring(cmd) do output
-        j = JSON.parse(output)
-        task_id = last(rsplit(j["jobs"][1]["container"]["taskArn"], '/', limit=2))
-        job_name = j["jobs"][1]["jobName"]
-        (task_id, job_name)
-    end
-
-    # CloudWatch log stream name format:
-    # http://docs.aws.amazon.com/batch/latest/userguide/job_states.html
-    log_stream_name = "$job_name/default/$task_id"
-    cmd = ```
-        aws logs get-log-events
-            --log-group-name "/aws/batch/job"
-            --log-stream-name $log_stream_name
-        ```
-    return readstring(cmd) do output
-        j = JSON.parse(output)
-        join([event["message"] for event in j["events"]], '\n')
-    end
+Gets the logs associated with an AWSTools BatchJob and converts them to a String for regex
+matching.
+"""
+function log_messages(job::BatchJob)
+    events = AWSTools.logs(job)
+    return join([event["message"] for event in events], '\n')
 end
 
 function time_str(secs::Integer)
     @sprintf("%02d:%02d:%02d", div(secs, 3600), rem(div(secs, 60), 60), rem(secs, 60))
 end
 
-const describe_jobs_resp = """
+const DESCRIBE_JOBS_RESP = """
 {
     "jobs": [
         {
@@ -209,7 +125,8 @@ const describe_jobs_resp = """
                 ],
                 "volumes": [],
                 "memory": 1024,
-                "ulimits": []
+                "ulimits": [],
+                "jobRoleArn": "arn:aws:iam::012345678910:role/sleep60"
             },
             "parameters": {},
             "jobDefinition": "sleep60",
@@ -223,7 +140,7 @@ const describe_jobs_resp = """
 }
 """
 
-const submit_job_resp = """
+const SUBMIT_JOB_RESP = """
 {
     "jobName": "example",
     "jobId": "876da822-4198-45f2-a252-6cea32512ea8"
@@ -240,23 +157,11 @@ readstring(cmd::AbstractCmd, pass::Bool=true) = Base.readstring(cmd)
 """
     Mock.readstring(cmd::Cmd, pass::Bool=true)
 
-Currently, we mock the `aws batch describe-jobs` and `aws batch submit-job` commands.
-When `pass` is false the `submit-job` command will return valid output, but the spawned job
-will not bring up a worker process.
+Mocks `readstring` for docker commands. When `pass` is false the command will return valid
+output, but the command will not actually be executed.
 """
 function readstring(cmd::Cmd, pass::Bool=true)
-    if "describe-jobs" in cmd.exec
-        return describe_jobs_resp
-    elseif "submit-job" in cmd.exec
-        if pass
-            overrides = JSON.parse(cmd.exec[end])
-            script = join(overrides["command"][3:end], " ")
-            @spawn run(Cmd(["julia", "-e", "$script"]))
-        else
-            @spawn run(Cmd(["julia", "-e", "println(STDERR, \"Failed to come online\")"]))
-        end
-        return submit_job_resp
-    elseif "docker" in cmd.exec
+    if "docker" in cmd.exec
         if pass
             @spawn run(Cmd(["julia", "-e", "$(cmd.exec[end])"]))
         else
@@ -271,7 +176,8 @@ end
 """
     Mock.readstring(cmd::CmdRedirect, pass::Bool=true)
 
-Mocks the CmdRedirect produced from ``pipeline(`curl http://169.254.169.254/latest/meta-data/placement/availability-zone`)``
+Mocks the CmdRedirect produced from
+``pipeline(`curl http://169.254.169.254/latest/meta-data/placement/availability-zone`)``
 to just return "us-east-1".
 """
 function readstring(cmd::CmdRedirect, pass::Bool=true)
@@ -281,6 +187,31 @@ function readstring(cmd::CmdRedirect, pass::Bool=true)
     else
         return Base.readstring(cmd)
     end
+end
+
+"""
+    Mock.describe_jobs(dict::Dict)
+
+Mocks the `AWSSDK.describe_jobs` call in AWSTools.
+"""
+function describe_jobs(dict::Dict)
+    return JSON.parse(DESCRIBE_JOBS_RESP)
+end
+
+"""
+    Mock.submit(job::BatchJob, pass::Bool=true)
+
+Mocks the `AWSTools.submit(job)` call. When `pass` is false the command will return valid
+output, but the spawned job will not bring up a worker process.
+"""
+function submit(job::BatchJob, pass::Bool=true)
+    if pass
+        @spawn run(job.cmd)
+        info(logger, "Submitted job $(job.name)::$(job.id).")
+    else
+        @spawn run(Cmd(["julia", "-e", "println(STDERR, \"Failed to come online\")"]))
+    end
+    return SUBMIT_JOB_RESP
 end
 
 function ignore_stderr(body::Function)

@@ -119,8 +119,8 @@ stages:
     - ./julia-ci coverage
   after_script:
     - ./julia-ci clean
-    - $(/usr/local/bin/aws ecr get-login --region us-east-1)
-    - docker rmi 292522074875.dkr.ecr.us-east-1.amazonaws.com/aws-cluster-managers-test:$CI_COMMIT_SHA
+    - sleep 5
+    - docker rmi 292522074875.dkr.ecr.us-east-1.amazonaws.com/aws-cluster-managers-test:$(git rev-parse --short $CI_COMMIT_SHA)
 
 
 "Coverage":

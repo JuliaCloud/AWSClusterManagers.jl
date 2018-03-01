@@ -53,7 +53,7 @@ const BATCH_ENVS = (
         end
         @testset "Kwargs" begin
             # Define the keywords definition, name, queue, and region to avoid
-            # calling AWSBatchJob which only works inside of batch jobs.
+            # calling BatchJob.
             kwargs = Dict(
                 :definition => "d",
                 :name => "n",
@@ -76,10 +76,13 @@ const BATCH_ENVS = (
 
             # Mock being run on an AWS batch job
             withenv(BATCH_ENVS...) do
-                patch = @patch readstring(cmd::AbstractCmd) = TestUtils.readstring(cmd)
+                patches = [
+                    @patch readstring(cmd::AbstractCmd) = TestUtils.readstring(cmd)
+                    @patch describe_jobs(dict::Dict) = TestUtils.describe_jobs(dict)
+                ]
 
-                apply(patch) do
-                    job = AWSBatchJob()
+                apply(patches) do
+                    job = BatchJob()
                     mgr = AWSBatchManager(3)
 
                     @test mgr.min_workers == 3
@@ -99,9 +102,13 @@ const BATCH_ENVS = (
     @testset "Adding procs" begin
         @testset "Worker Succeeds" begin
             withenv(BATCH_ENVS...) do
-                patch = @patch readstring(cmd::AbstractCmd) = TestUtils.readstring(cmd)
+                patches = [
+                    @patch readstring(cmd::AbstractCmd) = TestUtils.readstring(cmd)
+                    @patch describe_jobs(dict::Dict) = TestUtils.describe_jobs(dict)
+                    @patch submit(job::BatchJob) = TestUtils.submit(job, true)
+                ]
 
-                apply(patch) do
+                apply(patches) do
                     # Get an initial list of processes
                     init_procs = procs()
                     # Add a single AWSBatchManager worker
@@ -118,9 +125,13 @@ const BATCH_ENVS = (
         end
         @testset "Worker Timeout" begin
             withenv(BATCH_ENVS...) do
-                patch = @patch readstring(cmd::AbstractCmd) = TestUtils.readstring(cmd, false)
+                patches = [
+                    @patch readstring(cmd::AbstractCmd) = TestUtils.readstring(cmd, false)
+                    @patch describe_jobs(dict::Dict) = TestUtils.describe_jobs(dict)
+                    @patch submit(job::BatchJob) = TestUtils.submit(job, false)
+                ]
 
-                @test_throws ErrorException apply(patch) do
+                @test_throws ErrorException apply(patches) do
                     # Suppress "unhandled task error" message
                     # https://github.com/JuliaLang/julia/issues/12403
                     ignore_stderr() do
@@ -134,8 +145,6 @@ const BATCH_ENVS = (
     if "batch" in ONLINE
         @testset "Online" begin
             image_name = batch_manager_build()
-
-            info("Registering AWS batch job definition: $(STACK["JobDefinitionName"])")
             num_workers = 3
 
             # Will be running the HEAD revision of the code remotely
@@ -154,38 +163,38 @@ const BATCH_ENVS = (
             end
             """
 
-            json = Dict(
-                "image" => image_name,
-                "jobRoleArn" => STACK["JobRoleArn"],
-                "vcpus" => 1,
-                "memory" => 1024,
-                "command" => [
-                    "julia", "-e", replace(code, r"\n+", "; ")
-                ]
+            info("Creating AWS Batch job")
+            job = BatchJob(;
+                name = STACK["JobName"],
+                queue = STACK["ManagerJobQueue"],
+                definition = STACK["JobDefinitionName"],
+                image = image_name,
+                role = STACK["JobRoleArn"],
+                vcpus = 1,
+                memory = 1024,
+                cmd = Cmd(["julia", "-e", replace(code, r"\n+", "; ")]),
             )
 
-            job_def = register(AWSBatchJobDefinition(STACK["JobDefinitionName"]), json)
+            info("Registering AWS batch job definition: $(STACK["JobDefinitionName"])")
+            definition = register(job)
+            job.definition = definition
 
             info("Submitting AWS Batch job")
-            job = submit(job_def, STACK["JobName"], STACK["ManagerJobQueue"])
+            submit(job)
 
             # If no resources are available it could take around 5 minutes before the job is running
             info("Waiting for AWS Batch job $(job.id) to complete (~5 minutes)")
-            while status(job) <= Running
-                sleep(30)
-            end
+            @test wait(job, [AWSTools.SUCCEEDED]) == true
 
             # Remove the job definition as it is specific to a revision
-            deregister(job_def)
-
-            @test status(job) == Succeeded
+            deregister(job)
 
             output = log_messages(job)
 
             m = match(r"(?<=NumProcs: )\d+", output)
             num_procs = m !== nothing ? parse(Int, m.match) : -1
 
-            # Spawned is the list AWS Batch job IDs reported by the manager upon launch
+            # Spawned are the AWS Batch job IDs reported upon job submission at launch
             # while reported is the self-reported job ID of each worker.
             spawned_jobs = matchall(r"(?<=Spawning job: )[0-9a-f\-]+", output)
             reported_jobs = matchall(r"(?<=Worker job \d: )[0-9a-f\-]+", output)
@@ -197,17 +206,16 @@ const BATCH_ENVS = (
 
             # Ensure that the container IDs were found
             @test all(.!isempty.(reported_containers))
-
-            # Determine the image name from AWS Batch job IDs.
-            # Note: AWSBatchJob exists in both AWSClusterManagers and TestUtils.
-            job_image_name(job_id::AbstractString) = job_image_name(TestUtils.AWSBatchJob(job_id))
-            job_image_name(job::TestUtils.AWSBatchJob) = details(job)["container"]["image"]
+            
+            # Determine the image name from an AWS Batch job ID.
+            job_image_name(job_id::AbstractString) = job_image_name(BatchJob(; id=job_id))
+            job_image_name(job::BatchJob) = AWSTools.describe(job)["container"]["image"]
 
             @test image_name == job_image_name(job)  # Manager's image
             @test all(image_name .== job_image_name.(spawned_jobs))
 
             # Report some details about the job
-            d = details(job)
+            d = AWSTools.describe(job)
             created_at = Dates.unix2datetime(d["createdAt"] / 1000)
             started_at = Dates.unix2datetime(d["startedAt"] / 1000)
             stopped_at = Dates.unix2datetime(d["stoppedAt"] / 1000)

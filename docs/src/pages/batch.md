@@ -5,10 +5,9 @@ as a Julia cluster.
 
 ## Requirements
 
-* [AWS CLI](https://aws.amazon.com/cli) tools are installed and setup
-* An IAM role is setup that allows `batch:SubmitJob` and `batch:DescribeJobs`
+* An IAM role is setup that allows `batch:SubmitJob`, `batch:DescribeJobs`, and `batch:DescribeJobDefinitions`
 * A Docker image registered with [AWS ECR](https://aws.amazon.com/ecr/) which has Julia
-  installed, AWSClusterManagers.jl, and the AWS CLI.
+  and AWSClusterManagers.jl installed.
 
 The AWSBatchManager requires that the running AWS Batch jobs are run using
 ["networkMode=host"](http://docs.aws.amazon.com/AmazonECS/latest/developerguide/task_definition_parameters.html#network_mode)
@@ -121,6 +120,7 @@ The AWSBatchManager requires that the IAM role have access to the following oper
 
 - `batch:SubmitJob`
 - `batch:DescribeJobs`
+- `batch:DescribeJobDefinitions`
 
 Example)
 ```bash
