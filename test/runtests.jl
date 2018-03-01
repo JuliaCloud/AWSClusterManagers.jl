@@ -2,22 +2,17 @@ using Mocking
 Mocking.enable(force=true)
 
 using AWSClusterManagers
+using AWSTools
 using Base.Test
 
 import Base: AbstractCmd
-import AWSClusterManagers: launch_timeout, num_workers, AWSBatchJob
+import AWSClusterManagers: launch_timeout, num_workers
 
 include("testutils.jl")
 using .TestUtils
 
 const AWS_STACKNAME = get(ENV, "AWS_STACKNAME", "")
 const ONLINE = strip.(split(get(ENV, "ONLINE", ""), r"\s*,\s*"))
-
-# Report the AWS CLI version as API changes could be the cause of exceptions here.
-# Note: `aws --version` prints to STDERR instead of STDOUT.
-if "docker" in ONLINE || "batch" in ONLINE
-    info(readstring(pipeline(`aws --version`, stderr=`cat`)))
-end
 
 const GIT_DIR = joinpath(@__DIR__, "..", ".git")
 const REV = try

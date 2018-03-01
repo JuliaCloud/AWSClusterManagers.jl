@@ -12,15 +12,6 @@ Julia cluster managers which run within the AWS infrastructure.
 Pkg.add("AWSClusterManagers")
 ```
 
-In order to run AWSClusterManagers you'll need to have the [AWS CLI](https://aws.amazon.com/cli)
-installed. The recommended way to to install this is to use PIP which will have the latest
-version available versus what may be available on your system's package manager.
-
-```bash
-pip install awscli
-aws configure
-```
-
 ## Sample Project Architecture
 
 The details of how the AWSECSManager & AWSBatchManager will be described in more detail shortly, but we'll briefly summarizes a real world application archtecture using the AWSBatchManager.

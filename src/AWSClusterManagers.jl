@@ -4,6 +4,8 @@ import Base: launch, manage, cluster_cookie
 using Memento
 using Mocking
 using Compat: @__MODULE__
+using AWSTools
+using JSON
 
 export ECSManager, AWSBatchManager, DockerManager, BatchEnvironmentError
 
@@ -14,7 +16,6 @@ function __init__()
     Memento.register(logger)
 end
 
-include("job.jl")
 include("container.jl")
 include("batch.jl")
 include("docker.jl")

@@ -6,24 +6,6 @@ ENV PKG_NAME "AWSClusterManagers"
 RUN yum -y update-minimal && \
     yum -y clean all
 
-# Install AWSClusterManagers.jl prerequisite AWS CLI. Avoid using `yum install aws-cli`
-# as that version is typically out of date. Installing `pip install awscli` makes sure
-# we have the latest version and is smaller than using the bundle.
-# https://docs.aws.amazon.com/cli/latest/userguide/awscli-install-linux.html#awscli-install-linux-awscli
-# https://docs.aws.amazon.com/cli/latest/userguide/awscli-install-bundle.html
-ENV PKGS \
-    python27-pip \
-    python27-setuptools
-ENV PINNED_PKGS \
-    python27 \
-    python27-six \
-    python27-colorama
-RUN yum -y install $PKGS $PINNED_PKGS && \
-    echo $PINNED_PKGS | tr -s '\t ' '\n' > /etc/yum/protected.d/awscli.conf && \
-    pip install awscli && \
-    yum -y autoremove $PKGS && \
-    yum -y clean all
-
 # Install AWSClusterManagers.jl test requirement: Docker
 ENV PINNED_PKGS \
     docker

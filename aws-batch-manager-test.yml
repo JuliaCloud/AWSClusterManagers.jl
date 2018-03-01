@@ -188,6 +188,7 @@ Resources:
             Action:
               - batch:SubmitJob
               - batch:DescribeJobs
+              - batch:DescribeJobDefinitions
             Resource: '*'
 
   JLBatchJobIngress:
