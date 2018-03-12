@@ -1,7 +1,7 @@
 module TestUtils
 
 using AWSSDK
-using AWSTools
+using AWSBatch
 using IterTools
 using JSON
 using Memento
@@ -97,11 +97,11 @@ end
 """
     log_messages(job::BatchJob) -> String
 
-Gets the logs associated with an AWSTools BatchJob and converts them to a String for regex
+Gets the logs associated with an AWSBatch BatchJob and converts them to a String for regex
 matching.
 """
 function log_messages(job::BatchJob)
-    events = AWSTools.logs(job)
+    events = logs(job)
     return join([event["message"] for event in events], '\n')
 end
 
@@ -192,7 +192,7 @@ end
 """
     Mock.describe_jobs(dict::Dict)
 
-Mocks the `AWSSDK.describe_jobs` call in AWSTools.
+Mocks the `AWSSDK.describe_jobs` call in AWSBatch.
 """
 function describe_jobs(dict::Dict)
     return JSON.parse(DESCRIBE_JOBS_RESP)
@@ -201,12 +201,12 @@ end
 """
     Mock.submit(job::BatchJob, pass::Bool=true)
 
-Mocks the `AWSTools.submit(job)` call. When `pass` is false the command will return valid
+Mocks the `AWSBatch.submit!(job)` call. When `pass` is false the command will return valid
 output, but the spawned job will not bring up a worker process.
 """
-function submit(job::BatchJob, pass::Bool=true)
+function submit!(job::BatchJob, pass::Bool=true)
     if pass
-        @spawn run(job.cmd)
+        @spawn run(job.container.cmd)
         info(logger, "Submitted job $(job.name)::$(job.id).")
     else
         @spawn run(Cmd(["julia", "-e", "println(STDERR, \"Failed to come online\")"]))

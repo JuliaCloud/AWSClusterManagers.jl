@@ -85,18 +85,21 @@ struct AWSBatchManager <: ContainerManager
         if isempty(definition) || isempty(name) || isempty(queue) || memory == -1
             job = BatchJob()
 
-            if isempty(job.definition) || isempty(job.name) || isempty(job.queue) || isempty(job.region)
+            if (
+                isempty(job.definition.name) || isempty(job.name) || isempty(job.queue)
+                || isempty(job.region)
+            )
                 throw(BatchEnvironmentError(
                     "Unable to perform AWS Batch introspection when not running within " *
                     "an AWS Batch job: $job"
                 ))
             end
 
-            definition = isempty(definition) ? job.definition : definition
+            definition = isempty(definition) ? job.definition.name : definition
             name = isempty(name) ? job.name : name  # Maybe append "Worker" to default?
             queue = isempty(queue) ? job.queue : queue
             region = isempty(region) ? job.region : region
-            memory = memory == -1 ? round(Integer, job.memory / job.vcpus) : memory
+            memory = memory == -1 ? round(Integer, job.container.memory / job.container.vcpus) : memory
         else
             # At the moment AWS batch only supports the "us-east-1" region
             region = isempty(region) ? "us-east-1" : region
@@ -159,15 +162,17 @@ function spawn_containers(mgr::AWSBatchManager, override_cmd::Cmd)
         name = mgr.job_name,
         definition = mgr.job_definition,
         queue = mgr.job_queue,
-        region = mgr.region,
-        vcpus = 1,
-        memory = mgr.job_memory,
-        cmd = override_cmd,
+        container = Dict(
+            "region" => mgr.region,
+            "vcpus" => 1,
+            "memory" => mgr.job_memory,
+            "cmd" => override_cmd,
+        ),
     )
 
     # AWS Batch jobs only allow us to spawn a job at a time
     for id in 1:mgr.max_workers
-        @mock submit(job)
+        @mock submit!(job)
         notice(logger, "Spawning job: $(job.id)")
     end
 end

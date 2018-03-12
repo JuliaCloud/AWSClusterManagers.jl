@@ -4,7 +4,7 @@ import Base: launch, manage, cluster_cookie
 using Memento
 using Mocking
 using Compat: @__MODULE__
-using AWSTools
+using AWSBatch
 using JSON
 
 export ECSManager, AWSBatchManager, DockerManager, BatchEnvironmentError

@@ -2,7 +2,7 @@ using Mocking
 Mocking.enable(force=true)
 
 using AWSClusterManagers
-using AWSTools
+using AWSBatch
 using Base.Test
 
 import Base: AbstractCmd
@@ -23,7 +23,6 @@ end
 
 const STACK = isempty(AWS_STACKNAME) ? LEGACY_STACK : stack_outputs(AWS_STACKNAME)
 const ECR_IMAGE = "$(STACK["RepositoryURI"]):$REV"
-
 
 
 """
