@@ -87,7 +87,7 @@ const BATCH_ENVS = (
 
                     @test mgr.min_workers == 3
                     @test mgr.max_workers == 3
-                    @test mgr.job_definition == job.definition
+                    @test mgr.job_definition == job.definition.name
                     @test mgr.job_name == job.name
                     @test mgr.job_queue == job.queue
                     @test mgr.job_memory == 512
@@ -127,7 +127,7 @@ const BATCH_ENVS = (
                 patches = [
                     @patch readstring(cmd::AbstractCmd) = TestUtils.readstring(cmd)
                     @patch describe_jobs(dict::Dict) = TestUtils.describe_jobs(dict)
-                    @patch submit(job::BatchJob) = TestUtils.submit(job, true)
+                    @patch submit!(job::BatchJob) = TestUtils.submit!(job, true)
                 ]
 
                 apply(patches) do
@@ -150,7 +150,7 @@ const BATCH_ENVS = (
                 patches = [
                     @patch readstring(cmd::AbstractCmd) = TestUtils.readstring(cmd, false)
                     @patch describe_jobs(dict::Dict) = TestUtils.describe_jobs(dict)
-                    @patch submit(job::BatchJob) = TestUtils.submit(job, false)
+                    @patch submit!(job::BatchJob) = TestUtils.submit!(job, false)
                 ]
 
                 @test_throws ErrorException apply(patches) do
@@ -190,26 +190,27 @@ const BATCH_ENVS = (
                 name = STACK["JobName"],
                 queue = STACK["ManagerJobQueue"],
                 definition = STACK["JobDefinitionName"],
-                image = image_name,
-                role = STACK["JobRoleArn"],
-                vcpus = 1,
-                memory = 1024,
-                cmd = Cmd(["julia", "-e", replace(code, r"\n+", "; ")]),
+                container = Dict(
+                    "image" => image_name,
+                    "role" => STACK["JobRoleArn"],
+                    "vcpus" => 1,
+                    "memory" => 1024,
+                    "cmd" => Cmd(["julia", "-e", replace(code, r"\n+", "; ")]),
+                )
             )
 
             info("Registering AWS batch job definition: $(STACK["JobDefinitionName"])")
-            definition = register(job)
-            job.definition = definition
+            register!(job)
 
             info("Submitting AWS Batch job")
-            submit(job)
+            submit!(job)
 
             # If no resources are available it could take around 5 minutes before the job is running
             info("Waiting for AWS Batch job $(job.id) to complete (~5 minutes)")
-            @test wait(job, [AWSTools.SUCCEEDED]) == true
+            @test wait(job, [AWSBatch.SUCCEEDED]) == true
 
             # Remove the job definition as it is specific to a revision
-            deregister(job)
+            deregister!(job)
 
             output = log_messages(job)
 
@@ -231,13 +232,13 @@ const BATCH_ENVS = (
 
             # Determine the image name from an AWS Batch job ID.
             job_image_name(job_id::AbstractString) = job_image_name(BatchJob(; id=job_id))
-            job_image_name(job::BatchJob) = AWSTools.describe(job)["container"]["image"]
+            job_image_name(job::BatchJob) = describe(job)["container"]["image"]
 
             @test image_name == job_image_name(job)  # Manager's image
             @test all(image_name .== job_image_name.(spawned_jobs))
 
             # Report some details about the job
-            d = AWSTools.describe(job)
+            d = describe(job)
             created_at = Dates.unix2datetime(d["createdAt"] / 1000)
             started_at = Dates.unix2datetime(d["startedAt"] / 1000)
             stopped_at = Dates.unix2datetime(d["stoppedAt"] / 1000)
