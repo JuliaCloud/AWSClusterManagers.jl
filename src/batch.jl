@@ -86,7 +86,7 @@ struct AWSBatchManager <: ContainerManager
             job = BatchJob()
 
             if (
-                isempty(job.definition.name) || isempty(job.name) || isempty(job.queue)
+                job.definition === nothing || isempty(job.name) || isempty(job.queue)
                 || isempty(job.region)
             )
                 throw(BatchEnvironmentError(
@@ -162,12 +162,10 @@ function spawn_containers(mgr::AWSBatchManager, override_cmd::Cmd)
         name = mgr.job_name,
         definition = mgr.job_definition,
         queue = mgr.job_queue,
-        container = Dict(
-            "region" => mgr.region,
-            "vcpus" => 1,
-            "memory" => mgr.job_memory,
-            "cmd" => override_cmd,
-        ),
+        region = mgr.region,
+        vcpus = 1,
+        memory = mgr.job_memory,
+        cmd = override_cmd,
     )
 
     # AWS Batch jobs only allow us to spawn a job at a time

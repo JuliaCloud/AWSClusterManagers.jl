@@ -1,20 +1,13 @@
 module TestUtils
 
-using AWSSDK
 using AWSBatch
 using IterTools
 using JSON
 using Memento
-using XMLDict
 
 import Base: AbstractCmd, CmdRedirect
-import AWSSDK.CloudFormation: describe_stacks
-import AWSSDK.ECR: get_authorization_token
 
-export LEGACY_STACK, docker_login, docker_pull, docker_push, docker_build, stack_outputs,
-    log_messages, time_str, ignore_stderr
-
-const PKG_DIR = abspath(@__DIR__, "..")
+export LEGACY_STACK, log_messages, time_str, ignore_stderr
 
 const LEGACY_STACK = Dict(
     "ManagerJobQueue"   => "Replatforming-Manager",     # Can be the name or ARN
@@ -26,55 +19,6 @@ const LEGACY_STACK = Dict(
 )
 
 logger = Memento.config("info"; fmt="[{level} | {name}]: {msg}")
-
-
-function docker_login(registry_ids::Vector{<:Integer}=Int[])
-    # Gets the AWS ECR authorization token and runs the docker login command
-    # Note: using `registryIds` doesn't cause a login to fail if you don't have access.
-    resp = get_authorization_token()
-    authorization_data = first(resp["authorizationData"])
-    token = String(base64decode(authorization_data["authorizationToken"]))
-    username, password = split(token, ':')
-    endpoint = authorization_data["proxyEndpoint"]
-
-    login = `docker login -u $username -p $password $endpoint`
-    success(pipeline(login, stdout=STDOUT, stderr=STDERR))
-end
-
-function docker_pull(image::AbstractString, tags::Vector{<:AbstractString}=String[])
-    run(`docker pull $image`)
-    for tag in tags
-        run(`docker tag $image $tag`)
-    end
-end
-
-function docker_push(image::AbstractString)
-    run(`docker push $image`)
-end
-
-function docker_build(tag::AbstractString="")
-    opts = isempty(tag) ? `` : `-t $tag`
-    run(`docker build $opts $PKG_DIR`)
-end
-
-function stack_outputs(stack_name::AbstractString)
-    output = describe_stacks(Dict("StackName" => stack_name))
-    stack = xml_dict(output["DescribeStacksResult"])["Stacks"]["member"]
-
-    # Copy specific keys into a more generic name
-    for k in ("ManagerJobQueue", "WorkerJobQueue")
-        if haskey(stack, "$(k)Arn")
-            stack[k] = stack["$(k)Arn"]
-        elseif haskey(stack, "$(k)Name")
-            stack[k] = stack["$(k)Name"]
-        end
-    end
-
-    return stack
-end
-
-
-#####
 
 
 """

@@ -190,13 +190,11 @@ const BATCH_ENVS = (
                 name = STACK["JobName"],
                 queue = STACK["ManagerJobQueue"],
                 definition = STACK["JobDefinitionName"],
-                container = Dict(
-                    "image" => image_name,
-                    "role" => STACK["JobRoleArn"],
-                    "vcpus" => 1,
-                    "memory" => 1024,
-                    "cmd" => Cmd(["julia", "-e", replace(code, r"\n+", "; ")]),
-                )
+                image = image_name,
+                role = STACK["JobRoleArn"],
+                vcpus = 1,
+                memory = 1024,
+                cmd = Cmd(["julia", "-e", replace(code, r"\n+", "; ")]),
             )
 
             info("Registering AWS batch job definition: $(STACK["JobDefinitionName"])")
@@ -231,7 +229,7 @@ const BATCH_ENVS = (
             @test all(.!isempty.(reported_containers))
 
             # Determine the image name from an AWS Batch job ID.
-            job_image_name(job_id::AbstractString) = job_image_name(BatchJob(; id=job_id))
+            job_image_name(job_id::AbstractString) = job_image_name(BatchJob(; id=String(job_id)))
             job_image_name(job::BatchJob) = describe(job)["container"]["image"]
 
             @test image_name == job_image_name(job)  # Manager's image
