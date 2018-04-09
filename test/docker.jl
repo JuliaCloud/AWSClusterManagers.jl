@@ -19,6 +19,7 @@ end
             @test launch_timeout(mgr) == 600
             @test num_workers(mgr) == (2, 2)
         end
+
         @testset "Keywords" begin
             mgr = DockerManager(2, image=mock_image, timeout=600)
 
@@ -26,6 +27,12 @@ end
             @test mgr.image == mock_image
             @test mgr.timeout == 600
         end
+
+        @testset "Zero Workers" begin
+            mgr = DockerManager(0, image=mock_image, timeout=600)
+            @test mgr.num_workers == 0
+        end
+
         # TODO: mock `container_id` and `image_id`
     end
     @testset "Adding procs" begin
