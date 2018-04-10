@@ -71,7 +71,7 @@ struct AWSBatchManager <: ContainerManager
         region::AbstractString,
         timeout::Real=DEFAULT_TIMEOUT,
     )
-        min_workers > 0 || throw(ArgumentError("min workers must be positive"))
+        min_workers >= 0 || throw(ArgumentError("min workers must be non-negative"))
         min_workers <= max_workers || throw(ArgumentError("min workers exceeds max workers"))
 
         # Default the queue to using the WORKER_JOB_QUEUE environmental variable.

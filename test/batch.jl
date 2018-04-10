@@ -30,6 +30,7 @@ const BATCH_ENVS = (
             @test launch_timeout(mgr) == 600
             @test num_workers(mgr) == (1, 2)
         end
+
         @testset "Keyword" begin
             mgr = AWSBatchManager(
                 3,
@@ -51,6 +52,23 @@ const BATCH_ENVS = (
             @test mgr.region == "us-west-1"
             @test mgr.timeout == 5
         end
+
+        @testset "Zero Workers" begin
+            mgr = AWSBatchManager(
+                0,
+                0,
+                definition="d",
+                name="n",
+                queue="q",
+                memory=1000,
+                region="us-west-1",
+                timeout=5
+            )
+
+            @test mgr.min_workers == 0
+            @test mgr.max_workers == 0
+        end
+
         @testset "Kwargs" begin
             # Define the keywords definition, name, queue, and region to avoid
             # calling BatchJob.

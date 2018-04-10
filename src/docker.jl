@@ -44,7 +44,7 @@ struct DockerManager <: ContainerManager
         image::AbstractString,
         timeout::Real=DEFAULT_TIMEOUT,
     )
-        num_workers > 0 || throw(ArgumentError("num workers must be positive"))
+        num_workers >= 0 || throw(ArgumentError("num workers must be non-negative"))
 
         # Workers by default inherit the defaults from the manager.
         if isempty(image)
