@@ -5,17 +5,21 @@ using AWSBatch
 using AWSClusterManagers
 using AWSTools
 using AWSTools.Docker
+using AWSTools.CloudFormation: stack_output
 using Base.Test
 
 import Base: AbstractCmd
 import AWSClusterManagers: launch_timeout, num_workers
-import AWSTools.CloudFormation: stack_description
 
 include("testutils.jl")
 using .TestUtils
 
 const PKG_DIR = abspath(@__DIR__, "..")
+
+# Run the tests on a stack created with the "test/batch.yml" CloudFormation template
 const AWS_STACKNAME = get(ENV, "AWS_STACKNAME", "")
+
+# Enables the running of the "docker" and "batch" online tests. e.g ONLINE=docker,batch
 const ONLINE = strip.(split(get(ENV, "ONLINE", ""), r"\s*,\s*"))
 
 const GIT_DIR = joinpath(@__DIR__, "..", ".git")
@@ -28,8 +32,9 @@ catch
     end
 end
 
-const STACK = isempty(AWS_STACKNAME) ? LEGACY_STACK : stack_description(AWS_STACKNAME)
-const ECR_IMAGE = "$(STACK["RepositoryURI"]):$REV"
+const STACK = isempty(AWS_STACKNAME) ? LEGACY_STACK : stack_output(AWS_STACKNAME)
+const ECR = first(split(STACK["EcrUri"], ':'))
+const ECR_IMAGE = "$ECR:$REV"
 
 
 """

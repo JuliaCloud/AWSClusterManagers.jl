@@ -242,5 +242,5 @@ Outputs:
     Value: !Ref WorkerJobQueue
   JobRoleArn:
     Value: !GetAtt JLBatchJobRole.Arn
-  RepositoryURI:
+  EcrUri:
     Value: !Sub ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${ECR}

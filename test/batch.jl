@@ -194,7 +194,7 @@ const BATCH_ENVS = (
             Memento.config("debug"; fmt="{msg}")
             using AWSClusterManagers: AWSBatchManager
             setlevel!(getlogger(AWSClusterManagers), "debug")
-            addprocs(AWSBatchManager($num_workers, queue="$(STACK["WorkerJobQueue"])"))
+            addprocs(AWSBatchManager($num_workers, queue="$(STACK["WorkerJobQueueArn"])"))
             println("NumProcs: ", nprocs())
             @everywhere using AWSClusterManagers: container_id
             for i in workers()
@@ -206,7 +206,7 @@ const BATCH_ENVS = (
             info("Creating AWS Batch job")
             job = BatchJob(;
                 name = STACK["JobName"],
-                queue = STACK["ManagerJobQueue"],
+                queue = STACK["ManagerJobQueueArn"],
                 definition = STACK["JobDefinitionName"],
                 image = image_name,
                 role = STACK["JobRoleArn"],
@@ -215,7 +215,7 @@ const BATCH_ENVS = (
                 cmd = Cmd(["julia", "-e", replace(code, r"\n+", "; ")]),
             )
 
-            info("Registering AWS batch job definition: $(STACK["JobDefinitionName"])")
+            info("Registering AWS batch job definition")
             register!(job)
 
             info("Submitting AWS Batch job")
