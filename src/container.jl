@@ -117,6 +117,7 @@ function wait(tasks::AbstractArray{Task}, timeout::Real, timeout_callback::Funct
 end
 
 # https://github.com/aws/amazon-ecs-agent/issues/1119
+# Note: For AWS Batch array jobs the "ecs/<job_id>" does not include the array index
 const CGROUP_REGEX = r"/(?:docker|ecs/[0-9a-f\-]{36})/(?<container_id>[0-9a-f]{64})\b"
 
 # Determine the container ID of the currently running container

@@ -4,6 +4,8 @@ using AWSBatch
 using IterTools
 using JSON
 using Memento
+using AWSCore: AWSConfig
+using DataStructures: OrderedDict
 
 import Base: AbstractCmd, CmdRedirect
 
@@ -85,12 +87,10 @@ const DESCRIBE_JOBS_RESP = """
 }
 """
 
-const SUBMIT_JOB_RESP = """
-{
-    "jobName": "example",
-    "jobId": "876da822-4198-45f2-a252-6cea32512ea8"
-}
-"""
+const SUBMIT_JOB_RESP = OrderedDict(
+    "jobName" => "example",
+    "jobId" => "876da822-4198-45f2-a252-6cea32512ea8",
+)
 
 """
     Mock.readstring(cmd::AbstractCmd, pass::Bool=true)
@@ -144,15 +144,16 @@ function describe_jobs(dict::Dict)
 end
 
 """
-    Mock.submit(job::BatchJob, pass::Bool=true)
+    Mock.submit_job(config::AWSConfig, d::AbstractArray, pass::Bool=true)
 
-Mocks the `AWSBatch.submit!(job)` call. When `pass` is false the command will return valid
+Mocks the `AWSSDK.Batch.submit_job` call. When `pass` is false the command will return valid
 output, but the spawned job will not bring up a worker process.
 """
-function submit!(job::BatchJob, pass::Bool=true)
+function submit_job(config::AWSConfig, d::AbstractArray, pass::Bool=true)
     if pass
-        @spawn run(job.container.cmd)
-        info(logger, "Submitted job $(job.name)::$(job.id).")
+        # AWSSDK uses an Dict-like array
+        command = Dict(Dict(d)["containerOverrides"])["command"]
+        @spawn run(Cmd(command))
     else
         @spawn run(Cmd(["julia", "-e", "println(STDERR, \"Failed to come online\")"]))
     end

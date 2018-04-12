@@ -1,7 +1,27 @@
+using AWSCore: AWSConfig
+
 const BATCH_ENVS = (
     "AWS_BATCH_JOB_ID" => "bcf0b186-a532-4122-842e-2ccab8d54efb",
     "AWS_BATCH_JQ_NAME" => "HighPriority"
 )
+
+# Scrapes the log output to determine the worker job IDs as stated by the manager
+function scrape_worker_job_ids(output::AbstractString)
+    m = match(r"Spawning (array )?job: (?<id>[0-9a-f\-]+)(?(1) \(n=(?<n>\d+)\))", output)
+
+    if m !== nothing
+        worker_job = m[:id]
+
+        if m[:n] !== nothing
+            num_workers = parse(Int, m[:n])
+            return String["$worker_job:$i" for i in (1:num_workers) - 1]
+        else
+            return String["$worker_job"]
+        end
+    else
+        return String[]
+    end
+end
 
 # Test inner constructor
 @testset "AWSBatchManager" begin
@@ -145,7 +165,7 @@ const BATCH_ENVS = (
                 patches = [
                     @patch readstring(cmd::AbstractCmd) = TestUtils.readstring(cmd)
                     @patch describe_jobs(dict::Dict) = TestUtils.describe_jobs(dict)
-                    @patch submit!(job::BatchJob) = TestUtils.submit!(job, true)
+                    @patch submit_job(c::AWSConfig, d::AbstractArray) = TestUtils.submit_job(c, d, true)
                 ]
 
                 apply(patches) do
@@ -163,12 +183,13 @@ const BATCH_ENVS = (
                 end
             end
         end
+
         @testset "Worker Timeout" begin
             withenv(BATCH_ENVS...) do
                 patches = [
                     @patch readstring(cmd::AbstractCmd) = TestUtils.readstring(cmd, false)
                     @patch describe_jobs(dict::Dict) = TestUtils.describe_jobs(dict)
-                    @patch submit!(job::BatchJob) = TestUtils.submit!(job, false)
+                    @patch submit_job(c::AWSConfig, d::AbstractArray) = TestUtils.submit_job(c, d, true)
                 ]
 
                 @test_throws ErrorException apply(patches) do
@@ -235,9 +256,9 @@ const BATCH_ENVS = (
 
             # Spawned are the AWS Batch job IDs reported upon job submission at launch
             # while reported is the self-reported job ID of each worker.
-            spawned_jobs = matchall(r"(?<=Spawning job: )[0-9a-f\-]+", output)
-            reported_jobs = matchall(r"(?<=Worker job \d: )[0-9a-f\-]+", output)
-            reported_containers = matchall(r"(?<=Worker container \d: )[0-9a-f]*", output)
+            spawned_jobs = scrape_worker_job_ids(output)
+            reported_jobs = [m[1] for m in eachmatch(r"Worker job \d: ([0-9a-f\-]+(?:\:\d+)?)", output)]
+            reported_containers = [m[1] for m in eachmatch(r"Worker container \d: ([0-9a-f]*)", output)]
 
             @test num_procs == num_workers + 1
             @test length(reported_jobs) == num_workers

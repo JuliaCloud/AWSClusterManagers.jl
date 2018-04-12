@@ -4,3 +4,5 @@ Memento 0.5.0
 Mocking 0.5
 Compat 0.40
 AWSBatch 0.0.2
+AWSSDK
+AWSCore

@@ -156,23 +156,39 @@ function ==(a::AWSBatchManager, b::AWSBatchManager)
 end
 
 function spawn_containers(mgr::AWSBatchManager, override_cmd::Cmd)
-    # Since each batch worker can only use 1 cpu we override the vcpus to 1 and
-    # scale the memory accordingly.
-    job = BatchJob(;
-        name = mgr.job_name,
-        definition = mgr.job_definition,
-        queue = mgr.job_queue,
-        region = mgr.region,
-        vcpus = 1,
-        memory = mgr.job_memory,
-        cmd = override_cmd,
-    )
+    mgr.max_workers < 1 && return nothing
+    config = AWSConfig(:creds => AWSCredentials(), :region => mgr.region)
 
-    # AWS Batch jobs only allow us to spawn a job at a time
-    for id in 1:mgr.max_workers
-        @mock submit!(job)
-        notice(logger, "Spawning job: $(job.id)")
+    # Since each batch worker can only use one cpu we override the vcpus to one.
+    parameters = [
+        "jobName" => mgr.job_name,
+        "jobDefinition" => mgr.job_definition,
+        "jobQueue" => mgr.job_queue,
+        "containerOverrides" => [
+            "vcpus" => 1,
+            "memory" => mgr.job_memory,
+            "command" => override_cmd.exec,
+        ],
+    ]
+
+    if mgr.max_workers > 1
+        # https://docs.aws.amazon.com/batch/latest/userguide/array_jobs.html
+        @assert 2 <= mgr.max_workers <= 10_000
+        push!(
+            parameters,
+            "arrayProperties" => [
+                "size" => mgr.max_workers,
+            ],
+        )
     end
+
+    response = @mock submit_job(config, parameters)
+
+    if mgr.max_workers > 1
+        notice(logger, "Spawning array job: $(response["jobId"]) (n=$(mgr.max_workers))")
+    else
+        notice(logger, "Spawning job: $(response["jobId"])")
+    end
+
+    return nothing
 end
-
-
