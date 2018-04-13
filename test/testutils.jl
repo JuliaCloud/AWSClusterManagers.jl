@@ -122,12 +122,12 @@ end
 
 Mocks the CmdRedirect produced from
 ``pipeline(`curl http://169.254.169.254/latest/meta-data/placement/availability-zone`)``
-to just return "us-east-1".
+to just return "us-east-1a".
 """
 function readstring(cmd::CmdRedirect, pass::Bool=true)
     cmd_exec = cmd.cmd.exec
     result = if cmd_exec[1] == "curl" && contains(cmd_exec[2], "availability-zone")
-        return "us-east-1"
+        return "us-east-1a"
     else
         return Base.readstring(cmd)
     end
