@@ -35,7 +35,14 @@ end
 const STACK = isempty(AWS_STACKNAME) ? LEGACY_STACK : stack_output(AWS_STACKNAME)
 const ECR = first(split(STACK["EcrUri"], ':'))
 const ECR_IMAGE = "$ECR:$REV"
+const JULIA_BAKED_IMAGE = "292522074875.dkr.ecr.us-east-1.amazonaws.com/julia-baked:0.6"
 
+
+
+function registry_id(image::AbstractString)
+    m = match(r"^\d+", image)
+    return m.match
+end
 
 """
 Build the Docker image used for AWSDockerManager tests.
@@ -47,14 +54,11 @@ function docker_manager_build(image=ECR_IMAGE)
         return AWSClusterManagers.image_id()
     end
 
-    if Docker.login()
+    if Docker.login(registry_id(JULIA_BAKED_IMAGE))
         # Pull the latest "julia-baked:0.6" on the local system
         # TODO: If pulling fails we should still try and build the image as we may have a
         # local copy of the image.
-        Docker.pull(
-            "292522074875.dkr.ecr.us-east-1.amazonaws.com/julia-baked:0.6",
-            ["julia-baked:0.6"],
-        )
+        Docker.pull(JULIA_BAKED_IMAGE, ["julia-baked:0.6"])
     end
 
     Docker.build(PKG_DIR, image)
@@ -68,17 +72,14 @@ Build the Docker image used for AWSBatchManager tests and push it to ECR.
 function batch_manager_build(image=ECR_IMAGE)
     # Pull in the latest "julia-baked:0.6" for building the AWSClusterManagers Docker image.
     # If we cannot login we'll attempt to use base image that is currently available.
-    if Docker.login()
-        Docker.pull(
-            "292522074875.dkr.ecr.us-east-1.amazonaws.com/julia-baked:0.6",
-            ["julia-baked:0.6"],
-        )
+    if Docker.login(registry_id(JULIA_BAKED_IMAGE))
+        Docker.pull(JULIA_BAKED_IMAGE, ["julia-baked:0.6"])
     end
 
     Docker.build(PKG_DIR, image)
 
     # Push the image to ECR. Note: this step is what requires `image` to be a full URI
-    Docker.login()
+    Docker.login(registry_id(image))
     Docker.push(image)
 
     # Temporary
