@@ -204,9 +204,12 @@ end
     end
 
     if "batch" in ONLINE
-        @testset "Online" begin
-            image_name = batch_manager_build()
-            num_workers = 3
+        image_name = batch_manager_build()
+
+        # Note: Start with the largest number of workers so the remaining tests don't have
+        # to wait for the cluster to scale up.
+        @testset "Online (n=$num_workers)" for num_workers in [3, 1, 0]
+            # TODO: Use AWS Batch job parameters to avoid re-registering the job
 
             # Will be running the HEAD revision of the code remotely
             # Note: Pkg.checkout doesn't work on untracked branches / SHAs with Julia 0.5.1
