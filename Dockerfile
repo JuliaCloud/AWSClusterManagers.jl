@@ -13,15 +13,22 @@ RUN yum -y install $PINNED_PKGS && \
     echo $PINNED_PKGS | tr -s '\t ' '\n' > /etc/yum/protected.d/docker.conf && \
     yum -y clean all
 
-# Install AWSClusterManagers.jl
+# Copy the essentials from AWSClusterManagers package such that we can install the
+# package's requirements and run build. By only installing the minimum required files we
+# should  e able to make better use of the Docker cache. Only when the REQUIRE file or the
+# deps folder have changed will we be forced to redo these steps.
+#
+# Note: The AWSClusterManagers package currently doesn't have a deps/build.jl so we could
+# just ignore the deps directory. However by performing the copy we future proof our
+# Dockerfile if we did add a deps/build.jl file.
 ENV PKG_PATH $JULIA_PKGDIR/$JULIA_PKGVER/$PKG_NAME
-COPY . $PKG_PATH
-WORKDIR $PKG_PATH
+COPY REQUIRE $PKG_PATH/REQUIRE
+COPY deps $PKG_PATH/deps
 
-# When AWSClusterManagers.jl is a git repository then Pkg.update will expect to HEAD
-# to be a branch which is tracked. An easier alternative is make the package no longer
+# If the AWSClusterManagers directory is a git repository then Pkg.update will expect to
+# HEAD to be a branch which is tracked. An easier alternative is make the package no longer
 # be a git repository.
-RUN [ -d .git ] && rm -rf .git || true
+# RUN [ -d .git ] && rm -rf .git || true
 
 # Add and build the all of the required Julia packages. In order to allow the use of
 # BinDeps.jl we need to temporarily install additional system packages.
@@ -60,6 +67,11 @@ RUN yum -y install $PKGS && \
     yum-config-manager --disable epel > /dev/null && \
     for p in $PKGS; do yum -y autoremove $p &>/dev/null && echo "Removed $p" || echo "Skipping removal of $p"; done && \
     yum -y clean all
+
+# Perform the remainder AWSClusterManagers installation
+COPY . $PKG_PATH
+
+WORKDIR $PKG_PATH
 
 # To run these tests make sure to run docker with these flags:
 # `docker run -v /var/run/docker.sock:/var/run/docker.sock ...`
