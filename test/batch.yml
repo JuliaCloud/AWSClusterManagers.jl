@@ -22,14 +22,14 @@ Parameters:
     Type: String
     Default: 10.0.0.0/16
     AllowedPattern: "(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})/(\\d{1,2})"
-  MinvCpus:
+  MinVCPUs:
     Description: >-
       The minimum number of VCPUs to be available. Setting to 1 or higher makes jobs start
       faster but will cost us more when instances are idle. Note you cannot decrease the
       minimum number of VCPUs with a stack update.
     Type: Number
     Default: 0
-  MaxvCpus:
+  MaxVCPUs:
     Description: >-
       The maximum number of VCPUs. Typically this number does not need to be touched
     Type: Number
@@ -52,9 +52,9 @@ Resources:
       ComputeResources:
         Type: !If [OnDemandComputeEnvironment, EC2, SPOT]
         BidPercentage: 100
-        MinvCpus: !Ref MinvCpus
-        DesiredvCpus: !Ref MinvCpus
-        MaxvCpus: !Ref MaxvCpus
+        MinvCpus: !Ref MinVCPUs
+        DesiredvCpus: !Ref MinVCPUs
+        MaxvCpus: !Ref MaxVCPUs
         InstanceTypes:
           - optimal
         Subnets:
