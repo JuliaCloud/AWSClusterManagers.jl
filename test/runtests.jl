@@ -22,7 +22,10 @@ const GIT_DIR = joinpath(@__DIR__, "..", ".git")
 const REV = try
     readchomp(`git --git-dir $GIT_DIR rev-parse --short HEAD`)
 catch
-    "latest"  # Only needed as a fallback for when git isn't installed
+    # Fallback to using the full SHA when git is not installed
+    LibGit2.with(LibGit2.GitRepo(GIT_DIR)) do repo
+        string(LibGit2.GitHash(LibGit2.GitObject(repo, "HEAD")))
+    end
 end
 
 const STACK = isempty(AWS_STACKNAME) ? LEGACY_STACK : stack_description(AWS_STACKNAME)
