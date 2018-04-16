@@ -45,7 +45,6 @@ COPY deps $PKG_PATH/deps
 # - yum-config-manager is installed by: yum-utils
 # - Install EPEL repo to better handle Julia package requirements. e.g. HDF5.jl
 #   (https://aws.amazon.com/premiumsupport/knowledge-center/ec2-enable-epel/)
-# - update-metadata runtime requirements: git, findutils
 ENV PKGS \
     sudo \
     make \
@@ -55,8 +54,7 @@ ENV PKGS \
     xz \
     unzip \
     epel-release \
-    yum-utils \
-    findutils
+    yum-utils
 RUN yum -y install $PKGS && \
     yum-config-manager --setopt=assumeyes=1 --save > /dev/null && \
     yum-config-manager --enable epel > /dev/null && \
