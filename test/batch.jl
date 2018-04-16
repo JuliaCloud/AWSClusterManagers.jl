@@ -261,8 +261,14 @@ end
             reported_containers = [m[1] for m in eachmatch(r"Worker container \d: ([0-9a-f]*)", output)]
 
             @test num_procs == num_workers + 1
-            @test length(reported_jobs) == num_workers
-            @test Set(spawned_jobs) == Set(reported_jobs)
+            if num_workers > 0
+                @test length(reported_jobs) == num_workers
+                @test Set(reported_jobs) == Set(spawned_jobs)
+            else
+                # When we request no workers the manager job will be treated as the worker
+                @test length(reported_jobs) == 1
+                @test reported_jobs == [job.id]
+            end
 
             # Ensure that the container IDs were found
             @test all(.!isempty.(reported_containers))
