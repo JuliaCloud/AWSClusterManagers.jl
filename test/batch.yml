@@ -1,9 +1,11 @@
+# https://gitlab.invenia.ca/invenia/AWSClusterManagers.jl/blob/master/test/batch.yml
+#
 # Creates a bare bones AWS Batch environment used to test the AWSBatchManager from AWSClusterManagers.jl.
 #
 # ```
 # aws cloudformation create-stack \
 #   --stack-name aws-batch-manager-test \
-#   --template-body file://aws-batch-manager-test.yml \
+#   --template-body file://test/batch.yml \
 #   --capabilities CAPABILITY_NAMED_IAM
 # ```
 

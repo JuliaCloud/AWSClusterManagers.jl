@@ -1,6 +1,6 @@
 .dockerignore
 Dockerfile
-aws-batch-manager-test.yml
 .git*
 *.md
 /docs
+/test/batch.yml
