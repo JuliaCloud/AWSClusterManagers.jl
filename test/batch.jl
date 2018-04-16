@@ -208,7 +208,7 @@ end
 
         # Note: Start with the largest number of workers so the remaining tests don't have
         # to wait for the cluster to scale up.
-        @testset "Online (n=$num_workers)" for num_workers in [3, 1, 0]
+        @testset "Online (n=$num_workers)" for num_workers in [64, 3, 1, 0]
             # TODO: Use AWS Batch job parameters to avoid re-registering the job
 
             # Will be running the HEAD revision of the code remotely
@@ -229,7 +229,7 @@ end
 
             info("Creating AWS Batch job")
             job = BatchJob(;
-                name = STACK["JobName"],
+                name = STACK["JobName"] * "-n$num_workers",
                 queue = STACK["ManagerJobQueueArn"],
                 definition = STACK["JobDefinitionName"],
                 image = image_name,
@@ -242,7 +242,7 @@ end
             info("Registering AWS batch job definition")
             register!(job)
 
-            info("Submitting AWS Batch job")
+            info("Submitting AWS Batch job with $num_workers workers")
             submit!(job)
 
             # If no resources are available it could take around 5 minutes before the job is running
