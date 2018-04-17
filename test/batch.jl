@@ -165,7 +165,7 @@ end
                 patches = [
                     @patch readstring(cmd::AbstractCmd) = TestUtils.readstring(cmd)
                     @patch describe_jobs(dict::Dict) = TestUtils.describe_jobs(dict)
-                    @patch submit_job(c::AWSConfig, d::AbstractArray) = TestUtils.submit_job(c, d, true)
+                    @patch submit_job(c::AWSConfig, d::AbstractArray) = TestUtils.submit_job(c, d)
                 ]
 
                 apply(patches) do
@@ -189,7 +189,7 @@ end
                 patches = [
                     @patch readstring(cmd::AbstractCmd) = TestUtils.readstring(cmd, false)
                     @patch describe_jobs(dict::Dict) = TestUtils.describe_jobs(dict)
-                    @patch submit_job(c::AWSConfig, d::AbstractArray) = TestUtils.submit_job(c, d, true)
+                    @patch submit_job(c::AWSConfig, d::AbstractArray) = TestUtils.submit_job(() -> sleep(3), c, d)
                 ]
 
                 @test_throws ErrorException apply(patches) do

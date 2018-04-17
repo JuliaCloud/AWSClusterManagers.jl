@@ -144,19 +144,22 @@ function describe_jobs(dict::Dict)
 end
 
 """
-    Mock.submit_job(config::AWSConfig, d::AbstractArray, pass::Bool=true)
+    Mock.submit_job([f::Function], config::AWSConfig, d::AbstractArray)
 
 Mocks the `AWSSDK.Batch.submit_job` call. When `pass` is false the command will return valid
 output, but the spawned job will not bring up a worker process.
 """
-function submit_job(config::AWSConfig, d::AbstractArray, pass::Bool=true)
-    if pass
-        # AWSSDK uses an Dict-like array
-        command = Dict(Dict(d)["containerOverrides"])["command"]
-        @spawn run(Cmd(command))
-    else
-        @spawn run(Cmd(["julia", "-e", "println(STDERR, \"Failed to come online\")"]))
-    end
+submit_job
+
+function submit_job(f::Function, config::AWSConfig, d::AbstractArray)
+    @spawn f()
+    return SUBMIT_JOB_RESP
+end
+
+function submit_job(config::AWSConfig, d::AbstractArray)
+    # AWSSDK uses an Dict-like array
+    cmd = Cmd(Dict(Dict(d)["containerOverrides"])["command"])
+    @spawn run(cmd)
     return SUBMIT_JOB_RESP
 end
 
