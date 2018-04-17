@@ -224,7 +224,7 @@ end
             Memento.config("debug"; fmt="{msg}")
             using AWSClusterManagers: AWSBatchManager
             setlevel!(getlogger(AWSClusterManagers), "debug")
-            addprocs(AWSBatchManager($num_workers, queue="$(STACK["WorkerJobQueueArn"])", timeout=$(timeout - 15)))
+            addprocs(AWSBatchManager($num_workers, queue="$(STACK["WorkerJobQueueArn"])", memory=512, timeout=$(timeout - 15)))
             println("NumProcs: ", nprocs())
             @everywhere using AWSClusterManagers: container_id
             for i in workers()
@@ -233,6 +233,8 @@ end
             end
             """
 
+            # Note: The manager can run out of memory with enough workers:
+            # - 64 workers with a manager with 1024 MB of memory
             info("Creating AWS Batch job")
             job = BatchJob(;
                 name = STACK["JobName"] * "-n$num_workers",
@@ -241,7 +243,7 @@ end
                 image = image_name,
                 role = STACK["JobRoleArn"],
                 vcpus = 1,
-                memory = 1024,
+                memory = 2048,
                 cmd = Cmd(["julia", "-e", replace(code, r"\n+", "; ")]),
             )
 
