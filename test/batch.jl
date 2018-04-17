@@ -207,8 +207,8 @@ end
         image_name = batch_manager_build()
 
         # Note: Start with the largest number of workers so the remaining tests don't have
-        # to wait for the cluster to scale up.
-        @testset "Online (n=$num_workers)" for num_workers in [64, 3, 1, 0]
+        # to wait for the cluster to scale up on subsequent tests.
+        @testset "Online (n=$num_workers)" for num_workers in [10, 1, 0]
             # TODO: Use AWS Batch job parameters to avoid re-registering the job
 
             # Will be running the HEAD revision of the code remotely
@@ -260,8 +260,8 @@ end
             # Spawned are the AWS Batch job IDs reported upon job submission at launch
             # while reported is the self-reported job ID of each worker.
             spawned_jobs = scrape_worker_job_ids(output)
-            reported_jobs = [m[1] for m in eachmatch(r"Worker job \d: ([0-9a-f\-]+(?:\:\d+)?)", output)]
-            reported_containers = [m[1] for m in eachmatch(r"Worker container \d: ([0-9a-f]*)", output)]
+            reported_jobs = [m[1] for m in eachmatch(r"Worker job \d+: ([0-9a-f\-]+(?:\:\d+)?)", output)]
+            reported_containers = [m[1] for m in eachmatch(r"Worker container \d+: ([0-9a-f]*)", output)]
 
             @test num_procs == num_workers + 1
             if num_workers > 0

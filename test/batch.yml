@@ -8,6 +8,19 @@
 #   --template-body file://test/batch.yml \
 #   --capabilities CAPABILITY_NAMED_IAM
 # ```
+#
+# If you are planning on destroying your stack after you have finished running tests you
+# can use the following parameters to make the tests avoid delays with scaling the compute
+# environments by being slightly more expensive:
+#
+# ```
+# aws cloudformation create-stack \
+#   --stack-name aws-batch-manager-test-fast \
+#   --template-body file://test/batch.yml \
+#   --capabilities CAPABILITY_NAMED_IAM \
+#   --parameters \
+#     ParameterKey=MinVCPUs,ParameterValue=16
+# ```
 
 AWSTemplateFormatVersion: 2010-09-09
 Description: >-
@@ -33,7 +46,7 @@ Parameters:
     Description: >-
       The maximum number of VCPUs. Typically this number does not need to be touched
     Type: Number
-    Default: 8
+    Default: 16
   ProvisioningModel:
     Description: Spot instances are cheaper than on-demand but can be abruptly terminated
     Type: String
