@@ -206,6 +206,12 @@ end
     if "batch" in ONLINE
         image_name = batch_manager_build()
 
+        # Worst case 15 minute timeout. If the compute environment has just scaled it will
+        # wait 8 minutes before scaling again. Spot instance requests can take some time to
+        # be fufilled but are usually instant and instances take around 4 minutes before
+        # they are ready.
+        timeout = 15 * 60  # In seconds
+
         # Note: Start with the largest number of workers so the remaining tests don't have
         # to wait for the cluster to scale up on subsequent tests.
         @testset "Online (n=$num_workers)" for num_workers in [10, 1, 0]
@@ -218,7 +224,7 @@ end
             Memento.config("debug"; fmt="{msg}")
             using AWSClusterManagers: AWSBatchManager
             setlevel!(getlogger(AWSClusterManagers), "debug")
-            addprocs(AWSBatchManager($num_workers, queue="$(STACK["WorkerJobQueueArn"])"))
+            addprocs(AWSBatchManager($num_workers, queue="$(STACK["WorkerJobQueueArn"])", timeout=$(timeout - 15)))
             println("NumProcs: ", nprocs())
             @everywhere using AWSClusterManagers: container_id
             for i in workers()
@@ -245,9 +251,23 @@ end
             info("Submitting AWS Batch job with $num_workers workers")
             submit!(job)
 
-            # If no resources are available it could take around 5 minutes before the job is running
-            info("Waiting for AWS Batch job $(job.id) to complete (~5 minutes)")
-            @test wait(job, [AWSBatch.SUCCEEDED]) == true
+            # If no compute environment resources are available it could take around
+            # 5 minutes before the manager job is running
+            info("Waiting for AWS Batch manager job $(job.id) to run (~5 minutes)")
+            start_time = time()
+            @test wait(job, [AWSBatch.RUNNING], timeout=timeout) == true
+            info("Manager spawning duration: $(time_str(time() - start_time))")
+
+            # Once the manager job is running it will spawn additional AWS Batch jobs as
+            # the workers.
+            #
+            # Since compute environments only scale every 5 minutes we will definitely have
+            # to wait if we scaled up for the mananager job. To reduce this wait time make
+            # sure you have one VCPU available for the manager to start right away.
+            info("Waiting for AWS Batch workers and manager job to complete (~5 minutes)")
+            start_time = time()
+            @test wait(job, [AWSBatch.SUCCEEDED], timeout=timeout) == true
+            info("Worker spawning duration: $(time_str(time() - start_time))")
 
             # Remove the job definition as it is specific to a revision
             deregister!(job)
@@ -289,10 +309,10 @@ end
             started_at = Dates.unix2datetime(d["startedAt"] / 1000)
             stopped_at = Dates.unix2datetime(d["stoppedAt"] / 1000)
 
-            # TODO: Unless I'm forgetting something just extrating the seconds from the milliseconds
-            # is awkward
-            launch_duration = div(Dates.value(started_at - created_at), 1000)
-            run_duration = div(Dates.value(stopped_at - started_at), 1000)
+            # TODO: Unless I'm forgetting something just extracting the seconds from the
+            # milliseconds is awkward
+            launch_duration = Dates.value(started_at - created_at) / 1000
+            run_duration = Dates.value(stopped_at - started_at) / 1000
 
             info("Job launch duration: $(time_str(launch_duration))")
             info("Job run duration:    $(time_str(run_duration))")

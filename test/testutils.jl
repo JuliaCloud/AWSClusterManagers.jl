@@ -52,7 +52,7 @@ function log_messages(job::BatchJob)
     return join([event["message"] for event in events], '\n')
 end
 
-function time_str(secs::Integer)
+function time_str(secs::Real)
     @sprintf("%02d:%02d:%02d", div(secs, 3600), rem(div(secs, 60), 60), rem(secs, 60))
 end
 
