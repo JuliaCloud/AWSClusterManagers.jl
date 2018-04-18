@@ -69,6 +69,29 @@ RUN yum -y install $PKGS && \
 # Perform the remainder AWSClusterManagers installation
 COPY . $PKG_PATH
 
+# Create a new system image. Improves the startup times of packages by pre-compiling 
+# AWSClusterManagers and it's dependencies into the default system image. Note in 
+# situations where uploads are slow you probably want to disable this.
+ARG CREATE_SYSIMG="true"
+
+# Note: Need to have libc to avoid: "/usr/bin/ld: cannot find crti.o: No such file or directory"
+ENV PKGS \
+    gcc
+ENV PINNED_PKGS \
+    glibc
+RUN if [[ "$CREATE_SYSIMG" == "true" ]]; then \
+        yum -y install $PKGS $PINNED_PKGS && \
+        echo $PINNED_PKGS | tr -s '\t ' '\n' > /etc/yum/protected.d/julia-userimg.conf && \
+        cd $JULIA_PATH/base && \
+        source $JULIA_PATH/Make.user && \
+        $JULIA_PATH/julia -C $MARCH --output-o $JULIA_PATH/userimg.o --sysimage $JULIA_PATH/usr/lib/julia/sys.so --startup-file=no -e "using $PKG_NAME" && \
+        cc -shared -o $JULIA_PATH/userimg.so $JULIA_PATH/userimg.o -ljulia -L$JULIA_PATH/usr/lib && \
+        mv $JULIA_PATH/userimg.o $JULIA_PATH/usr/lib/julia/sys.o && \
+        mv $JULIA_PATH/userimg.so $JULIA_PATH/usr/lib/julia/sys.so && \
+        yum -y autoremove $PKGS && \
+        yum -y clean all; \
+    fi
+
 WORKDIR $PKG_PATH
 
 # To run these tests make sure to run docker with these flags:

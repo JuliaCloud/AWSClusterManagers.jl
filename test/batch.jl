@@ -1,7 +1,27 @@
+using AWSCore: AWSConfig
+
 const BATCH_ENVS = (
     "AWS_BATCH_JOB_ID" => "bcf0b186-a532-4122-842e-2ccab8d54efb",
     "AWS_BATCH_JQ_NAME" => "HighPriority"
 )
+
+# Scrapes the log output to determine the worker job IDs as stated by the manager
+function scrape_worker_job_ids(output::AbstractString)
+    m = match(r"Spawning (array )?job: (?<id>[0-9a-f\-]+)(?(1) \(n=(?<n>\d+)\))", output)
+
+    if m !== nothing
+        worker_job = m[:id]
+
+        if m[:n] !== nothing
+            num_workers = parse(Int, m[:n])
+            return String["$worker_job:$i" for i in (1:num_workers) - 1]
+        else
+            return String["$worker_job"]
+        end
+    else
+        return String[]
+    end
+end
 
 # Test inner constructor
 @testset "AWSBatchManager" begin
@@ -145,7 +165,7 @@ const BATCH_ENVS = (
                 patches = [
                     @patch readstring(cmd::AbstractCmd) = TestUtils.readstring(cmd)
                     @patch describe_jobs(dict::Dict) = TestUtils.describe_jobs(dict)
-                    @patch submit!(job::BatchJob) = TestUtils.submit!(job, true)
+                    @patch submit_job(c::AWSConfig, d::AbstractArray) = TestUtils.submit_job(c, d)
                 ]
 
                 apply(patches) do
@@ -163,12 +183,13 @@ const BATCH_ENVS = (
                 end
             end
         end
+
         @testset "Worker Timeout" begin
             withenv(BATCH_ENVS...) do
                 patches = [
                     @patch readstring(cmd::AbstractCmd) = TestUtils.readstring(cmd, false)
                     @patch describe_jobs(dict::Dict) = TestUtils.describe_jobs(dict)
-                    @patch submit!(job::BatchJob) = TestUtils.submit!(job, false)
+                    @patch submit_job(c::AWSConfig, d::AbstractArray) = TestUtils.submit_job(() -> sleep(3), c, d)
                 ]
 
                 @test_throws ErrorException apply(patches) do
@@ -183,9 +204,18 @@ const BATCH_ENVS = (
     end
 
     if "batch" in ONLINE
-        @testset "Online" begin
-            image_name = batch_manager_build()
-            num_workers = 3
+        image_name = batch_manager_build()
+
+        # Worst case 15 minute timeout. If the compute environment has just scaled it will
+        # wait 8 minutes before scaling again. Spot instance requests can take some time to
+        # be fufilled but are usually instant and instances take around 4 minutes before
+        # they are ready.
+        timeout = 15 * 60  # In seconds
+
+        # Note: Start with the largest number of workers so the remaining tests don't have
+        # to wait for the cluster to scale up on subsequent tests.
+        @testset "Online (n=$num_workers)" for num_workers in [10, 1, 0]
+            # TODO: Use AWS Batch job parameters to avoid re-registering the job
 
             # Will be running the HEAD revision of the code remotely
             # Note: Pkg.checkout doesn't work on untracked branches / SHAs with Julia 0.5.1
@@ -194,7 +224,7 @@ const BATCH_ENVS = (
             Memento.config("debug"; fmt="{msg}")
             using AWSClusterManagers: AWSBatchManager
             setlevel!(getlogger(AWSClusterManagers), "debug")
-            addprocs(AWSBatchManager($num_workers, queue="$(STACK["WorkerJobQueueArn"])"))
+            addprocs(AWSBatchManager($num_workers, queue="$(STACK["WorkerJobQueueArn"])", memory=512, timeout=$(timeout - 15)))
             println("NumProcs: ", nprocs())
             @everywhere using AWSClusterManagers: container_id
             for i in workers()
@@ -203,27 +233,43 @@ const BATCH_ENVS = (
             end
             """
 
+            # Note: The manager can run out of memory with enough workers:
+            # - 64 workers with a manager with 1024 MB of memory
             info("Creating AWS Batch job")
             job = BatchJob(;
-                name = STACK["JobName"],
+                name = STACK["JobName"] * "-n$num_workers",
                 queue = STACK["ManagerJobQueueArn"],
                 definition = STACK["JobDefinitionName"],
                 image = image_name,
                 role = STACK["JobRoleArn"],
                 vcpus = 1,
-                memory = 1024,
+                memory = 2048,
                 cmd = Cmd(["julia", "-e", replace(code, r"\n+", "; ")]),
             )
 
             info("Registering AWS batch job definition")
             register!(job)
 
-            info("Submitting AWS Batch job")
+            info("Submitting AWS Batch job with $num_workers workers")
             submit!(job)
 
-            # If no resources are available it could take around 5 minutes before the job is running
-            info("Waiting for AWS Batch job $(job.id) to complete (~5 minutes)")
-            @test wait(job, [AWSBatch.SUCCEEDED]) == true
+            # If no compute environment resources are available it could take around
+            # 5 minutes before the manager job is running
+            info("Waiting for AWS Batch manager job $(job.id) to run (~5 minutes)")
+            start_time = time()
+            @test wait(job, [AWSBatch.RUNNING], timeout=timeout) == true
+            info("Manager spawning duration: $(time_str(time() - start_time))")
+
+            # Once the manager job is running it will spawn additional AWS Batch jobs as
+            # the workers.
+            #
+            # Since compute environments only scale every 5 minutes we will definitely have
+            # to wait if we scaled up for the mananager job. To reduce this wait time make
+            # sure you have one VCPU available for the manager to start right away.
+            info("Waiting for AWS Batch workers and manager job to complete (~5 minutes)")
+            start_time = time()
+            @test wait(job, [AWSBatch.SUCCEEDED], timeout=timeout) == true
+            info("Worker spawning duration: $(time_str(time() - start_time))")
 
             # Remove the job definition as it is specific to a revision
             deregister!(job)
@@ -235,13 +281,19 @@ const BATCH_ENVS = (
 
             # Spawned are the AWS Batch job IDs reported upon job submission at launch
             # while reported is the self-reported job ID of each worker.
-            spawned_jobs = matchall(r"(?<=Spawning job: )[0-9a-f\-]+", output)
-            reported_jobs = matchall(r"(?<=Worker job \d: )[0-9a-f\-]+", output)
-            reported_containers = matchall(r"(?<=Worker container \d: )[0-9a-f]*", output)
+            spawned_jobs = scrape_worker_job_ids(output)
+            reported_jobs = [m[1] for m in eachmatch(r"Worker job \d+: ([0-9a-f\-]+(?:\:\d+)?)", output)]
+            reported_containers = [m[1] for m in eachmatch(r"Worker container \d+: ([0-9a-f]*)", output)]
 
             @test num_procs == num_workers + 1
-            @test length(reported_jobs) == num_workers
-            @test Set(spawned_jobs) == Set(reported_jobs)
+            if num_workers > 0
+                @test length(reported_jobs) == num_workers
+                @test Set(reported_jobs) == Set(spawned_jobs)
+            else
+                # When we request no workers the manager job will be treated as the worker
+                @test length(reported_jobs) == 1
+                @test reported_jobs == [job.id]
+            end
 
             # Ensure that the container IDs were found
             @test all(.!isempty.(reported_containers))
@@ -259,10 +311,10 @@ const BATCH_ENVS = (
             started_at = Dates.unix2datetime(d["startedAt"] / 1000)
             stopped_at = Dates.unix2datetime(d["stoppedAt"] / 1000)
 
-            # TODO: Unless I'm forgetting something just extrating the seconds from the milliseconds
-            # is awkward
-            launch_duration = div(Dates.value(started_at - created_at), 1000)
-            run_duration = div(Dates.value(stopped_at - started_at), 1000)
+            # TODO: Unless I'm forgetting something just extracting the seconds from the
+            # milliseconds is awkward
+            launch_duration = Dates.value(started_at - created_at) / 1000
+            run_duration = Dates.value(stopped_at - started_at) / 1000
 
             info("Job launch duration: $(time_str(launch_duration))")
             info("Job run duration:    $(time_str(run_duration))")

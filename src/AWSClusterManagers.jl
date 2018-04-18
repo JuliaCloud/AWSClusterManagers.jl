@@ -5,6 +5,8 @@ using Memento
 using Mocking
 using Compat: @__MODULE__
 using AWSBatch
+using AWSSDK.Batch: submit_job
+using AWSCore: AWSConfig, AWSCredentials
 using JSON
 
 export ECSManager, AWSBatchManager, DockerManager, BatchEnvironmentError

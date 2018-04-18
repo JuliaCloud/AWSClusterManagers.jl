@@ -4,6 +4,8 @@ using AWSBatch
 using IterTools
 using JSON
 using Memento
+using AWSCore: AWSConfig
+using DataStructures: OrderedDict
 
 import Base: AbstractCmd, CmdRedirect
 
@@ -50,7 +52,7 @@ function log_messages(job::BatchJob)
     return join([event["message"] for event in events], '\n')
 end
 
-function time_str(secs::Integer)
+function time_str(secs::Real)
     @sprintf("%02d:%02d:%02d", div(secs, 3600), rem(div(secs, 60), 60), rem(secs, 60))
 end
 
@@ -85,12 +87,10 @@ const DESCRIBE_JOBS_RESP = """
 }
 """
 
-const SUBMIT_JOB_RESP = """
-{
-    "jobName": "example",
-    "jobId": "876da822-4198-45f2-a252-6cea32512ea8"
-}
-"""
+const SUBMIT_JOB_RESP = OrderedDict(
+    "jobName" => "example",
+    "jobId" => "876da822-4198-45f2-a252-6cea32512ea8",
+)
 
 """
     Mock.readstring(cmd::AbstractCmd, pass::Bool=true)
@@ -144,18 +144,22 @@ function describe_jobs(dict::Dict)
 end
 
 """
-    Mock.submit(job::BatchJob, pass::Bool=true)
+    Mock.submit_job([f::Function], config::AWSConfig, d::AbstractArray)
 
-Mocks the `AWSBatch.submit!(job)` call. When `pass` is false the command will return valid
+Mocks the `AWSSDK.Batch.submit_job` call. When `pass` is false the command will return valid
 output, but the spawned job will not bring up a worker process.
 """
-function submit!(job::BatchJob, pass::Bool=true)
-    if pass
-        @spawn run(job.container.cmd)
-        info(logger, "Submitted job $(job.name)::$(job.id).")
-    else
-        @spawn run(Cmd(["julia", "-e", "println(STDERR, \"Failed to come online\")"]))
-    end
+submit_job
+
+function submit_job(f::Function, config::AWSConfig, d::AbstractArray)
+    @spawn f()
+    return SUBMIT_JOB_RESP
+end
+
+function submit_job(config::AWSConfig, d::AbstractArray)
+    # AWSSDK uses an Dict-like array
+    cmd = Cmd(Dict(Dict(d)["containerOverrides"])["command"])
+    @spawn run(cmd)
     return SUBMIT_JOB_RESP
 end
 
