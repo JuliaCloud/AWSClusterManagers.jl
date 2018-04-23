@@ -20,12 +20,15 @@ else
     49152  # IANA dynamic and/or private port range start (https://en.wikipedia.org/wiki/Ephemeral_port)
 end
 
-# Seconds to wait for container instances to launch
-const DEFAULT_TIMEOUT = 600  # 10 minutes
-
 abstract type ContainerManager <: ClusterManager end
 
-launch_timeout(manager::ContainerManager) = DEFAULT_TIMEOUT
+"""
+    launch_timeout(mgr::ContainerManager) -> Int
+
+The maximum duration (in seconds) a manager will wait for a worker to connect since the
+manager initiated the spawning of the worker.
+"""
+launch_timeout(::ContainerManager)
 
 """
     desired_workers(mgr::ContainerManager) -> Tuple{Int, Int}

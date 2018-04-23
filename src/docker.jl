@@ -1,5 +1,9 @@
 import Base: ==
 
+# Seconds to wait for the Docker containers to launch and the workers to connect to the
+# manager
+const DOCKER_TIMEOUT = 60  # 1 minute
+
 """
     DockerManager(num_workers; kwargs...)
 
@@ -42,13 +46,13 @@ struct DockerManager <: ContainerManager
     function DockerManager(
         num_workers::Integer,
         image::AbstractString,
-        timeout::Real=DEFAULT_TIMEOUT,
+        timeout::Real=DOCKER_TIMEOUT,
     )
         num_workers >= 0 || throw(ArgumentError("num workers must be non-negative"))
 
         # Workers by default inherit the defaults from the manager.
         if isempty(image)
-            image = image_id()
+            image = @mock image_id()
         end
 
         new(num_workers, image, timeout)
@@ -58,7 +62,7 @@ end
 function DockerManager(
     num_workers::Integer;
     image::AbstractString="",
-    timeout::Real=DEFAULT_TIMEOUT,
+    timeout::Real=DOCKER_TIMEOUT,
 )
     DockerManager(num_workers, image, timeout)
 end

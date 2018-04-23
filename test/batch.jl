@@ -106,7 +106,8 @@ end
 
             @test desired_workers(AWSBatchManager(5; kwargs...)) == (5, 5)
         end
-        @testset "AWS Defaults" begin
+
+        @testset "Defaults" begin
             # Running outside of the environment of an AWS batch job
             withenv("AWS_BATCH_JOB_ID" => nothing) do
                 @test_throws BatchEnvironmentError AWSBatchManager(3)
@@ -130,9 +131,13 @@ end
                     @test mgr.job_queue == job.queue
                     @test mgr.job_memory == 512
                     @test mgr.region == job.region
-                    @test mgr.timeout == AWSClusterManagers.DEFAULT_TIMEOUT
+                    @test mgr.timeout == AWSClusterManagers.BATCH_TIMEOUT
+
+                    @test launch_timeout(mgr) == AWSClusterManagers.BATCH_TIMEOUT
+                    @test desired_workers(mgr) == (3, 3)
 
                     @test mgr == AWSBatchManager(3)
+
                 end
             end
         end

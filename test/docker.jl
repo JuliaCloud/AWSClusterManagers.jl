@@ -33,6 +33,23 @@ end
             @test mgr.num_workers == 0
         end
 
+        @testset "Defaults" begin
+            patch = @patch image_id() = mock_image
+
+            apply(patch) do
+                mgr = DockerManager(3)
+
+                @test mgr.num_workers == 3
+                @test mgr.image == mock_image
+                @test mgr.timeout == AWSClusterManagers.DOCKER_TIMEOUT
+
+                @test launch_timeout(mgr) == AWSClusterManagers.DOCKER_TIMEOUT
+                @test desired_workers(mgr) == (3, 3)
+
+                @test mgr == DockerManager(3)
+            end
+        end
+
         # TODO: mock `container_id` and `image_id`
     end
     @testset "Adding procs" begin
