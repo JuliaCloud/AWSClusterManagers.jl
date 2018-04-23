@@ -64,7 +64,7 @@ function DockerManager(
 end
 
 launch_timeout(mgr::DockerManager) = mgr.timeout
-num_workers(mgr::DockerManager) = mgr.num_workers, mgr.num_workers
+desired_workers(mgr::DockerManager) = mgr.num_workers, mgr.num_workers
 
 function ==(a::DockerManager, b::DockerManager)
     return (

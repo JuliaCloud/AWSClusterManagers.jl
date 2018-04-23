@@ -17,7 +17,7 @@ end
             @test mgr.timeout == 600
 
             @test launch_timeout(mgr) == 600
-            @test num_workers(mgr) == (2, 2)
+            @test desired_workers(mgr) == (2, 2)
         end
 
         @testset "Keywords" begin

@@ -140,7 +140,7 @@ function AWSBatchManager(workers::Integer; kwargs...)
 end
 
 launch_timeout(mgr::AWSBatchManager) = mgr.timeout
-num_workers(mgr::AWSBatchManager) = mgr.min_workers, mgr.max_workers
+desired_workers(mgr::AWSBatchManager) = mgr.min_workers, mgr.max_workers
 
 function ==(a::AWSBatchManager, b::AWSBatchManager)
     return (

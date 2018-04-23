@@ -48,7 +48,7 @@ end
             @test mgr.timeout == 600
 
             @test launch_timeout(mgr) == 600
-            @test num_workers(mgr) == (1, 2)
+            @test desired_workers(mgr) == (1, 2)
         end
 
         @testset "Keyword" begin
@@ -100,11 +100,11 @@ end
                 :region => "ca-central-1"
             )
 
-            @test num_workers(AWSBatchManager(3:4; kwargs...)) == (3, 4)
+            @test desired_workers(AWSBatchManager(3:4; kwargs...)) == (3, 4)
             @test_throws MethodError AWSBatchManager(3:1:4; kwargs...)
             @test_throws MethodError AWSBatchManager(3:2:4; kwargs...)
 
-            @test num_workers(AWSBatchManager(5; kwargs...)) == (5, 5)
+            @test desired_workers(AWSBatchManager(5; kwargs...)) == (5, 5)
         end
         @testset "AWS Defaults" begin
             # Running outside of the environment of an AWS batch job

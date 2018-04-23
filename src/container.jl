@@ -27,8 +27,15 @@ abstract type ContainerManager <: ClusterManager end
 
 launch_timeout(manager::ContainerManager) = DEFAULT_TIMEOUT
 
+"""
+    desired_workers(mgr::ContainerManager) -> Tuple{Int, Int}
+
+The minimum and maximum number of workers wanted by the manager.
+"""
+desired_workers(::ContainerManager)
+
 function launch(manager::ContainerManager, params::Dict, launched::Array, c::Condition)
-    min_workers, max_workers = num_workers(manager)
+    min_workers, max_workers = desired_workers(manager)
     launch_tasks = Vector{Task}(max_workers)
 
     # TODO: Ideally should be using TLS connections.
