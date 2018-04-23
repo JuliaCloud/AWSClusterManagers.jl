@@ -48,7 +48,7 @@ end
             @test mgr.timeout == 600
 
             @test launch_timeout(mgr) == 600
-            @test num_workers(mgr) == (1, 2)
+            @test desired_workers(mgr) == (1, 2)
         end
 
         @testset "Keyword" begin
@@ -100,13 +100,14 @@ end
                 :region => "ca-central-1"
             )
 
-            @test num_workers(AWSBatchManager(3:4; kwargs...)) == (3, 4)
+            @test desired_workers(AWSBatchManager(3:4; kwargs...)) == (3, 4)
             @test_throws MethodError AWSBatchManager(3:1:4; kwargs...)
             @test_throws MethodError AWSBatchManager(3:2:4; kwargs...)
 
-            @test num_workers(AWSBatchManager(5; kwargs...)) == (5, 5)
+            @test desired_workers(AWSBatchManager(5; kwargs...)) == (5, 5)
         end
-        @testset "AWS Defaults" begin
+
+        @testset "Defaults" begin
             # Running outside of the environment of an AWS batch job
             withenv("AWS_BATCH_JOB_ID" => nothing) do
                 @test_throws BatchEnvironmentError AWSBatchManager(3)
@@ -130,9 +131,13 @@ end
                     @test mgr.job_queue == job.queue
                     @test mgr.job_memory == 512
                     @test mgr.region == job.region
-                    @test mgr.timeout == AWSClusterManagers.DEFAULT_TIMEOUT
+                    @test mgr.timeout == AWSClusterManagers.BATCH_TIMEOUT
+
+                    @test launch_timeout(mgr) == AWSClusterManagers.BATCH_TIMEOUT
+                    @test desired_workers(mgr) == (3, 3)
 
                     @test mgr == AWSBatchManager(3)
+
                 end
             end
         end

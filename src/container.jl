@@ -20,15 +20,25 @@ else
     49152  # IANA dynamic and/or private port range start (https://en.wikipedia.org/wiki/Ephemeral_port)
 end
 
-# Seconds to wait for container instances to launch
-const DEFAULT_TIMEOUT = 600  # 10 minutes
-
 abstract type ContainerManager <: ClusterManager end
 
-launch_timeout(manager::ContainerManager) = DEFAULT_TIMEOUT
+"""
+    launch_timeout(mgr::ContainerManager) -> Int
+
+The maximum duration (in seconds) a manager will wait for a worker to connect since the
+manager initiated the spawning of the worker.
+"""
+launch_timeout(::ContainerManager)
+
+"""
+    desired_workers(mgr::ContainerManager) -> Tuple{Int, Int}
+
+The minimum and maximum number of workers wanted by the manager.
+"""
+desired_workers(::ContainerManager)
 
 function launch(manager::ContainerManager, params::Dict, launched::Array, c::Condition)
-    min_workers, max_workers = num_workers(manager)
+    min_workers, max_workers = desired_workers(manager)
     launch_tasks = Vector{Task}(max_workers)
 
     # TODO: Ideally should be using TLS connections.

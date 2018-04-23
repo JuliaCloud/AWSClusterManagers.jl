@@ -17,7 +17,7 @@ end
             @test mgr.timeout == 600
 
             @test launch_timeout(mgr) == 600
-            @test num_workers(mgr) == (2, 2)
+            @test desired_workers(mgr) == (2, 2)
         end
 
         @testset "Keywords" begin
@@ -31,6 +31,23 @@ end
         @testset "Zero Workers" begin
             mgr = DockerManager(0, image=mock_image, timeout=600)
             @test mgr.num_workers == 0
+        end
+
+        @testset "Defaults" begin
+            patch = @patch image_id() = mock_image
+
+            apply(patch) do
+                mgr = DockerManager(3)
+
+                @test mgr.num_workers == 3
+                @test mgr.image == mock_image
+                @test mgr.timeout == AWSClusterManagers.DOCKER_TIMEOUT
+
+                @test launch_timeout(mgr) == AWSClusterManagers.DOCKER_TIMEOUT
+                @test desired_workers(mgr) == (3, 3)
+
+                @test mgr == DockerManager(3)
+            end
         end
 
         # TODO: mock `container_id` and `image_id`

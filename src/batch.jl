@@ -1,6 +1,10 @@
 import Base: ==
 import Base: showerror
 
+# Seconds to wait for the AWS Batch cluster to scale up, spot requests to be fufilled,
+# instances to finish initializing, and have the worker instances connect to the manager.
+const BATCH_TIMEOUT = 900  # 15 minutes
+
 struct BatchEnvironmentError <: Exception
     message::String
 end
@@ -69,7 +73,7 @@ struct AWSBatchManager <: ContainerManager
         queue::AbstractString,
         memory::Integer,
         region::AbstractString,
-        timeout::Real=DEFAULT_TIMEOUT,
+        timeout::Real=BATCH_TIMEOUT,
     )
         min_workers >= 0 || throw(ArgumentError("min workers must be non-negative"))
         min_workers <= max_workers || throw(ArgumentError("min workers exceeds max workers"))
@@ -117,7 +121,7 @@ function AWSBatchManager(
     queue::AbstractString="",
     memory::Integer=-1,
     region::AbstractString="",
-    timeout::Real=DEFAULT_TIMEOUT,
+    timeout::Real=BATCH_TIMEOUT,
 )
     AWSBatchManager(
         min_workers,
@@ -140,7 +144,7 @@ function AWSBatchManager(workers::Integer; kwargs...)
 end
 
 launch_timeout(mgr::AWSBatchManager) = mgr.timeout
-num_workers(mgr::AWSBatchManager) = mgr.min_workers, mgr.max_workers
+desired_workers(mgr::AWSBatchManager) = mgr.min_workers, mgr.max_workers
 
 function ==(a::AWSBatchManager, b::AWSBatchManager)
     return (

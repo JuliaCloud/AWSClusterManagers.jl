@@ -9,7 +9,7 @@ using AWSTools.CloudFormation: stack_output
 using Base.Test
 
 import Base: AbstractCmd
-import AWSClusterManagers: launch_timeout, num_workers
+import AWSClusterManagers: launch_timeout, desired_workers
 
 include("testutils.jl")
 using .TestUtils
