@@ -160,10 +160,10 @@ function get_compute_envs(job_queue::AbstractString)
     [get(env, "computeEnvironment", nothing) for env in env_ord]
 end
 
-function max_tasks(mgr::AWSBatchManager)
-    env_desc = get(describe_compute_environments(computeEnvironments = get_compute_envs(mgr.job_queue)), "computeEnvironments", nothing)
+function max_vcpus(job_queue::AbstractString)
+    env_desc = get(describe_compute_environments(computeEnvironments = get_compute_envs(job_queue)), "computeEnvironments", nothing)
     if env_desc === nothing
-        throw(BatchEnvironmentError( "Cannot get compute environment information for $(mgr.job_queue)."))
+        throw(BatchEnvironmentError( "Cannot get compute environment information for $job_queue."))
     end
     total_vcpus = 0
     for env in env_desc
@@ -171,6 +171,8 @@ function max_tasks(mgr::AWSBatchManager)
     end
     total_vcpus
 end
+
+max_vcpus(mgr::AWSBatchManager) = max_vcpus(mgr.job_queue)
 
 function ==(a::AWSBatchManager, b::AWSBatchManager)
     return (

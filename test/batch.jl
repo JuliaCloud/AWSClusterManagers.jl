@@ -23,6 +23,79 @@ function scrape_worker_job_ids(output::AbstractString)
     end
 end
 
+function create_batch_job(image_name::AbstractString, num_workers::Int)
+    # TODO: Use AWS Batch job parameters to avoid re-registering the job
+
+    # Worst case 15 minute timeout. If the compute environment has just scaled it will
+    # wait 8 minutes before scaling again. Spot instance requests can take some time to
+    # be fufilled but are usually instant and instances take around 4 minutes before
+    # they are ready.
+    timeout = 15 * 60  # In seconds
+
+    # Will be running the HEAD revision of the code remotely
+    # Note: Pkg.checkout doesn't work on untracked branches / SHAs with Julia 0.5.1
+    code = """
+    using Memento
+    Memento.config("debug"; fmt="{msg}")
+    using AWSClusterManagers: AWSBatchManager
+    setlevel!(getlogger(AWSClusterManagers), "debug")
+    addprocs(AWSBatchManager($num_workers, queue="$(STACK["WorkerJobQueueArn"])", memory=512, timeout=$(timeout - 15)))
+    println("NumProcs: ", nprocs())
+    @everywhere using AWSClusterManagers: container_id
+    for i in workers()
+        println("Worker container \$i: ", remotecall_fetch(container_id, i))
+        println("Worker job \$i: ", remotecall_fetch(() -> ENV["AWS_BATCH_JOB_ID"], i))
+    end
+    """
+
+    # Note: The manager can run out of memory with enough workers:
+    # - 64 workers with a manager with 1024 MB of memory
+    info("Creating AWS Batch job")
+    job = BatchJob(;
+        name = STACK["JobName"] * "-n$num_workers",
+        queue = STACK["ManagerJobQueueArn"],
+        definition = STACK["JobDefinitionName"],
+        image = image_name,
+        role = STACK["JobRoleArn"],
+        vcpus = 1,
+        memory = 2048,
+        cmd = Cmd(["julia", "-e", replace(code, r"\n+", "; ")]),
+    )
+end
+
+function run_job(job, num_workers::Int; timeout=15 * 60, should_fail::Bool = false)
+    info("Registering AWS batch job definition")
+    register!(job)
+
+    info("Submitting AWS Batch job with $num_workers workers")
+    submit!(job)
+
+    # If no compute environment resources are available it could take around
+    # 5 minutes before the manager job is running
+    info("Waiting for AWS Batch manager job $(job.id) to run (~5 minutes)")
+    start_time = time()
+    @test wait(job, [AWSBatch.RUNNING], timeout=timeout) == true
+    info("Manager spawning duration: $(time_str(time() - start_time))")
+
+    # Once the manager job is running it will spawn additional AWS Batch jobs as
+    # the workers.
+    #
+    # Since compute environments only scale every 5 minutes we will definitely have
+    # to wait if we scaled up for the mananager job. To reduce this wait time make
+    # sure you have one VCPU available for the manager to start right away.
+    info("Waiting for AWS Batch workers and manager job to complete (~5 minutes)")
+    start_time = time()
+    if should_fail
+        @test wait(job, [AWSBatch.FAILED], [AWSBatch.SUCCEEDED], timeout=timeout) == true
+    else
+        @test wait(job, [AWSBatch.SUCCEEDED], timeout=timeout) == true
+    end
+    info("Worker spawning duration: $(time_str(time() - start_time))")
+
+    # Remove the job definition as it is specific to a revision
+    deregister!(job)
+end
+
 # Test inner constructor
 @testset "AWSBatchManager" begin
     @testset "Constructors" begin
@@ -169,7 +242,7 @@ end
                     @patch readstring(cmd::AbstractCmd) = TestUtils.readstring(cmd)
                     @patch describe_jobs(dict::Dict) = TestUtils.describe_jobs(dict)
                     @patch submit_job(c::AWSConfig, d::AbstractArray) = TestUtils.submit_job(c, d)
-                    @patch max_tasks(a::AWSBatchManager) = 500
+                    @patch max_vcpus(a::AWSBatchManager) = 500
                 ]
 
                 apply(patches) do
@@ -194,7 +267,7 @@ end
                     @patch readstring(cmd::AbstractCmd) = TestUtils.readstring(cmd, false)
                     @patch describe_jobs(dict::Dict) = TestUtils.describe_jobs(dict)
                     @patch submit_job(c::AWSConfig, d::AbstractArray) = TestUtils.submit_job(() -> sleep(3), c, d)
-                    @patch max_tasks(a::AWSBatchManager) = 500
+                    @patch max_vcpus(a::AWSBatchManager) = 500
                 ]
 
                 @test_throws ErrorException apply(patches) do
@@ -212,7 +285,7 @@ end
                     @patch readstring(cmd::AbstractCmd) = TestUtils.readstring(cmd)
                     @patch describe_jobs(dict::Dict) = TestUtils.describe_jobs(dict)
                     @patch submit_job(c::AWSConfig, d::AbstractArray) = TestUtils.submit_job(c, d)
-                    @patch max_tasks(a::AWSBatchManager) = 3
+                    @patch max_vcpus(a::AWSBatchManager) = 3
                 ]
 
                 @test_throws ErrorException apply(patches) do
@@ -225,11 +298,11 @@ end
                     @patch readstring(cmd::AbstractCmd) = TestUtils.readstring(cmd)
                     @patch describe_jobs(dict::Dict) = TestUtils.describe_jobs(dict)
                     @patch submit_job(c::AWSConfig, d::AbstractArray) = TestUtils.submit_job(c, d)
-                    @patch max_tasks(a::AWSBatchManager) = 0
+                    @patch max_vcpus(a::AWSBatchManager) = 1
                 ]
-                msg = "Unable to launch the maximum number of workers"
+                msg = "Due to the max VCPU limit only 1 workers will be spawned instead of the requested 2."
                 apply(patches) do
-                    added_procs = @test_warn msg addprocs(AWSBatchManager(0,1))
+                    added_procs = @test_warn msg addprocs(AWSBatchManager(0,2))
                     # Check that the workers are available
                     @test length(added_procs) == 1
                     # Remove the added workers
@@ -242,74 +315,12 @@ end
     if "batch" in ONLINE
         image_name = batch_manager_build()
 
-        # Worst case 15 minute timeout. If the compute environment has just scaled it will
-        # wait 8 minutes before scaling again. Spot instance requests can take some time to
-        # be fufilled but are usually instant and instances take around 4 minutes before
-        # they are ready.
-        timeout = 15 * 60  # In seconds
-
         # Note: Start with the largest number of workers so the remaining tests don't have
         # to wait for the cluster to scale up on subsequent tests.
         @testset "Online (n=$num_workers)" for num_workers in [10, 1, 0]
-            # TODO: Use AWS Batch job parameters to avoid re-registering the job
+            job = create_batch_job(image_name, num_workers)
 
-            # Will be running the HEAD revision of the code remotely
-            # Note: Pkg.checkout doesn't work on untracked branches / SHAs with Julia 0.5.1
-            code = """
-            using Memento
-            Memento.config("debug"; fmt="{msg}")
-            using AWSClusterManagers: AWSBatchManager
-            setlevel!(getlogger(AWSClusterManagers), "debug")
-            addprocs(AWSBatchManager($num_workers, queue="$(STACK["WorkerJobQueueArn"])", memory=512, timeout=$(timeout - 15)))
-            println("NumProcs: ", nprocs())
-            @everywhere using AWSClusterManagers: container_id
-            for i in workers()
-                println("Worker container \$i: ", remotecall_fetch(container_id, i))
-                println("Worker job \$i: ", remotecall_fetch(() -> ENV["AWS_BATCH_JOB_ID"], i))
-            end
-            """
-
-            # Note: The manager can run out of memory with enough workers:
-            # - 64 workers with a manager with 1024 MB of memory
-            info("Creating AWS Batch job")
-            job = BatchJob(;
-                name = STACK["JobName"] * "-n$num_workers",
-                queue = STACK["ManagerJobQueueArn"],
-                definition = STACK["JobDefinitionName"],
-                image = image_name,
-                role = STACK["JobRoleArn"],
-                vcpus = 1,
-                memory = 2048,
-                cmd = Cmd(["julia", "-e", replace(code, r"\n+", "; ")]),
-            )
-
-            info("Registering AWS batch job definition")
-            register!(job)
-
-            info("Submitting AWS Batch job with $num_workers workers")
-            submit!(job)
-
-            # If no compute environment resources are available it could take around
-            # 5 minutes before the manager job is running
-            info("Waiting for AWS Batch manager job $(job.id) to run (~5 minutes)")
-            start_time = time()
-            @test wait(job, [AWSBatch.RUNNING], timeout=timeout) == true
-            info("Manager spawning duration: $(time_str(time() - start_time))")
-
-            # Once the manager job is running it will spawn additional AWS Batch jobs as
-            # the workers.
-            #
-            # Since compute environments only scale every 5 minutes we will definitely have
-            # to wait if we scaled up for the mananager job. To reduce this wait time make
-            # sure you have one VCPU available for the manager to start right away.
-            info("Waiting for AWS Batch workers and manager job to complete (~5 minutes)")
-            start_time = time()
-            @test wait(job, [AWSBatch.SUCCEEDED], timeout=timeout) == true
-            info("Worker spawning duration: $(time_str(time() - start_time))")
-
-            # Remove the job definition as it is specific to a revision
-            deregister!(job)
-
+            run_job(job, num_workers)
             output = log_messages(job)
 
             m = match(r"(?<=NumProcs: )\d+", output)
@@ -358,58 +369,9 @@ end
 
         @testset "Overload workers" begin
             num_workers = typemax(Int64)
-            # TODO: Use AWS Batch job parameters to avoid re-registering the job
+            job = create_batch_job(image_name, num_workers)
 
-            # Will be running the HEAD revision of the code remotely
-            # Note: Pkg.checkout doesn't work on untracked branches / SHAs with Julia 0.5.1
-            code = """
-            using Memento
-            Memento.config("debug"; fmt="{msg}")
-            using AWSClusterManagers: AWSBatchManager
-            setlevel!(getlogger(AWSClusterManagers), "debug")
-            addprocs(AWSBatchManager($num_workers, queue="$(STACK["WorkerJobQueueArn"])", memory=512, timeout=$(timeout - 15)))
-            println("NumProcs: ", nprocs())
-            @everywhere using AWSClusterManagers: container_id
-            for i in workers()
-                println("Worker container \$i: ", remotecall_fetch(container_id, i))
-                println("Worker job \$i: ", remotecall_fetch(() -> ENV["AWS_BATCH_JOB_ID"], i))
-            end
-            """
-
-            # Note: The manager can run out of memory with enough workers:
-            # - 64 workers with a manager with 1024 MB of memory
-            info("Creating AWS Batch job")
-            job = BatchJob(;
-                name = STACK["JobName"] * "-n$num_workers",
-                queue = STACK["ManagerJobQueueArn"],
-                definition = STACK["JobDefinitionName"],
-                image = image_name,
-                role = STACK["JobRoleArn"],
-                vcpus = 1,
-                memory = 2048,
-                cmd = Cmd(["julia", "-e", replace(code, r"\n+", "; ")]),
-            )
-
-            info("Registering AWS batch job definition")
-            register!(job)
-
-            info("Submitting AWS Batch job with $num_workers workers")
-            submit!(job)
-
-            # If no compute environment resources are available it could take around
-            # 5 minutes before the manager job is running
-            info("Waiting for AWS Batch manager job $(job.id) to run (~5 minutes)")
-            start_time = time()
-            @test wait(job, [AWSBatch.RUNNING], timeout=timeout) == true
-            info("Manager spawning duration: $(time_str(time() - start_time))")
-
-            # The job should fail without spawning any workers
-            info("Waiting for AWS Batch workers and manager job to complete (~5 minutes)")
-            @test wait(job, [AWSBatch.FAILED],[AWSBatch.SUCCEEDED], timeout=timeout) == true
-            info("Job failed in: $(time_str(time() - start_time))")
-
-            # Remove the job definition as it is specific to a revision
-            deregister!(job)
+            run_job(job, num_workers, should_fail=true)
 
             output = log_messages(job)
 
