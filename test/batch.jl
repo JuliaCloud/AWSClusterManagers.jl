@@ -99,11 +99,9 @@ end
                 :memory => 1000,
                 :region => "ca-central-1"
             )
-
             @test desired_workers(AWSBatchManager(3:4; kwargs...)) == (3, 4)
             @test_throws MethodError AWSBatchManager(3:1:4; kwargs...)
             @test_throws MethodError AWSBatchManager(3:2:4; kwargs...)
-
             @test desired_workers(AWSBatchManager(5; kwargs...)) == (5, 5)
         end
 
@@ -171,6 +169,7 @@ end
                     @patch readstring(cmd::AbstractCmd) = TestUtils.readstring(cmd)
                     @patch describe_jobs(dict::Dict) = TestUtils.describe_jobs(dict)
                     @patch submit_job(c::AWSConfig, d::AbstractArray) = TestUtils.submit_job(c, d)
+                    @patch max_tasks(a::AWSBatchManager) = 500
                 ]
 
                 apply(patches) do
@@ -195,6 +194,7 @@ end
                     @patch readstring(cmd::AbstractCmd) = TestUtils.readstring(cmd, false)
                     @patch describe_jobs(dict::Dict) = TestUtils.describe_jobs(dict)
                     @patch submit_job(c::AWSConfig, d::AbstractArray) = TestUtils.submit_job(() -> sleep(3), c, d)
+                    @patch max_tasks(a::AWSBatchManager) = 500
                 ]
 
                 @test_throws ErrorException apply(patches) do
@@ -202,6 +202,36 @@ end
                     # https://github.com/JuliaLang/julia/issues/12403
                     ignore_stderr() do
                         addprocs(AWSBatchManager(1; timeout=1.0))
+                    end
+                end
+            end
+        end
+        @testset "Max Tasks" begin
+            withenv(BATCH_ENVS...) do
+                patches = [
+                    @patch readstring(cmd::AbstractCmd) = TestUtils.readstring(cmd)
+                    @patch describe_jobs(dict::Dict) = TestUtils.describe_jobs(dict)
+                    @patch submit_job(c::AWSConfig, d::AbstractArray) = TestUtils.submit_job(c, d)
+                    @patch max_tasks(a::AWSBatchManager) = 3
+                ]
+
+                @test_throws ErrorException apply(patches) do
+                    ignore_stderr() do
+                        addprocs(AWSBatchManager(4))
+                    end
+                end
+
+                patches = [
+                    @patch readstring(cmd::AbstractCmd) = TestUtils.readstring(cmd)
+                    @patch describe_jobs(dict::Dict) = TestUtils.describe_jobs(dict)
+                    @patch submit_job(c::AWSConfig, d::AbstractArray) = error()
+                    @patch max_tasks(a::AWSBatchManager) = 3
+                ]
+                msg = "Unable to launch the maximum number of workers"
+                apply(patches) do
+                    try
+                        @test_warn msg addprocs(AWSBatchManager(1, 4))
+                    catch
                     end
                 end
             end

@@ -1,5 +1,6 @@
 import Base: ==
 import Base: showerror
+using AWSSDK.Batch: describe_job_queues, describe_compute_environments
 
 # Seconds to wait for the AWS Batch cluster to scale up, spot requests to be fufilled,
 # instances to finish initializing, and have the worker instances connect to the manager.
@@ -145,6 +146,31 @@ end
 
 launch_timeout(mgr::AWSBatchManager) = mgr.timeout
 desired_workers(mgr::AWSBatchManager) = mgr.min_workers, mgr.max_workers
+
+function get_compute_envs(job_queue::AbstractString)
+    queue_desc = get(describe_job_queues(jobQueues = [job_queue]), "jobQueues", nothing)
+    if queue_desc === nothing || length(queue_desc) < 1
+        throw(BatchEnvironmentError( "Cannot get job queue information for $job_queue."))
+    end
+    queue_desc = queue_desc[1]
+    env_ord = get(queue_desc, "computeEnvironmentOrder", nothing)
+    if env_ord === nothing
+        throw(BatchEnvironmentError( "Cannot get compute environment information for $job_queue."))
+    end
+    [get(env, "computeEnvironment", nothing) for env in env_ord]
+end
+
+function max_tasks(mgr::AWSBatchManager)
+    env_desc = get(describe_compute_environments(computeEnvironments = get_compute_envs(mgr.job_queue)), "computeEnvironments", nothing)
+    if env_desc === nothing
+        throw(BatchEnvironmentError( "Cannot get compute environment information for $(mgr.job_queue)."))
+    end
+    total_vcpus = 0
+    for env in env_desc
+        total_vcpus += get(env["computeResources"], "maxvCpus", 0)
+    end
+    total_vcpus
+end
 
 function ==(a::AWSBatchManager, b::AWSBatchManager)
     return (
