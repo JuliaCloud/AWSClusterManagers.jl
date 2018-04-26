@@ -41,7 +41,6 @@ max_tasks(mgr::ContainerManager) = typemax(Int64)
 
 function launch(manager::ContainerManager, params::Dict, launched::Array, c::Condition)
     min_workers, max_workers = desired_workers(manager)
-    launch_tasks = Vector{Task}(max_workers)
 
     max_t = @mock max_tasks(manager)
     if min_workers > max_t
@@ -50,6 +49,7 @@ function launch(manager::ContainerManager, params::Dict, launched::Array, c::Con
         warn("Unable to launch the maximum number of workers")
     end
 
+    launch_tasks = Vector{Task}(max_workers)
     # TODO: Ideally should be using TLS connections.
     port, server = listenany(ip"::", PORT_HINT)  # Listen on all IPv4 and IPv6 interfaces
     for i in 1:max_workers

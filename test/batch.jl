@@ -224,15 +224,16 @@ end
                 patches = [
                     @patch readstring(cmd::AbstractCmd) = TestUtils.readstring(cmd)
                     @patch describe_jobs(dict::Dict) = TestUtils.describe_jobs(dict)
-                    @patch submit_job(c::AWSConfig, d::AbstractArray) = error()
-                    @patch max_tasks(a::AWSBatchManager) = 3
+                    @patch submit_job(c::AWSConfig, d::AbstractArray) = TestUtils.submit_job(c, d)
+                    @patch max_tasks(a::AWSBatchManager) = 0
                 ]
                 msg = "Unable to launch the maximum number of workers"
                 apply(patches) do
-                    try
-                        @test_warn msg addprocs(AWSBatchManager(1, 4))
-                    catch
-                    end
+                    added_procs = @test_warn msg addprocs(AWSBatchManager(0,1))
+                    # Check that the workers are available
+                    @test length(added_procs) == 1
+                    # Remove the added workers
+                    rmprocs(added_procs; waitfor=5.0)
                 end
             end
         end
@@ -353,6 +354,74 @@ end
 
             info("Job launch duration: $(time_str(launch_duration))")
             info("Job run duration:    $(time_str(run_duration))")
+        end
+
+        @testset "Overload workers" begin
+            num_workers = typemax(Int64)
+            # TODO: Use AWS Batch job parameters to avoid re-registering the job
+
+            # Will be running the HEAD revision of the code remotely
+            # Note: Pkg.checkout doesn't work on untracked branches / SHAs with Julia 0.5.1
+            code = """
+            using Memento
+            Memento.config("debug"; fmt="{msg}")
+            using AWSClusterManagers: AWSBatchManager
+            setlevel!(getlogger(AWSClusterManagers), "debug")
+            addprocs(AWSBatchManager($num_workers, queue="$(STACK["WorkerJobQueueArn"])", memory=512, timeout=$(timeout - 15)))
+            println("NumProcs: ", nprocs())
+            @everywhere using AWSClusterManagers: container_id
+            for i in workers()
+                println("Worker container \$i: ", remotecall_fetch(container_id, i))
+                println("Worker job \$i: ", remotecall_fetch(() -> ENV["AWS_BATCH_JOB_ID"], i))
+            end
+            """
+
+            # Note: The manager can run out of memory with enough workers:
+            # - 64 workers with a manager with 1024 MB of memory
+            info("Creating AWS Batch job")
+            job = BatchJob(;
+                name = STACK["JobName"] * "-n$num_workers",
+                queue = STACK["ManagerJobQueueArn"],
+                definition = STACK["JobDefinitionName"],
+                image = image_name,
+                role = STACK["JobRoleArn"],
+                vcpus = 1,
+                memory = 2048,
+                cmd = Cmd(["julia", "-e", replace(code, r"\n+", "; ")]),
+            )
+
+            info("Registering AWS batch job definition")
+            register!(job)
+
+            info("Submitting AWS Batch job with $num_workers workers")
+            submit!(job)
+
+            # If no compute environment resources are available it could take around
+            # 5 minutes before the manager job is running
+            info("Waiting for AWS Batch manager job $(job.id) to run (~5 minutes)")
+            start_time = time()
+            @test wait(job, [AWSBatch.RUNNING], timeout=timeout) == true
+            info("Manager spawning duration: $(time_str(time() - start_time))")
+
+            # The job should fail without spawning any workers
+            info("Waiting for AWS Batch workers and manager job to complete (~5 minutes)")
+            @test wait(job, [AWSBatch.FAILED],[AWSBatch.SUCCEEDED], timeout=timeout) == true
+            info("Job failed in: $(time_str(time() - start_time))")
+
+            # Remove the job definition as it is specific to a revision
+            deregister!(job)
+
+            output = log_messages(job)
+
+            m = match(r"(?<=NumProcs: )\d+", output)
+            num_procs = m !== nothing ? parse(Int, m.match) : -1
+
+            # Spawned are the AWS Batch job IDs reported upon job submission at launch
+            # while reported is the self-reported job ID of each worker.
+            spawned_jobs = scrape_worker_job_ids(output)
+
+            @test num_procs == -1
+            @test length(spawned_jobs) == 0
         end
     else
         warn("Environment variable \"ONLINE\" does not contain \"batch\". Skipping online AWS Batch tests.")
