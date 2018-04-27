@@ -59,9 +59,9 @@ and one of the following:
 - The current AWS profile has an aws-batch-manager-test stack running and `AWS_STACKNAME` is set
 
 To make an aws-batch-manager-test compatible stack you can use the included CloudFormation
-template [aws-batch-manager-test.yml](aws-batch-manager-test.yml). Alternatively you should
-be able to use your own custom stack but it will be required to have at a minimum the named
-outputs as shown in the the included template.
+template [batch.yml](test/batch.yml). Alternatively you should be able to use your own
+custom stack but it will be required to have at a minimum the named outputs as shown in the
+included template.
 
 
 ## Sample Project Architecture
