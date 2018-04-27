@@ -23,7 +23,7 @@ function scrape_worker_job_ids(output::AbstractString)
     end
 end
 
-function create_batch_job(image_name::AbstractString, num_workers::Int)
+function create_batch_job(image_name::AbstractString, num_workers::Integer)
     # TODO: Use AWS Batch job parameters to avoid re-registering the job
 
     # Worst case 15 minute timeout. If the compute environment has just scaled it will
