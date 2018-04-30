@@ -60,7 +60,7 @@ and one of the following:
 
 To make an aws-batch-manager-test compatible stack you can use the included CloudFormation
 template [batch.yml](test/batch.yml). Alternatively you should be able to use your own
-custom stack but it will be required to have at a minimum the named outputs as shown in the
+custom stack but it will be required to have, at a minimum, the named outputs as shown in the
 included template.
 
 
