@@ -1,6 +1,5 @@
 import Base: ==
 import Base: showerror
-using AWSSDK.Batch: describe_job_queues, describe_compute_environments
 
 # Seconds to wait for the AWS Batch cluster to scale up, spot requests to be fufilled,
 # instances to finish initializing, and have the worker instances connect to the manager.
@@ -147,34 +146,6 @@ end
 launch_timeout(mgr::AWSBatchManager) = mgr.timeout
 desired_workers(mgr::AWSBatchManager) = mgr.min_workers, mgr.max_workers
 
-function get_compute_envs(job_queue::AbstractString)
-    queue_desc = get(describe_job_queues(jobQueues = [job_queue]), "jobQueues", nothing)
-    if queue_desc === nothing || length(queue_desc) < 1
-        throw(BatchEnvironmentError("Cannot get job queue information for $job_queue."))
-    end
-    queue_desc = queue_desc[1]
-    env_ord = get(queue_desc, "computeEnvironmentOrder", nothing)
-    if env_ord === nothing
-        throw(BatchEnvironmentError("Cannot get compute environment information for $job_queue."))
-    end
-    [env["computeEnvironment"] for env in env_ord if haskey(env, "computeEnvironment")]
-end
-
-function max_vcpus(job_queue::AbstractString)
-    env_desc = describe_compute_environments(computeEnvironments = get_compute_envs(job_queue))
-    comp_envs = get(env_desc, "computeEnvironments", nothing)
-    if comp_envs === nothing
-        throw(BatchEnvironmentError("Cannot get compute environment information for $job_queue."))
-    end
-    total_vcpus = 0
-    for env in comp_envs
-        total_vcpus += get(env["computeResources"], "maxvCpus", 0)
-    end
-    total_vcpus
-end
-
-max_vcpus(mgr::AWSBatchManager) = max_vcpus(mgr.job_queue)
-
 function ==(a::AWSBatchManager, b::AWSBatchManager)
     return (
         a.min_workers == b.min_workers &&
@@ -189,8 +160,26 @@ function ==(a::AWSBatchManager, b::AWSBatchManager)
 end
 
 function spawn_containers(mgr::AWSBatchManager, override_cmd::Cmd)
-    mgr.max_workers < 1 && return nothing
+    min_workers, max_workers = desired_workers(mgr)
+    max_workers < 1 && return nothing
     config = AWSConfig(:creds => AWSCredentials(), :region => mgr.region)
+
+    max_compute = @mock max_vcpus(mgr.job_queue)
+    if min_workers > max_compute
+        error(string(
+            "Unable to launch the minimum number of workers ($min_workers) as the ",
+            "minimum exceeds the max VCPUs available ($max_compute).",
+        ))
+    elseif max_workers > max_compute
+        # Note: In addition to warning the user about the VCPU cap we could also also reduce
+        # the number of worker we request. Unfortunately since we don't know how many jobs
+        # are currently running or how long they will take we'll leave `max_workers`
+        # untouched.
+        warn(string(
+            "Due to the max VCPU limit ($max_compute) most likely only a partial amount ",
+            "of the requested workers ($max_workers) will be spawned.",
+        ))
+    end
 
     # Since each batch worker can only use one cpu we override the vcpus to one.
     parameters = [
@@ -204,21 +193,21 @@ function spawn_containers(mgr::AWSBatchManager, override_cmd::Cmd)
         ],
     ]
 
-    if mgr.max_workers > 1
+    if max_workers > 1
         # https://docs.aws.amazon.com/batch/latest/userguide/array_jobs.html
-        @assert 2 <= mgr.max_workers <= 10_000
+        @assert 2 <= max_workers <= 10_000
         push!(
             parameters,
             "arrayProperties" => [
-                "size" => mgr.max_workers,
+                "size" => max_workers,
             ],
         )
     end
 
     response = @mock submit_job(config, parameters)
 
-    if mgr.max_workers > 1
-        notice(logger, "Spawning array job: $(response["jobId"]) (n=$(mgr.max_workers))")
+    if max_workers > 1
+        notice(logger, "Spawning array job: $(response["jobId"]) (n=$max_workers)")
     else
         notice(logger, "Spawning job: $(response["jobId"])")
     end

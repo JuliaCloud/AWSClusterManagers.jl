@@ -21,6 +21,7 @@ end
 include("container.jl")
 include("batch.jl")
 include("docker.jl")
+include("utils.jl")
 include("deprecated.jl")
 
 end  # module

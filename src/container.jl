@@ -37,22 +37,10 @@ The minimum and maximum number of workers wanted by the manager.
 """
 desired_workers(::ContainerManager)
 
-max_vcpus(mgr::ContainerManager) = typemax(Int64)
-
 function launch(manager::ContainerManager, params::Dict, launched::Array, c::Condition)
     min_workers, max_workers = desired_workers(manager)
-
-    max_t = @mock max_vcpus(manager)
-    if min_workers > max_t
-        error("Unable to launch the minimum number of workers ($min_workers) as the minimum " *
-            "exceeds the max VCPUs available ($max_t).")
-    elseif max_workers > max_t
-        warn("Due to the max VCPU limit only $max_t workers will be spawned instead of the "*
-            "requested $max_workers.")
-        max_workers = max_t
-    end
-
     launch_tasks = Vector{Task}(max_workers)
+
     # TODO: Ideally should be using TLS connections.
     port, server = listenany(ip"::", PORT_HINT)  # Listen on all IPv4 and IPv6 interfaces
     for i in 1:max_workers

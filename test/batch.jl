@@ -5,6 +5,11 @@ const BATCH_ENVS = (
     "AWS_BATCH_JQ_NAME" => "HighPriority"
 )
 
+# Worst case 15 minute timeout. If the compute environment has just scaled it will wait
+# 8 minutes before scaling again. Spot instance requests can take some time to be fufilled
+# but are usually instant and instances take around 4 minutes before they are ready.
+const TIMEOUT = 15 * 60  # In seconds
+
 # Scrapes the log output to determine the worker job IDs as stated by the manager
 function scrape_worker_job_ids(output::AbstractString)
     m = match(r"Spawning (array )?job: (?<id>[0-9a-f\-]+)(?(1) \(n=(?<n>\d+)\))", output)
@@ -23,14 +28,8 @@ function scrape_worker_job_ids(output::AbstractString)
     end
 end
 
-function create_batch_job(image_name::AbstractString, num_workers::Integer)
+function create_batch_job(image_name::AbstractString, num_workers::Integer; timeout=TIMEOUT)
     # TODO: Use AWS Batch job parameters to avoid re-registering the job
-
-    # Worst case 15 minute timeout. If the compute environment has just scaled it will
-    # wait 8 minutes before scaling again. Spot instance requests can take some time to
-    # be fufilled but are usually instant and instances take around 4 minutes before
-    # they are ready.
-    timeout = 15 * 60  # In seconds
 
     # Will be running the HEAD revision of the code remotely
     # Note: Pkg.checkout doesn't work on untracked branches / SHAs with Julia 0.5.1
@@ -50,7 +49,7 @@ function create_batch_job(image_name::AbstractString, num_workers::Integer)
 
     # Note: The manager can run out of memory with enough workers:
     # - 64 workers with a manager with 1024 MB of memory
-    info("Creating AWS Batch job")
+    info("Creating AWS Batch job with $num_workers workers")
     job = BatchJob(;
         name = STACK["JobName"] * "-n$num_workers",
         queue = STACK["ManagerJobQueueArn"],
@@ -63,11 +62,11 @@ function create_batch_job(image_name::AbstractString, num_workers::Integer)
     )
 end
 
-function run_job(job, num_workers::Int; timeout=15 * 60, should_fail::Bool = false)
+function run_job(job; timeout=TIMEOUT, should_fail::Bool=false)
     info("Registering AWS batch job definition")
     register!(job)
 
-    info("Submitting AWS Batch job with $num_workers workers")
+    info("Submitting AWS Batch job")
     submit!(job)
 
     # If no compute environment resources are available it could take around
@@ -235,6 +234,7 @@ end
             end
         end
     end
+
     @testset "Adding procs" begin
         @testset "Worker Succeeds" begin
             withenv(BATCH_ENVS...) do
@@ -242,7 +242,7 @@ end
                     @patch readstring(cmd::AbstractCmd) = TestUtils.readstring(cmd)
                     @patch describe_jobs(dict::Dict) = TestUtils.describe_jobs(dict)
                     @patch submit_job(c::AWSConfig, d::AbstractArray) = TestUtils.submit_job(c, d)
-                    @patch max_vcpus(a::AWSBatchManager) = 500
+                    @patch max_vcpus(::AbstractString) = 1
                 ]
 
                 apply(patches) do
@@ -267,7 +267,7 @@ end
                     @patch readstring(cmd::AbstractCmd) = TestUtils.readstring(cmd, false)
                     @patch describe_jobs(dict::Dict) = TestUtils.describe_jobs(dict)
                     @patch submit_job(c::AWSConfig, d::AbstractArray) = TestUtils.submit_job(() -> sleep(3), c, d)
-                    @patch max_vcpus(a::AWSBatchManager) = 500
+                    @patch max_vcpus(::AbstractString) = 1
                 ]
 
                 @test_throws ErrorException apply(patches) do
@@ -279,18 +279,20 @@ end
                 end
             end
         end
+
         @testset "Max Tasks" begin
             withenv(BATCH_ENVS...) do
                 patches = [
                     @patch readstring(cmd::AbstractCmd) = TestUtils.readstring(cmd)
                     @patch describe_jobs(dict::Dict) = TestUtils.describe_jobs(dict)
                     @patch submit_job(c::AWSConfig, d::AbstractArray) = TestUtils.submit_job(c, d)
-                    @patch max_vcpus(a::AWSBatchManager) = 3
+                    @patch max_vcpus(::AbstractString) = 3
                 ]
 
                 @test_throws ErrorException apply(patches) do
                     ignore_stderr() do
-                        addprocs(AWSBatchManager(4))
+                        addprocs(AWSBatchManager(4, timeout=5))
+                        @test nprocs() == 1
                     end
                 end
 
@@ -298,11 +300,14 @@ end
                     @patch readstring(cmd::AbstractCmd) = TestUtils.readstring(cmd)
                     @patch describe_jobs(dict::Dict) = TestUtils.describe_jobs(dict)
                     @patch submit_job(c::AWSConfig, d::AbstractArray) = TestUtils.submit_job(c, d)
-                    @patch max_vcpus(a::AWSBatchManager) = 1
+                    @patch max_vcpus(::AbstractString) = 1
                 ]
-                msg = "Due to the max VCPU limit only 1 workers will be spawned instead of the requested 2."
+                msg = string(
+                    "Due to the max VCPU limit (1) most likely only a partial amount ",
+                    "of the requested workers (2) will be spawned.",
+                )
                 apply(patches) do
-                    added_procs = @test_warn msg addprocs(AWSBatchManager(0,2))
+                    added_procs = @test_warn msg addprocs(AWSBatchManager(0:2, timeout=5))
                     # Check that the workers are available
                     @test length(added_procs) == 1
                     # Remove the added workers
@@ -319,8 +324,7 @@ end
         # to wait for the cluster to scale up on subsequent tests.
         @testset "Online (n=$num_workers)" for num_workers in [10, 1, 0]
             job = create_batch_job(image_name, num_workers)
-
-            run_job(job, num_workers)
+            run_job(job)
             output = log_messages(job)
 
             m = match(r"(?<=NumProcs: )\d+", output)
@@ -367,11 +371,10 @@ end
             info("Job run duration:    $(time_str(run_duration))")
         end
 
-        @testset "Overload workers" begin
+        @testset "Exceed worker limit" begin
             num_workers = typemax(Int64)
             job = create_batch_job(image_name, num_workers)
-
-            run_job(job, num_workers, should_fail=true)
+            run_job(job, should_fail=true)
 
             output = log_messages(job)
 
@@ -383,7 +386,7 @@ end
             spawned_jobs = scrape_worker_job_ids(output)
 
             @test num_procs == -1
-            @test length(spawned_jobs) == 0
+            @test isempty(spawned_jobs)
         end
     else
         warn("Environment variable \"ONLINE\" does not contain \"batch\". Skipping online AWS Batch tests.")
