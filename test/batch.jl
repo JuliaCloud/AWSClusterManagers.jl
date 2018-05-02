@@ -28,7 +28,7 @@ function scrape_worker_job_ids(output::AbstractString)
     end
 end
 
-function create_batch_job(image_name::AbstractString, num_workers::Integer; timeout=TIMEOUT)
+function run_batch_job(image_name::AbstractString, num_workers::Integer; timeout=TIMEOUT, should_fail::Bool=false)
     # TODO: Use AWS Batch job parameters to avoid re-registering the job
 
     # Will be running the HEAD revision of the code remotely
@@ -49,8 +49,8 @@ function create_batch_job(image_name::AbstractString, num_workers::Integer; time
 
     # Note: The manager can run out of memory with enough workers:
     # - 64 workers with a manager with 1024 MB of memory
-    info("Creating AWS Batch job with $num_workers workers")
-    job = BatchJob(;
+    info("Submitting AWS Batch job")
+    job = run_batch(;
         name = STACK["JobName"] * "-n$num_workers",
         queue = STACK["ManagerJobQueueArn"],
         definition = STACK["JobDefinitionName"],
@@ -60,14 +60,6 @@ function create_batch_job(image_name::AbstractString, num_workers::Integer; time
         memory = 2048,
         cmd = Cmd(["julia", "-e", replace(code, r"\n+", "; ")]),
     )
-end
-
-function run_job(job; timeout=TIMEOUT, should_fail::Bool=false)
-    info("Registering AWS batch job definition")
-    register!(job)
-
-    info("Submitting AWS Batch job")
-    submit!(job)
 
     # If no compute environment resources are available it could take around
     # 5 minutes before the manager job is running
@@ -92,7 +84,10 @@ function run_job(job; timeout=TIMEOUT, should_fail::Bool=false)
     info("Worker spawning duration: $(time_str(time() - start_time))")
 
     # Remove the job definition as it is specific to a revision
-    deregister!(job)
+    job_definition = JobDefinition(job)
+    deregister(job_definition)
+
+    return job
 end
 
 # Test inner constructor
@@ -180,57 +175,41 @@ end
         @testset "Defaults" begin
             # Running outside of the environment of an AWS batch job
             withenv("AWS_BATCH_JOB_ID" => nothing) do
-                @test_throws BatchEnvironmentError AWSBatchManager(3)
+                mgr = AWSBatchManager(3)
+                @test_throws AWSBatch.BatchEnvironmentError AWSClusterManagers.spawn_containers(mgr, ``)
             end
 
             # Mock being run on an AWS batch job
             withenv(BATCH_ENVS...) do
-                patches = [
-                    @patch readstring(cmd::AbstractCmd) = TestUtils.readstring(cmd)
-                    @patch describe_jobs(dict::Dict) = TestUtils.describe_jobs(dict)
-                ]
+                mgr = AWSBatchManager(3)
 
-                apply(patches) do
-                    job = BatchJob()
-                    mgr = AWSBatchManager(3)
+                @test mgr.min_workers == 3
+                @test mgr.max_workers == 3
+                @test mgr.timeout == AWSClusterManagers.BATCH_TIMEOUT
 
-                    @test mgr.min_workers == 3
-                    @test mgr.max_workers == 3
-                    @test mgr.job_definition == job.definition.name
-                    @test mgr.job_name == job.name
-                    @test mgr.job_queue == job.queue
-                    @test mgr.job_memory == 512
-                    @test mgr.region == job.region
-                    @test mgr.timeout == AWSClusterManagers.BATCH_TIMEOUT
+                @test mgr.job_definition == ""
+                @test mgr.job_name == ""
+                @test mgr.job_queue == ""
+                @test mgr.job_memory == -1
+                @test mgr.region == "us-east-1"
 
-                    @test launch_timeout(mgr) == AWSClusterManagers.BATCH_TIMEOUT
-                    @test desired_workers(mgr) == (3, 3)
+                @test launch_timeout(mgr) == AWSClusterManagers.BATCH_TIMEOUT
+                @test desired_workers(mgr) == (3, 3)
 
-                    @test mgr == AWSBatchManager(3)
-
-                end
+                @test mgr == AWSBatchManager(3)
             end
         end
 
         @testset "Queue environmental variable" begin
             # Mock being run on an AWS batch job
             withenv("WORKER_JOB_QUEUE" => "worker", BATCH_ENVS...) do
-                patches = [
-                    @patch readstring(cmd::AbstractCmd) = TestUtils.readstring(cmd)
-                    @patch describe_jobs(dict::Dict) = TestUtils.describe_jobs(dict)
-                ]
+                # Fall back to using the WORKER_JOB_QUEUE environmental variable
+                mgr = AWSBatchManager(3)
+                @test mgr.job_queue == "worker"
 
-                apply(patches) do
-                    # Fall back to using the WORKER_JOB_QUEUE environmental variable
-                    job = BatchJob()
-                    mgr = AWSBatchManager(3)
-                    @test job.queue != "worker"
-                    @test mgr.job_queue == "worker"
-
-                    # Use the queue passed in
-                    mgr = AWSBatchManager(3, queue="special")
-                    @test mgr.job_queue == "special"
-                end
+                # Use the queue passed in
+                mgr = AWSBatchManager(3, queue="special")
+                @test mgr.job_queue == "special"
             end
         end
     end
@@ -241,6 +220,7 @@ end
                 patches = [
                     @patch readstring(cmd::AbstractCmd) = TestUtils.readstring(cmd)
                     @patch describe_jobs(dict::Dict) = TestUtils.describe_jobs(dict)
+                    @patch describe_job_definitions(dict::Dict) = TestUtils.describe_job_definitions(dict)
                     @patch submit_job(c::AWSConfig, d::AbstractArray) = TestUtils.submit_job(c, d)
                     @patch max_vcpus(::AbstractString) = 1
                 ]
@@ -266,6 +246,7 @@ end
                 patches = [
                     @patch readstring(cmd::AbstractCmd) = TestUtils.readstring(cmd, false)
                     @patch describe_jobs(dict::Dict) = TestUtils.describe_jobs(dict)
+                    @patch describe_job_definitions(dict::Dict) = TestUtils.describe_job_definitions(dict)
                     @patch submit_job(c::AWSConfig, d::AbstractArray) = TestUtils.submit_job(() -> sleep(3), c, d)
                     @patch max_vcpus(::AbstractString) = 1
                 ]
@@ -323,9 +304,8 @@ end
         # Note: Start with the largest number of workers so the remaining tests don't have
         # to wait for the cluster to scale up on subsequent tests.
         @testset "Online (n=$num_workers)" for num_workers in [10, 1, 0]
-            job = create_batch_job(image_name, num_workers)
-            run_job(job)
-            output = log_messages(job)
+            job = run_batch_job(image_name, num_workers)
+            output = TestUtils.log_messages(job)
 
             m = match(r"(?<=NumProcs: )\d+", output)
             num_procs = m !== nothing ? parse(Int, m.match) : -1
@@ -350,7 +330,7 @@ end
             @test all(.!isempty.(reported_containers))
 
             # Determine the image name from an AWS Batch job ID.
-            job_image_name(job_id::AbstractString) = job_image_name(BatchJob(; id=String(job_id)))
+            job_image_name(job_id::AbstractString) = job_image_name(BatchJob(job_id))
             job_image_name(job::BatchJob) = describe(job)["container"]["image"]
 
             @test image_name == job_image_name(job)  # Manager's image
@@ -373,9 +353,7 @@ end
 
         @testset "Exceed worker limit" begin
             num_workers = typemax(Int64)
-            job = create_batch_job(image_name, num_workers)
-            run_job(job, should_fail=true)
-
+            job = run_batch_job(image_name, num_workers; should_fail=true)
             output = log_messages(job)
 
             m = match(r"(?<=NumProcs: )\d+", output)

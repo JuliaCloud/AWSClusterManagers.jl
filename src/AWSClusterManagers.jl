@@ -9,7 +9,7 @@ using AWSSDK.Batch: submit_job
 using AWSCore: AWSConfig, AWSCredentials
 using JSON
 
-export ECSManager, AWSBatchManager, DockerManager, BatchEnvironmentError
+export ECSManager, AWSBatchManager, DockerManager
 
 const logger = getlogger(@__MODULE__)
 

@@ -1,18 +1,8 @@
 import Base: ==
-import Base: showerror
 
 # Seconds to wait for the AWS Batch cluster to scale up, spot requests to be fufilled,
 # instances to finish initializing, and have the worker instances connect to the manager.
 const BATCH_TIMEOUT = 900  # 15 minutes
-
-struct BatchEnvironmentError <: Exception
-    message::String
-end
-
-function showerror(io::IO, e::BatchEnvironmentError)
-    print(io, "BatchEnvironmentError: ")
-    print(io, e.message)
-end
 
 # Note: Communication directly between AWS Batch jobs works since the underlying ECS task
 # implicitly uses networkMode: host. If this changes to another networking mode AWS Batch
@@ -83,31 +73,7 @@ struct AWSBatchManager <: ContainerManager
             queue = get(ENV, "WORKER_JOB_QUEUE", "")
         end
 
-        # Workers by default inherit the AWS batch settings from the manager.
-        # Note: only query for default values if we need them as the lookup requires special
-        # permissions.
-        if isempty(definition) || isempty(name) || isempty(queue) || memory == -1
-            job = BatchJob()
-
-            if (
-                job.definition === nothing || isempty(job.name) || isempty(job.queue)
-                || isempty(job.region)
-            )
-                throw(BatchEnvironmentError(
-                    "Unable to perform AWS Batch introspection when not running within " *
-                    "an AWS Batch job: $job"
-                ))
-            end
-
-            definition = isempty(definition) ? job.definition.name : definition
-            name = isempty(name) ? job.name : name  # Maybe append "Worker" to default?
-            queue = isempty(queue) ? job.queue : queue
-            region = isempty(region) ? job.region : region
-            memory = memory == -1 ? round(Integer, job.container.memory / job.container.vcpus) : memory
-        else
-            # At the moment AWS batch only supports the "us-east-1" region
-            region = isempty(region) ? "us-east-1" : region
-        end
+        region = isempty(region) ? "us-east-1" : region
 
         new(min_workers, max_workers, definition, name, queue, memory, region, timeout)
     end
@@ -162,7 +128,6 @@ end
 function spawn_containers(mgr::AWSBatchManager, override_cmd::Cmd)
     min_workers, max_workers = desired_workers(mgr)
     max_workers < 1 && return nothing
-    config = AWSConfig(:creds => AWSCredentials(), :region => mgr.region)
 
     max_compute = @mock max_vcpus(mgr.job_queue)
     if min_workers > max_compute
@@ -182,34 +147,21 @@ function spawn_containers(mgr::AWSBatchManager, override_cmd::Cmd)
     end
 
     # Since each batch worker can only use one cpu we override the vcpus to one.
-    parameters = [
-        "jobName" => mgr.job_name,
-        "jobDefinition" => mgr.job_definition,
-        "jobQueue" => mgr.job_queue,
-        "containerOverrides" => [
-            "vcpus" => 1,
-            "memory" => mgr.job_memory,
-            "command" => override_cmd.exec,
-        ],
-    ]
+    job = run_batch(
+        name = mgr.job_name,
+        definition = mgr.job_definition,
+        queue = mgr.job_queue,
+        region = mgr.region,
+        vcpus = 1,
+        memory = mgr.job_memory,
+        cmd = override_cmd,
+        num_jobs = max_workers,
+    )
 
     if max_workers > 1
-        # https://docs.aws.amazon.com/batch/latest/userguide/array_jobs.html
-        @assert 2 <= max_workers <= 10_000
-        push!(
-            parameters,
-            "arrayProperties" => [
-                "size" => max_workers,
-            ],
-        )
-    end
-
-    response = @mock submit_job(config, parameters)
-
-    if max_workers > 1
-        notice(logger, "Spawning array job: $(response["jobId"]) (n=$max_workers)")
+        notice(logger, "Spawning array job: $(job.id) (n=$(mgr.max_workers))")
     else
-        notice(logger, "Spawning job: $(response["jobId"])")
+        notice(logger, "Spawning job: $(job.id)")
     end
 
     return nothing
