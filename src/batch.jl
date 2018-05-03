@@ -160,8 +160,26 @@ function ==(a::AWSBatchManager, b::AWSBatchManager)
 end
 
 function spawn_containers(mgr::AWSBatchManager, override_cmd::Cmd)
-    mgr.max_workers < 1 && return nothing
+    min_workers, max_workers = desired_workers(mgr)
+    max_workers < 1 && return nothing
     config = AWSConfig(:creds => AWSCredentials(), :region => mgr.region)
+
+    max_compute = @mock max_vcpus(mgr.job_queue)
+    if min_workers > max_compute
+        error(string(
+            "Unable to launch the minimum number of workers ($min_workers) as the ",
+            "minimum exceeds the max VCPUs available ($max_compute).",
+        ))
+    elseif max_workers > max_compute
+        # Note: In addition to warning the user about the VCPU cap we could also also reduce
+        # the number of worker we request. Unfortunately since we don't know how many jobs
+        # are currently running or how long they will take we'll leave `max_workers`
+        # untouched.
+        warn(string(
+            "Due to the max VCPU limit ($max_compute) most likely only a partial amount ",
+            "of the requested workers ($max_workers) will be spawned.",
+        ))
+    end
 
     # Since each batch worker can only use one cpu we override the vcpus to one.
     parameters = [
@@ -175,21 +193,21 @@ function spawn_containers(mgr::AWSBatchManager, override_cmd::Cmd)
         ],
     ]
 
-    if mgr.max_workers > 1
+    if max_workers > 1
         # https://docs.aws.amazon.com/batch/latest/userguide/array_jobs.html
-        @assert 2 <= mgr.max_workers <= 10_000
+        @assert 2 <= max_workers <= 10_000
         push!(
             parameters,
             "arrayProperties" => [
-                "size" => mgr.max_workers,
+                "size" => max_workers,
             ],
         )
     end
 
     response = @mock submit_job(config, parameters)
 
-    if mgr.max_workers > 1
-        notice(logger, "Spawning array job: $(response["jobId"]) (n=$(mgr.max_workers))")
+    if max_workers > 1
+        notice(logger, "Spawning array job: $(response["jobId"]) (n=$max_workers)")
     else
         notice(logger, "Spawning job: $(response["jobId"])")
     end

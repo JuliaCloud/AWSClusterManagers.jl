@@ -204,6 +204,8 @@ Resources:
               - batch:SubmitJob
               - batch:DescribeJobs
               - batch:DescribeJobDefinitions
+              - batch:DescribeComputeEnvironments
+              - batch:DescribeJobQueues
             Resource: '*'
 
   JLBatchJobIngress:
