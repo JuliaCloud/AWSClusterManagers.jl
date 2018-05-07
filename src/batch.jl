@@ -129,7 +129,9 @@ function spawn_containers(mgr::AWSBatchManager, override_cmd::Cmd)
     min_workers, max_workers = desired_workers(mgr)
     max_workers < 1 && return nothing
 
-    max_compute = @mock max_vcpus(mgr.job_queue)
+    queue = @mock JobQueue(mgr.job_queue)
+    max_compute = @mock max_vcpus(queue)
+
     if min_workers > max_compute
         error(string(
             "Unable to launch the minimum number of workers ($min_workers) as the ",

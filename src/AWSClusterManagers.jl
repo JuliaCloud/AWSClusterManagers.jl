@@ -5,8 +5,7 @@ using Memento
 using Mocking
 using Compat: @__MODULE__
 using AWSBatch
-using AWSSDK.Batch: submit_job
-using AWSCore: AWSConfig, AWSCredentials
+using AWSBatch: max_vcpus
 using JSON
 
 export ECSManager, AWSBatchManager, DockerManager
@@ -21,7 +20,6 @@ end
 include("container.jl")
 include("batch.jl")
 include("docker.jl")
-include("utils.jl")
 include("deprecated.jl")
 
 end  # module

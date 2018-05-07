@@ -49,7 +49,7 @@ function run_batch_job(image_name::AbstractString, num_workers::Integer; timeout
 
     # Note: The manager can run out of memory with enough workers:
     # - 64 workers with a manager with 1024 MB of memory
-    info("Submitting AWS Batch job")
+    info("Submitting AWS Batch job with $num_workers workers")
     job = run_batch(;
         name = STACK["JobName"] * "-n$num_workers",
         queue = STACK["ManagerJobQueueArn"],
@@ -175,8 +175,15 @@ end
         @testset "Defaults" begin
             # Running outside of the environment of an AWS batch job
             withenv("AWS_BATCH_JOB_ID" => nothing) do
-                mgr = AWSBatchManager(3)
-                @test_throws AWSBatch.BatchEnvironmentError AWSClusterManagers.spawn_containers(mgr, ``)
+                 patches = [
+                    @patch JobQueue(queue::AbstractString) = JobQueue("arn:aws:batch:us-east-1:000000000000:job-queue/queue")
+                    @patch max_vcpus(::JobQueue) = 3
+                ]
+
+                apply(patches) do
+                    mgr = AWSBatchManager(3)
+                    @test_throws AWSBatch.BatchEnvironmentError AWSClusterManagers.spawn_containers(mgr, ``)
+                end
             end
 
             # Mock being run on an AWS batch job
@@ -222,7 +229,8 @@ end
                     @patch describe_jobs(dict::Dict) = TestUtils.describe_jobs(dict)
                     @patch describe_job_definitions(dict::Dict) = TestUtils.describe_job_definitions(dict)
                     @patch submit_job(c::AWSConfig, d::AbstractArray) = TestUtils.submit_job(c, d)
-                    @patch max_vcpus(::AbstractString) = 1
+                    @patch JobQueue(queue::AbstractString) = JobQueue("arn:aws:batch:us-east-1:000000000000:job-queue/queue")
+                    @patch max_vcpus(::JobQueue) = 1
                 ]
 
                 apply(patches) do
@@ -248,7 +256,8 @@ end
                     @patch describe_jobs(dict::Dict) = TestUtils.describe_jobs(dict)
                     @patch describe_job_definitions(dict::Dict) = TestUtils.describe_job_definitions(dict)
                     @patch submit_job(c::AWSConfig, d::AbstractArray) = TestUtils.submit_job(() -> sleep(3), c, d)
-                    @patch max_vcpus(::AbstractString) = 1
+                    @patch JobQueue(queue::AbstractString) = JobQueue("arn:aws:batch:us-east-1:000000000000:job-queue/queue")
+                    @patch max_vcpus(::JobQueue) = 1
                 ]
 
                 @test_throws ErrorException apply(patches) do
@@ -266,8 +275,10 @@ end
                 patches = [
                     @patch readstring(cmd::AbstractCmd) = TestUtils.readstring(cmd)
                     @patch describe_jobs(dict::Dict) = TestUtils.describe_jobs(dict)
+                    @patch describe_job_definitions(dict::Dict) = TestUtils.describe_job_definitions(dict)
                     @patch submit_job(c::AWSConfig, d::AbstractArray) = TestUtils.submit_job(c, d)
-                    @patch max_vcpus(::AbstractString) = 3
+                    @patch JobQueue(queue::AbstractString) = JobQueue("arn:aws:batch:us-east-1:000000000000:job-queue/queue")
+                    @patch max_vcpus(::JobQueue) = 3
                 ]
 
                 @test_throws ErrorException apply(patches) do
@@ -280,8 +291,10 @@ end
                 patches = [
                     @patch readstring(cmd::AbstractCmd) = TestUtils.readstring(cmd)
                     @patch describe_jobs(dict::Dict) = TestUtils.describe_jobs(dict)
+                    @patch describe_job_definitions(dict::Dict) = TestUtils.describe_job_definitions(dict)
                     @patch submit_job(c::AWSConfig, d::AbstractArray) = TestUtils.submit_job(c, d)
-                    @patch max_vcpus(::AbstractString) = 1
+                    @patch JobQueue(queue::AbstractString) = JobQueue("arn:aws:batch:us-east-1:000000000000:job-queue/queue")
+                    @patch max_vcpus(::JobQueue) = 1
                 ]
                 msg = string(
                     "Due to the max VCPU limit (1) most likely only a partial amount ",
@@ -354,7 +367,7 @@ end
         @testset "Exceed worker limit" begin
             num_workers = typemax(Int64)
             job = run_batch_job(image_name, num_workers; should_fail=true)
-            output = log_messages(job)
+            output = TestUtils.log_messages(job)
 
             m = match(r"(?<=NumProcs: )\d+", output)
             num_procs = m !== nothing ? parse(Int, m.match) : -1
