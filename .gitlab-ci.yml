@@ -99,12 +99,14 @@ stages:
     - linux
     - docker
     - ecr
+    - batch
   artifacts:
     name: "$CI_JOB_NAME coverage"
     expire_in: 1 week
     paths:
       - "$CI_JOB_NAME coverage/"
   variables:
+    AWS_STACKNAME: aws-batch-manager-test
     ONLINE: "docker, batch"  # Runs the online tests for AWS Batch & Docker
     JULIA_VERSION: "0.6"
   before_script:
@@ -120,7 +122,9 @@ stages:
   after_script:
     - ./julia-ci clean
     - sleep 5
-    - docker rmi 292522074875.dkr.ecr.us-east-1.amazonaws.com/aws-cluster-managers-test:$(git rev-parse --short $CI_COMMIT_SHA)
+    - "ACCOUNT_ID=$(curl -s http://169.254.169.254/latest/dynamic/instance-identity/document | grep -oP '(?<=\"accountId\" : \")[^\"]*(?=\")')"
+    - "REGION=$(curl -s http://169.254.169.254/latest/dynamic/instance-identity/document | grep -oP '(?<=\"region\" : \")[^\"]*(?=\")')"
+    - docker rmi $ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com/aws-batch-manager-test:$(git rev-parse --short $CI_COMMIT_SHA)
 
 
 "Coverage":
