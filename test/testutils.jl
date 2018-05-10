@@ -9,7 +9,7 @@ using DataStructures: OrderedDict
 
 import Base: AbstractCmd, CmdRedirect
 
-export LEGACY_STACK, log_messages, time_str, ignore_stderr
+export LEGACY_STACK, time_str, ignore_stderr
 
 # Partially emulates the output from the AWS batch manager test stack
 const LEGACY_STACK = Dict(
@@ -48,8 +48,8 @@ Gets the logs associated with an AWSBatch BatchJob and converts them to a String
 matching.
 """
 function log_messages(job::BatchJob)
-    events = logs(job)
-    return join([event["message"] for event in events], '\n')
+    events = log_events(job)
+    return join([event.message for event in events], '\n')
 end
 
 function time_str(secs::Real)
@@ -82,6 +82,34 @@ const DESCRIBE_JOBS_RESP = """
             "dependsOn": [],
             "jobName": "example",
             "createdAt": 1480483387803
+        }
+    ]
+}
+"""
+
+const DESCRIBE_JOBS_DEF_RESP = """
+{
+    "jobDefinitions" : [
+        {
+            "type": "container",
+            "containerProperties": {
+                "command": [
+                    "sleep",
+                    "60"
+                ],
+                "environment": [],
+                "image": "myproject",
+                "memory": 128,
+                "mountPoints": [],
+                "ulimits": [],
+                "vcpus": 1,
+                "volumes": [],
+                "jobRoleArn": "arn:aws:iam::012345678910:role/sleep60"
+            },
+            "jobDefinitionArn": "arn:aws:batch:us-east-1:012345678910:job-definition/sleep60:1",
+            "jobDefinitionName": "sleep60",
+            "revision": 1,
+            "status": "ACTIVE"
         }
     ]
 }
@@ -144,10 +172,18 @@ function describe_jobs(dict::Dict)
 end
 
 """
+    Mock.describe_job_definitions(dict::Dict)
+
+Mocks the `AWSSDK.describe_job_definitions` call in AWSBatch.
+"""
+function describe_job_definitions(dict::Dict)
+    return JSON.parse(DESCRIBE_JOBS_DEF_RESP)
+end
+
+"""
     Mock.submit_job([f::Function], config::AWSConfig, d::AbstractArray)
 
-Mocks the `AWSSDK.Batch.submit_job` call. When `pass` is false the command will return valid
-output, but the spawned job will not bring up a worker process.
+Mocks the `AWSSDK.Batch.submit_job` call.
 """
 submit_job
 
