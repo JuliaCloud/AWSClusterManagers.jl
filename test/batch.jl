@@ -65,7 +65,7 @@ function run_batch_job(image_name::AbstractString, num_workers::Integer; timeout
     # 5 minutes before the manager job is running
     info("Waiting for AWS Batch manager job $(job.id) to run (~5 minutes)")
     start_time = time()
-    @test wait(job, [AWSBatch.RUNNING], timeout=timeout) == true
+    @test wait(state -> state < AWSBatch.RUNNING, job, timeout=timeout) == true
     info("Manager spawning duration: $(time_str(time() - start_time))")
 
     # Once the manager job is running it will spawn additional AWS Batch jobs as
