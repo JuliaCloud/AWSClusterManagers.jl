@@ -207,6 +207,49 @@ Resources:
               - batch:DescribeJobQueues
             Resource: '*'
 
+  # Similar to the "JLBatchManagerPolicy" but includes additional required permissions
+  # necessary for running the AWSClusterManagers online batch tests.
+  AWSBatchManagerTestPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      Description: >-
+        Allow the AWSClusterManagers test to interact with AWS Batch
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Action:
+              - batch:RegisterJobDefinition
+              - batch:DescribeJobDefinitions
+              - batch:DeregisterJobDefinition
+              - batch:SubmitJob
+              - batch:DescribeJobs
+              - batch:DescribeJobQueues
+              - batch:DescribeComputeEnvironments
+            Resource: "*"
+          - Effect: Allow
+            Action:
+              - logs:GetLogEvents
+            Resource: "*"
+          - Effect: Allow
+            Action:
+              - cloudformation:DescribeStacks
+            Resource: !Sub arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/${AWS::StackName}/*
+          - Effect: Allow
+            Action:
+              - ecr:GetDownloadUrlForLayer
+              - ecr:BatchGetImage
+              - ecr:BatchCheckLayerAvailability
+              - ecr:PutImage
+              - ecr:InitiateLayerUpload
+              - ecr:UploadLayerPart
+              - ecr:CompleteLayerUpload
+            Resource: !Sub arn:aws:ecr:${AWS::Region}:${AWS::AccountId}:repository/${ECR}
+          - Effect: Allow
+            Action:
+              - iam:PassRole
+            Resource: !GetAtt JLBatchJobRole.Arn
+
   JLBatchJobIngress:
     Type: AWS::EC2::SecurityGroupIngress
     Properties:
@@ -256,5 +299,9 @@ Outputs:
     Value: !Ref WorkerJobQueue
   JobRoleArn:
     Value: !GetAtt JLBatchJobRole.Arn
+  TestPolicy:
+    Value: !Ref AWSBatchManagerTestPolicy
+    Export:
+      Name: !Sub ${AWS::StackName}-TestPolicy
   EcrUri:
     Value: !Sub ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${ECR}
