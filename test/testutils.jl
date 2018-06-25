@@ -9,17 +9,7 @@ using DataStructures: OrderedDict
 
 import Base: AbstractCmd, CmdRedirect
 
-export LEGACY_STACK, time_str, ignore_stderr
-
-# Partially emulates the output from the AWS batch manager test stack
-const LEGACY_STACK = Dict(
-    "ManagerJobQueueArn" => "Replatforming-Manager",   # Can be the name or ARN
-    "WorkerJobQueueArn" => "Replatforming-Worker",     # Can be the name or ARN
-    "JobName" => "aws-cluster-managers-test",
-    "JobDefinitionName" => "aws-cluster-managers-test",
-    "JobRoleArn" => "arn:aws:iam::292522074875:role/AWSBatchClusterManagerJobRole",
-    "EcrUri" => "292522074875.dkr.ecr.us-east-1.amazonaws.com/aws-cluster-managers-test:latest",
-)
+export time_str, ignore_stderr
 
 logger = Memento.config("info"; fmt="[{level} | {name}]: {msg}")
 
