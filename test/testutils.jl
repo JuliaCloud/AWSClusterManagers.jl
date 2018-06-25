@@ -21,7 +21,7 @@ const LEGACY_STACK = Dict(
     "EcrUri" => "292522074875.dkr.ecr.us-east-1.amazonaws.com/aws-cluster-managers-test:latest",
 )
 
-logger = Memento.config("info"; fmt="[{level} | {name}]: {msg}")
+logger = Memento.config!("info"; fmt="[{level} | {name}]: {msg}")
 
 
 """
