@@ -158,6 +158,7 @@ function spawn_containers(mgr::AWSBatchManager, override_cmd::Cmd)
         memory = mgr.job_memory,
         cmd = override_cmd,
         num_jobs = max_workers,
+        allow_job_registration = false,
     )
 
     if max_workers > 1
