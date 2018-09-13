@@ -79,9 +79,9 @@ function launch(manager::ContainerManager, params::Dict, launched::Array, c::Con
     function callback(num_failed)
         num_launched = max_workers - num_failed
         if num_launched >= min_workers
-            warn("Only managed to launch $num_launched/$max_workers workers")
+            warn(logger, "Only managed to launch $num_launched/$max_workers workers")
         else
-            error("Unable to launch the minimum number of workers")
+            error(logger, "Unable to launch the minimum number of workers")
         end
     end
 
