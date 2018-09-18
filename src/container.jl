@@ -39,7 +39,7 @@ desired_workers(::ContainerManager)
 
 function launch(manager::ContainerManager, params::Dict, launched::Array, c::Condition)
     min_workers, max_workers = desired_workers(manager)
-    launch_tasks = Vector{Task}(max_workers)
+    launch_tasks = Vector{Task}(undef, max_workers)
 
     # TODO: Ideally should be using TLS connections.
     port, server = listenany(ip"::", PORT_HINT)  # Listen on all IPv4 and IPv6 interfaces
@@ -69,7 +69,18 @@ function launch(manager::ContainerManager, params::Dict, launched::Array, c::Con
     # `--worker COOKIE` as this essentially runs `start_worker(STDOUT, COOKIE)` which
     # reports the worker address and port to STDOUT. Instead we'll run the code ourselves
     # and report the connection information back to the manager over a socket.
-    exec = "sock = connect(ip\"$(getipaddr())\", $port); Base.start_worker(sock, \"$(cluster_cookie())\")"
+    exec = """
+        if VERSION >= v"0.7.0-DEV.4442"
+            using Sockets
+        end
+        if VERSION >= v"0.7.0-DEV.2954"
+            using Distributed
+        else
+            using Base: start_worker
+        end
+        sock = connect(ip\"$(getipaddr())\", $port)
+        start_worker(sock, \"$(cluster_cookie())\")
+        """
     override_cmd = `julia -e $exec`
 
     # Non-blocking spawn of N-containers where N is equal to `max_workers`. Workers will

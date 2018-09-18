@@ -1,6 +1,6 @@
 # Return the long image SHA256 identifier using various ways of referencing images
 function full_image_sha(image::AbstractString)
-    json = JSON.parse(readstring(`docker inspect $image`))
+    json = JSON.parse(read(`docker inspect $image`, String))
     return last(split(json[1]["Id"], ':'))
 end
 
@@ -54,7 +54,7 @@ end
     end
     @testset "Adding procs" begin
         @testset "Worker Succeeds" begin
-            patch = @patch readstring(cmd::AbstractCmd) = TestUtils.readstring(cmd)
+            patch = @patch read(cmd::AbstractCmd, String) = TestUtils.read(cmd, String)
 
             apply(patch) do
                 # Get an initial list of processes
@@ -71,7 +71,7 @@ end
             end
         end
         @testset "Worker Timeout" begin
-            patch = @patch readstring(cmd::AbstractCmd) = TestUtils.readstring(cmd, false)
+            patch = @patch read(cmd::AbstractCmd, String) = TestUtils.read(cmd, String, false)
 
             @test_throws ErrorException apply(patch) do
                 # Suppress "unhandled task error" message
@@ -107,13 +107,14 @@ end
             @test ispath("/var/run/docker.sock")
 
             # Run the code in a docker container, but replace the newlines with semi-colons.
-            output = readstring(```
+            output = read(```
                 docker run
                 --network=host
                 -v /var/run/docker.sock:/var/run/docker.sock
                 -i $image_name
-                julia -e $(replace(code, r"\n+", "; "))
-                ```
+                julia -e $(replace(code, r"\n+" => "; "))
+                ```,
+                String
             )
 
             m = match(r"(?<=NumProcs: )\d+", output)
@@ -131,6 +132,6 @@ end
             @test all(full_image_sha(image_name) .== reported_images)
         end
     else
-        warn("Environment variable \"ONLINE\" does not contain \"docker\". Skipping online Docker tests.")
+        warn(logger, "Environment variable \"ONLINE\" does not contain \"docker\". Skipping online Docker tests.")
     end
 end

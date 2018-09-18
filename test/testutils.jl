@@ -6,6 +6,10 @@ using JSON
 using Memento
 using AWSCore: AWSConfig
 using DataStructures: OrderedDict
+using Compat.Printf
+using Compat.Distributed
+using Compat.Random
+using Compat: occursin
 
 import Base: AbstractCmd, CmdRedirect
 
@@ -15,18 +19,18 @@ logger = Memento.config!("info"; fmt="[{level} | {name}]: {msg}")
 
 
 """
-    readstring(f::Function, cmd::Cmd) -> Any
+    read(f::Function, cmd::Cmd, String) -> Any
 
 Read the entire STDOUT stream from the command object and passes it to a function for
 processing. If any exception occurs within the given function the raw STDOUT will be dumped
 before reporting the exception.
 """
-function readstring(f::Function, cmd::Cmd)
-    output = Base.readstring(cmd)
+function read(f::Function, cmd::Cmd, ::Type{String})
+    output = Base.read(cmd, String)
     return try
         f(output)
     catch
-        warn("Command output could not be processed:\n$output")
+        warn(logger, "Command output could not be processed:\n$output")
         rethrow()
     end
 end
@@ -111,44 +115,48 @@ const SUBMIT_JOB_RESP = OrderedDict(
 )
 
 """
-    Mock.readstring(cmd::AbstractCmd, pass::Bool=true)
+    Mock.read(cmd::AbstractCmd, String, pass::Bool=true)
 
-Simple readstring wrapper for `AbstractCmd` types which aren't being actively mocked.
+Simple `read` wrapper for `AbstractCmd` types which aren't being actively mocked.
 """
-readstring(cmd::AbstractCmd, pass::Bool=true) = Base.readstring(cmd)
+read(cmd::AbstractCmd, ::Type{String}, pass::Bool=true) = Base.read(cmd, String)
 
 """
-    Mock.readstring(cmd::Cmd, pass::Bool=true)
+    Mock.read(cmd::Cmd, String, pass::Bool=true)
 
-Mocks `readstring` for docker commands. When `pass` is false the command will return valid
+Mocks `read` for docker commands. When `pass` is false the command will return valid
 output, but the command will not actually be executed.
 """
-function readstring(cmd::Cmd, pass::Bool=true)
+function read(cmd::Cmd, ::Type{String}, pass::Bool=true)
     if "docker" in cmd.exec
         if pass
             @spawn run(Cmd(["julia", "-e", "$(cmd.exec[end])"]))
         else
-            @spawn run(Cmd(["julia", "-e", "println(STDERR, \"Failed to come online\")"]))
+            code = """
+                println(VERSION >= v"0.7.0-DEV.4068" ? stderr : STDERR,
+                        "Failed to come online")
+                """
+            @spawn run(Cmd(["julia", "-e", code]))
         end
         return lowercase(randstring(12))
     else
-        return Base.readstring(cmd)
+        return Base.read(cmd, String)
     end
 end
 
 """
-    Mock.readstring(cmd::CmdRedirect, pass::Bool=true)
+    Mock.read(cmd::CmdRedirect, String, pass::Bool=true)
 
 Mocks the CmdRedirect produced from
 ``pipeline(`curl http://169.254.169.254/latest/meta-data/placement/availability-zone`)``
 to just return "us-east-1a".
 """
-function readstring(cmd::CmdRedirect, pass::Bool=true)
+function read(cmd::CmdRedirect, ::Type{String}, pass::Bool=true)
     cmd_exec = cmd.cmd.exec
-    result = if cmd_exec[1] == "curl" && contains(cmd_exec[2], "availability-zone")
+    result = if cmd_exec[1] == "curl" && occursin("availability-zone", cmd_exec[2])
         return "us-east-1a"
     else
-        return Base.readstring(cmd)
+        return Base.read(cmd, String)
     end
 end
 
@@ -191,13 +199,11 @@ end
 
 function ignore_stderr(body::Function)
     # Note: we could use /dev/null on linux systems
-    stderr = Base.STDERR
     path, io = mktemp()
-    redirect_stderr(io)
     try
-        return body()
+        redirect_stderr(body, io)
     finally
-        redirect_stderr(stderr)
+        close(io)
         rm(path)
     end
 end

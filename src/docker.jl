@@ -85,13 +85,13 @@ function spawn_containers(mgr::DockerManager, override_cmd::Cmd)
 
     # Docker only allow us to spawn a job at a time
     for id in 1:mgr.num_workers
-        container_id = @mock readstring(cmd)
+        container_id = @mock read(cmd, String)
         notice(logger, "Spawning container: $container_id")
     end
 end
 
 # Determine the image ID of the currently running container
 function image_id(container_id::AbstractString=container_id())
-    json = JSON.parse(readstring(`docker container inspect $container_id`))
+    json = JSON.parse(read(`docker container inspect $container_id`, String))
     return last(split(json[1]["Image"], ':'))
 end
