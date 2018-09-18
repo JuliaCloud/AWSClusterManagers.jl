@@ -1,12 +1,14 @@
 module AWSClusterManagers
 
-import Base: launch, manage, cluster_cookie
 using Memento
 using Mocking
-using Compat: @__MODULE__
 using AWSBatch
 using AWSBatch: max_vcpus
 using JSON
+using Compat: @__MODULE__, undef
+using Compat.Sockets
+using Compat.Distributed
+import Compat.Distributed: manage, launch
 
 export ECSManager, AWSBatchManager, DockerManager
 

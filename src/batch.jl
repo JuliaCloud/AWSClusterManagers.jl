@@ -101,8 +101,8 @@ function AWSBatchManager(
     )
 end
 
-function AWSBatchManager{I<:Integer}(workers::UnitRange{I}; kwargs...)
-    AWSBatchManager(start(workers), last(workers); kwargs...)
+function AWSBatchManager(workers::UnitRange{<:Integer}; kwargs...)
+    AWSBatchManager(first(workers), last(workers); kwargs...)
 end
 
 function AWSBatchManager(workers::Integer; kwargs...)
@@ -142,7 +142,7 @@ function spawn_containers(mgr::AWSBatchManager, override_cmd::Cmd)
         # the number of worker we request. Unfortunately since we don't know how many jobs
         # are currently running or how long they will take we'll leave `max_workers`
         # untouched.
-        warn(string(
+        warn(logger, string(
             "Due to the max VCPU limit ($max_compute) most likely only a partial amount ",
             "of the requested workers ($max_workers) will be spawned.",
         ))

@@ -19,7 +19,7 @@ function scrape_worker_job_ids(output::AbstractString)
 
         if m[:n] !== nothing
             num_workers = parse(Int, m[:n])
-            return String["$worker_job:$i" for i in (1:num_workers) - 1]
+            return String["$worker_job:$i" for i in 0:(num_workers - 1)]
         else
             return String["$worker_job"]
         end
@@ -34,12 +34,13 @@ function run_batch_job(image_name::AbstractString, num_workers::Integer; timeout
     # Will be running the HEAD revision of the code remotely
     # Note: Pkg.checkout doesn't work on untracked branches / SHAs with Julia 0.5.1
     code = """
-    using Memento
-    Memento.config("debug"; fmt="{msg}")
     using AWSClusterManagers: AWSBatchManager
-    setlevel!(getlogger(AWSClusterManagers), "debug")
+    using Compat, Compat.Distributed
     addprocs(AWSBatchManager($num_workers, queue="$(STACK["WorkerJobQueueArn"])", memory=512, timeout=$(timeout - 15)))
     println("NumProcs: ", nprocs())
+    using Memento
+    Memento.config!("debug"; fmt="{msg}")
+    setlevel!(getlogger(AWSClusterManagers), "debug")
     @everywhere using AWSClusterManagers: container_id
     for i in workers()
         println("Worker container \$i: ", remotecall_fetch(container_id, i))
@@ -58,15 +59,15 @@ function run_batch_job(image_name::AbstractString, num_workers::Integer; timeout
         role = STACK["JobRoleArn"],
         vcpus = 1,
         memory = 2048,
-        cmd = Cmd(["julia", "-e", replace(code, r"\n+", "; ")]),
+        cmd = Cmd(["julia", "-e", replace(code, r"\n+" => "; ")]),
     )
 
     # If no compute environment resources are available it could take around
     # 5 minutes before the manager job is running
-    info("Waiting for AWS Batch manager job $(job.id) to run (~5 minutes)")
+    info(logger, "Waiting for AWS Batch manager job $(job.id) to run (~5 minutes)")
     start_time = time()
     @test wait(state -> state < AWSBatch.RUNNING, job, timeout=timeout) == true
-    info("Manager spawning duration: $(time_str(time() - start_time))")
+    info(logger, "Manager spawning duration: $(time_str(time() - start_time))")
 
     # Once the manager job is running it will spawn additional AWS Batch jobs as
     # the workers.
@@ -74,14 +75,14 @@ function run_batch_job(image_name::AbstractString, num_workers::Integer; timeout
     # Since compute environments only scale every 5 minutes we will definitely have
     # to wait if we scaled up for the mananager job. To reduce this wait time make
     # sure you have one VCPU available for the manager to start right away.
-    info("Waiting for AWS Batch workers and manager job to complete (~5 minutes)")
+    info(logger, "Waiting for AWS Batch workers and manager job to complete (~5 minutes)")
     start_time = time()
     if should_fail
         @test wait(job, [AWSBatch.FAILED], [AWSBatch.SUCCEEDED], timeout=timeout) == true
     else
         @test wait(job, [AWSBatch.SUCCEEDED], timeout=timeout) == true
     end
-    info("Worker spawning duration: $(time_str(time() - start_time))")
+    info(logger, "Worker spawning duration: $(time_str(time() - start_time))")
 
     # Remove the job definition as it is specific to a revision
     job_definition = JobDefinition(job)
@@ -225,7 +226,7 @@ end
         @testset "Worker Succeeds" begin
             withenv(BATCH_ENVS...) do
                 patches = [
-                    @patch readstring(cmd::AbstractCmd) = TestUtils.readstring(cmd)
+                    @patch read(cmd::AbstractCmd, ::Type{String}) = TestUtils.read(cmd, String)
                     @patch describe_jobs(dict::Dict) = TestUtils.describe_jobs(dict)
                     @patch describe_job_definitions(dict::Dict) = TestUtils.describe_job_definitions(dict)
                     @patch submit_job(c::AWSConfig, d::AbstractArray) = TestUtils.submit_job(c, d)
@@ -252,7 +253,7 @@ end
         @testset "Worker Timeout" begin
             withenv(BATCH_ENVS...) do
                 patches = [
-                    @patch readstring(cmd::AbstractCmd) = TestUtils.readstring(cmd, false)
+                    @patch read(cmd::AbstractCmd, ::Type{String}) = TestUtils.read(cmd, String, false)
                     @patch describe_jobs(dict::Dict) = TestUtils.describe_jobs(dict)
                     @patch describe_job_definitions(dict::Dict) = TestUtils.describe_job_definitions(dict)
                     @patch submit_job(c::AWSConfig, d::AbstractArray) = TestUtils.submit_job(() -> sleep(3), c, d)
@@ -273,7 +274,7 @@ end
         @testset "Max Tasks" begin
             withenv(BATCH_ENVS...) do
                 patches = [
-                    @patch readstring(cmd::AbstractCmd) = TestUtils.readstring(cmd)
+                    @patch read(cmd::AbstractCmd, ::Type{String}) = TestUtils.read(cmd, String)
                     @patch describe_jobs(dict::Dict) = TestUtils.describe_jobs(dict)
                     @patch describe_job_definitions(dict::Dict) = TestUtils.describe_job_definitions(dict)
                     @patch submit_job(c::AWSConfig, d::AbstractArray) = TestUtils.submit_job(c, d)
@@ -289,7 +290,7 @@ end
                 end
 
                 patches = [
-                    @patch readstring(cmd::AbstractCmd) = TestUtils.readstring(cmd)
+                    @patch read(cmd::AbstractCmd, ::Type{String}) = TestUtils.read(cmd, String)
                     @patch describe_jobs(dict::Dict) = TestUtils.describe_jobs(dict)
                     @patch describe_job_definitions(dict::Dict) = TestUtils.describe_job_definitions(dict)
                     @patch submit_job(c::AWSConfig, d::AbstractArray) = TestUtils.submit_job(c, d)
@@ -301,7 +302,7 @@ end
                     "of the requested workers (2) will be spawned.",
                 )
                 apply(patches) do
-                    added_procs = @test_warn msg addprocs(AWSBatchManager(0:2, timeout=5))
+                    added_procs = Memento.Test.@test_log(logger, "warn", msg, addprocs(AWSBatchManager(0:2, timeout=5)))
                     # Check that the workers are available
                     @test length(added_procs) == 1
                     # Remove the added workers
@@ -380,6 +381,7 @@ end
             @test isempty(spawned_jobs)
         end
     else
-        warn("Environment variable \"ONLINE\" does not contain \"batch\". Skipping online AWS Batch tests.")
+        warn(logger, "Environment variable \"ONLINE\" does not contain \"batch\". " *
+             "Skipping online AWS Batch tests.")
     end
 end

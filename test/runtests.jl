@@ -6,13 +6,21 @@ using AWSClusterManagers
 using AWSTools
 using AWSTools.Docker
 using AWSTools.CloudFormation: stack_output
-using Base.Test
+using Memento
+using Compat
+using Compat.Test
+using Compat.LibGit2
+using Compat.Distributed
+using Compat.Dates
+using Compat.Sockets
+using Compat.Random
 
 import Base: AbstractCmd
 import AWSClusterManagers: launch_timeout, desired_workers
 
 include("testutils.jl")
 using .TestUtils
+using .TestUtils: logger
 
 const PKG_DIR = abspath(@__DIR__, "..")
 
