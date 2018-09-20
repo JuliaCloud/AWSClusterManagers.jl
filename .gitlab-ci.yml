@@ -39,6 +39,11 @@ cache: {}
     ONLINE: ""
   <<: *test_shell
 
+.test_shell_1_0: &test_shell_1_0
+  variables:
+    JULIA_VERSION: "1.0"
+  <<: *test_shell
+
 .test_shell_nightly: &test_shell_nightly
   variables:
     JULIA_VERSION: "nightly"
@@ -102,6 +107,26 @@ cache: {}
     - 32-bit
     - shell-ci
   <<: *test_shell_0_7
+
+"1.0 (Mac)":
+  tags:
+    - mac
+    - shell-ci
+  <<: *test_shell_1_0
+
+"1.0 (Linux, 64-bit)":
+  tags:
+    - linux
+    - 64-bit
+    - shell-ci
+  <<: *test_shell_1_0
+
+"1.0 (Linux, 32-bit)":
+  tags:
+    - linux
+    - 32-bit
+    - shell-ci
+  <<: *test_shell_1_0
 
 "Nightly (Mac)":
   tags:

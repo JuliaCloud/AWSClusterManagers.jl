@@ -1,3 +1,4 @@
+using JSON
 # Return the long image SHA256 identifier using various ways of referencing images
 function full_image_sha(image::AbstractString)
     json = JSON.parse(read(`docker inspect $image`, String))
@@ -89,7 +90,7 @@ end
             num_workers = 3
             code = """
             using Memento
-            Memento.config("debug"; fmt="{msg}")
+            Memento.config!("debug"; fmt="{msg}")
             using AWSClusterManagers: DockerManager
             setlevel!(getlogger(AWSClusterManagers), "debug")
             addprocs(DockerManager($num_workers))
@@ -122,9 +123,9 @@ end
 
             # Spawned is the list container IDs reported by the manager upon launch while
             # reported is the self-reported container ID of each worker.
-            spawned_containers = matchall(r"(?<=Spawning container: )[0-9a-f\-]+", output)
-            reported_containers = matchall(r"(?<=Worker container \d: )[0-9a-f\-]+", output)
-            reported_images = matchall(r"(?<=Worker image \d: )[0-9a-f\-]+", output)
+            spawned_containers = collect((m.match for m=eachmatch(r"(?<=Spawning container: )[0-9a-f\-]+", output)))
+            reported_containers = collect((m.match for m=eachmatch(r"(?<=Worker container \d: )[0-9a-f\-]+", output)))
+            reported_images = collect((m.match for m=eachmatch(r"(?<=Worker image \d: )[0-9a-f\-]+", output)))
 
             @test num_procs == num_workers + 1
             @test length(reported_containers) == num_workers
