@@ -123,9 +123,9 @@ end
 
             # Spawned is the list container IDs reported by the manager upon launch while
             # reported is the self-reported container ID of each worker.
-            spawned_containers = collect((m.match for m=eachmatch(r"(?<=Spawning container: )[0-9a-f\-]+", output)))
-            reported_containers = collect((m.match for m=eachmatch(r"(?<=Worker container \d: )[0-9a-f\-]+", output)))
-            reported_images = collect((m.match for m=eachmatch(r"(?<=Worker image \d: )[0-9a-f\-]+", output)))
+            spawned_containers = map(m -> m.match, eachmatch(r"(?<=Spawning container: )[0-9a-f\-]+", output))
+            reported_containers = map(m -> m.match, eachmatch(r"(?<=Worker container \d: )[0-9a-f\-]+", output))
+            reported_images = map(m -> m.match, eachmatch(r"(?<=Worker image \d: )[0-9a-f\-]+", output))
 
             @test num_procs == num_workers + 1
             @test length(reported_containers) == num_workers
