@@ -44,7 +44,7 @@ function launch(manager::ContainerManager, params::Dict, launched::Array, c::Con
     # TODO: Ideally should be using TLS connections.
     port, server = listenany(ip"::", PORT_HINT)  # Listen on all IPv4 and IPv6 interfaces
     for i in 1:max_workers
-        launch_tasks[i] = @schedule begin
+        launch_tasks[i] = @async begin
             sock = accept(server)
 
             # The worker will report it's own address through the socket. Eventually the

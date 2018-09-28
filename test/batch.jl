@@ -50,7 +50,7 @@ function run_batch_job(image_name::AbstractString, num_workers::Integer; timeout
 
     # Note: The manager can run out of memory with enough workers:
     # - 64 workers with a manager with 1024 MB of memory
-    info("Submitting AWS Batch job with $num_workers workers")
+    info(logger, "Submitting AWS Batch job with $num_workers workers")
     job = run_batch(;
         name = STACK["JobName"] * "-n$num_workers",
         queue = STACK["ManagerJobQueueArn"],
@@ -361,8 +361,8 @@ end
             launch_duration = Dates.value(started_at - created_at) / 1000
             run_duration = Dates.value(stopped_at - started_at) / 1000
 
-            info("Job launch duration: $(time_str(launch_duration))")
-            info("Job run duration:    $(time_str(run_duration))")
+            info(logger, "Job launch duration: $(time_str(launch_duration))")
+            info(logger, "Job run duration:    $(time_str(run_duration))")
         end
 
         @testset "Exceed worker limit" begin
