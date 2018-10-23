@@ -1,8 +1,10 @@
 import Base: ==
 
-# Seconds to wait for the AWS Batch cluster to scale up, spot requests to be fufilled,
+# Time to wait for the AWS Batch cluster to scale up, spot requests to be fufilled,
 # instances to finish initializing, and have the worker instances connect to the manager.
-const BATCH_TIMEOUT = 900  # 15 minutes
+# Note that when using 3 workers, it is not uncommon for the third worker to take 15 - 21
+# minutes longer than the other 2 workers to start up
+const BATCH_TIMEOUT = Minute(25)
 
 # Note: Communication directly between AWS Batch jobs works since the underlying ECS task
 # implicitly uses networkMode: host. If this changes to another networking mode AWS Batch
@@ -35,7 +37,7 @@ requested `max_workers`.
 - `region::AbstractString`: The region in which the API requests are sent and in which new
   worker are spawned. Defaults to "us-east-1". [Available regions for AWS batch](http://docs.aws.amazon.com/general/latest/gr/rande.html#batch_region)
   can be found in the AWS documentation.
-- `timeout::Real`: The maximum number of seconds to wait for workers to become available
+- `timeout::Second`: The maximum number of seconds to wait for workers to become available
   before attempting to proceed without the missing workers.
 
 ## Examples
@@ -53,7 +55,7 @@ struct AWSBatchManager <: ContainerManager
     job_queue::AbstractString
     job_memory::Integer
     region::AbstractString
-    timeout::Float64
+    timeout::Second
 
     function AWSBatchManager(
         min_workers::Integer,
@@ -63,8 +65,17 @@ struct AWSBatchManager <: ContainerManager
         queue::AbstractString,
         memory::Integer,
         region::AbstractString,
-        timeout::Real=BATCH_TIMEOUT,
+        timeout::Union{Real, Period}=BATCH_TIMEOUT,
     )
+        if isa(timeout, Real)
+            Base.depwarn(
+                "Using a timeout of type `Real` is deprecated, use a `Period` type instead",
+                :AWSBatchManager
+            )
+            # Convert real to int equivalent so that Second(timeout) doesn't error
+            timeout = floor(timeout)
+        end
+
         min_workers >= 0 || throw(ArgumentError("min workers must be non-negative"))
         min_workers <= max_workers || throw(ArgumentError("min workers exceeds max workers"))
 
@@ -75,7 +86,7 @@ struct AWSBatchManager <: ContainerManager
 
         region = isempty(region) ? "us-east-1" : region
 
-        new(min_workers, max_workers, definition, name, queue, memory, region, timeout)
+        new(min_workers, max_workers, definition, name, queue, memory, region, Second(timeout))
     end
 end
 
@@ -87,7 +98,7 @@ function AWSBatchManager(
     queue::AbstractString="",
     memory::Integer=-1,
     region::AbstractString="",
-    timeout::Real=BATCH_TIMEOUT,
+    timeout::Union{Real, Period}=BATCH_TIMEOUT,
 )
     AWSBatchManager(
         min_workers,
@@ -97,7 +108,7 @@ function AWSBatchManager(
         queue,
         memory,
         region,
-        timeout
+        timeout,
     )
 end
 

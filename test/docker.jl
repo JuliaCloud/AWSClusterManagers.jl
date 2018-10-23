@@ -11,26 +11,26 @@ end
 
     @testset "Constructors" begin
         @testset "Inner" begin
-            mgr = DockerManager(2, mock_image, 600)
+            mgr = DockerManager(2, mock_image, Minute(10))
 
             @test mgr.num_workers == 2
             @test mgr.image == mock_image
-            @test mgr.timeout == 600
+            @test mgr.timeout == Minute(10)
 
-            @test launch_timeout(mgr) == 600
+            @test launch_timeout(mgr) == Minute(10)
             @test desired_workers(mgr) == (2, 2)
         end
 
         @testset "Keywords" begin
-            mgr = DockerManager(2, image=mock_image, timeout=600)
+            mgr = DockerManager(2, image=mock_image, timeout=Minute(10))
 
             @test mgr.num_workers == 2
             @test mgr.image == mock_image
-            @test mgr.timeout == 600
+            @test mgr.timeout == Minute(10)
         end
 
         @testset "Zero Workers" begin
-            mgr = DockerManager(0, image=mock_image, timeout=600)
+            mgr = DockerManager(0, image=mock_image, timeout=Minute(10))
             @test mgr.num_workers == 0
         end
 
@@ -78,7 +78,7 @@ end
                 # Suppress "unhandled task error" message
                 # https://github.com/JuliaLang/julia/issues/12403
                 ignore_stderr() do
-                    addprocs(DockerManager(1, mock_image, 1.0))
+                    addprocs(DockerManager(1, mock_image, Second(1)))
                 end
             end
         end

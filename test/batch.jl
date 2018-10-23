@@ -8,7 +8,7 @@ const BATCH_ENVS = (
 # Worst case 15 minute timeout. If the compute environment has just scaled it will wait
 # 8 minutes before scaling again. Spot instance requests can take some time to be fufilled
 # but are usually instant and instances take around 4 minutes before they are ready.
-const TIMEOUT = 15 * 60  # In seconds
+const TIMEOUT = Minute(15)
 
 # Scrapes the log output to determine the worker job IDs as stated by the manager
 function scrape_worker_job_ids(output::AbstractString)
@@ -28,15 +28,17 @@ function scrape_worker_job_ids(output::AbstractString)
     end
 end
 
-function run_batch_job(image_name::AbstractString, num_workers::Integer; timeout=TIMEOUT, should_fail::Bool=false)
+function run_batch_job(image_name::AbstractString, num_workers::Integer; timeout::Period=TIMEOUT, should_fail::Bool=false)
     # TODO: Use AWS Batch job parameters to avoid re-registering the job
+
+    timeout_secs = Dates.value(Second(timeout))
 
     # Will be running the HEAD revision of the code remotely
     # Note: Pkg.checkout doesn't work on untracked branches / SHAs with Julia 0.5.1
     code = """
     using AWSClusterManagers: AWSBatchManager
-    using Compat, Compat.Distributed
-    addprocs(AWSBatchManager($num_workers, queue="$(STACK["WorkerJobQueueArn"])", memory=512, timeout=$(timeout - 15)))
+    using Compat, Compat.Dates, Compat.Distributed
+    addprocs(AWSBatchManager($num_workers, queue="$(STACK["WorkerJobQueueArn"])", memory=512, timeout=Second($(timeout_secs - 15))))
     println("NumProcs: ", nprocs())
     using Memento
     Memento.config!("debug"; fmt="{msg}")
@@ -66,7 +68,7 @@ function run_batch_job(image_name::AbstractString, num_workers::Integer; timeout
     # 5 minutes before the manager job is running
     info(logger, "Waiting for AWS Batch manager job $(job.id) to run (~5 minutes)")
     start_time = time()
-    @test wait(state -> state < AWSBatch.RUNNING, job, timeout=timeout) == true
+    @test wait(state -> state < AWSBatch.RUNNING, job, timeout=timeout_secs) == true
     info(logger, "Manager spawning duration: $(time_str(time() - start_time))")
 
     # Once the manager job is running it will spawn additional AWS Batch jobs as
@@ -78,9 +80,9 @@ function run_batch_job(image_name::AbstractString, num_workers::Integer; timeout
     info(logger, "Waiting for AWS Batch workers and manager job to complete (~5 minutes)")
     start_time = time()
     if should_fail
-        @test wait(job, [AWSBatch.FAILED], [AWSBatch.SUCCEEDED], timeout=timeout) == true
+        @test wait(job, [AWSBatch.FAILED], [AWSBatch.SUCCEEDED], timeout=timeout_secs) == true
     else
-        @test wait(job, [AWSBatch.SUCCEEDED], timeout=timeout) == true
+        @test wait(job, [AWSBatch.SUCCEEDED], timeout=timeout_secs) == true
     end
     info(logger, "Worker spawning duration: $(time_str(time() - start_time))")
 
@@ -103,7 +105,7 @@ end
                 "job-queue",
                 1000,
                 "us-east-1",
-                600
+                Minute(10),
             )
 
             @test mgr.min_workers == 1
@@ -113,9 +115,9 @@ end
             @test mgr.job_queue == "job-queue"
             @test mgr.job_memory == 1000
             @test mgr.region == "us-east-1"
-            @test mgr.timeout == 600
+            @test mgr.timeout == Minute(10)
 
-            @test launch_timeout(mgr) == 600
+            @test launch_timeout(mgr) == Minute(10)
             @test desired_workers(mgr) == (1, 2)
         end
 
@@ -128,7 +130,7 @@ end
                 queue="q",
                 memory=1000,
                 region="us-west-1",
-                timeout=5
+                timeout=Second(5)
             )
 
             @test mgr.min_workers == 3
@@ -138,7 +140,7 @@ end
             @test mgr.job_queue == "q"
             @test mgr.job_memory == 1000
             @test mgr.region == "us-west-1"
-            @test mgr.timeout == 5
+            @test mgr.timeout == Second(5)
         end
 
         @testset "Zero Workers" begin
@@ -150,7 +152,7 @@ end
                 queue="q",
                 memory=1000,
                 region="us-west-1",
-                timeout=5
+                timeout=Second(5)
             )
 
             @test mgr.min_workers == 0
@@ -265,7 +267,7 @@ end
                     # Suppress "unhandled task error" message
                     # https://github.com/JuliaLang/julia/issues/12403
                     ignore_stderr() do
-                        addprocs(AWSBatchManager(1; timeout=1.0))
+                        addprocs(AWSBatchManager(1; timeout=Second(1)))
                     end
                 end
             end
@@ -284,7 +286,7 @@ end
 
                 @test_throws ErrorException apply(patches) do
                     ignore_stderr() do
-                        addprocs(AWSBatchManager(4, timeout=5))
+                        addprocs(AWSBatchManager(4, timeout=Second(5)))
                         @test nprocs() == 1
                     end
                 end
@@ -302,7 +304,7 @@ end
                     "of the requested workers (2) will be spawned.",
                 )
                 apply(patches) do
-                    added_procs = Memento.Test.@test_log(logger, "warn", msg, addprocs(AWSBatchManager(0:2, timeout=5)))
+                    added_procs = Memento.Test.@test_log(logger, "warn", msg, addprocs(AWSBatchManager(0:2, timeout=Second(5))))
                     # Check that the workers are available
                     @test length(added_procs) == 1
                     # Remove the added workers
@@ -381,7 +383,10 @@ end
             @test isempty(spawned_jobs)
         end
     else
-        warn(logger, "Environment variable \"ONLINE\" does not contain \"batch\". " *
-             "Skipping online AWS Batch tests.")
+        warn(
+            logger,
+            "Environment variable \"ONLINE\" does not contain \"batch\". " *
+            "Skipping online AWS Batch tests."
+        )
     end
 end

@@ -1,6 +1,6 @@
 julia 0.6
+AWSBatch 0.5.1
+Compat 0.40
 JSON
 Memento 0.7.0
 Mocking 0.5
-Compat 0.40
-AWSBatch 0.5.1

@@ -1,8 +1,8 @@
 import Base: ==
 
-# Seconds to wait for the Docker containers to launch and the workers to connect to the
+# Time to wait for the Docker containers to launch and the workers to connect to the
 # manager
-const DOCKER_TIMEOUT = 60  # 1 minute
+const DOCKER_TIMEOUT = Minute(1)
 
 """
     DockerManager(num_workers; kwargs...)
@@ -28,7 +28,7 @@ communicate with host Docker process.
 
 ## Keywords
 - `image::AbstractString`: The docker image to run.
-- `timeout::Real`: The maximum number of seconds to wait for workers to become available
+- `timeout::Second`: The maximum number of seconds to wait for workers to become available
   before aborting.
 
 ## Examples
@@ -41,13 +41,22 @@ DockerManager
 struct DockerManager <: ContainerManager
     num_workers::Int
     image::AbstractString
-    timeout::Float64
+    timeout::Second
 
     function DockerManager(
         num_workers::Integer,
         image::AbstractString,
-        timeout::Real=DOCKER_TIMEOUT,
+        timeout::Union{Real, Period}=DOCKER_TIMEOUT,
     )
+        if isa(timeout, Real)
+            Base.depwarn(
+                "Using a timeout of type `Real` is deprecated, use a `Period` type instead",
+                :DockerManager
+            )
+            # Convert real to int equivalent so that Second(timeout) doesn't error
+            timeout = floor(timeout)
+        end
+
         num_workers >= 0 || throw(ArgumentError("num workers must be non-negative"))
 
         # Workers by default inherit the defaults from the manager.
@@ -55,14 +64,14 @@ struct DockerManager <: ContainerManager
             image = @mock image_id()
         end
 
-        new(num_workers, image, timeout)
+        new(num_workers, image, Second(timeout))
     end
 end
 
 function DockerManager(
     num_workers::Integer;
     image::AbstractString="",
-    timeout::Real=DOCKER_TIMEOUT,
+    timeout::Union{Real, Period}=DOCKER_TIMEOUT,
 )
     DockerManager(num_workers, image, timeout)
 end
