@@ -3,11 +3,9 @@ Mocking.enable(force=true)
 
 using AWSBatch
 using AWSClusterManagers
-using AWSTools
 using AWSTools.Docker
 using AWSTools.CloudFormation: stack_output
 using Memento
-using Compat
 using Compat.Test
 using Compat.LibGit2
 using Compat.Distributed
@@ -24,11 +22,13 @@ using .TestUtils: logger
 
 const PKG_DIR = abspath(@__DIR__, "..")
 
-# Run the tests on a stack created with the "test/batch.yml" CloudFormation template
-const AWS_STACKNAME = get(ENV, "AWS_STACKNAME", "")
-
 # Enables the running of the "docker" and "batch" online tests. e.g ONLINE=docker,batch
 const ONLINE = strip.(split(get(ENV, "ONLINE", ""), r"\s*,\s*"))
+
+# Run the tests on a stack created with the "test/batch.yml" CloudFormation template
+const AWS_STACKNAME = get(ENV, "AWS_STACKNAME", "")
+const STACK = !isempty(AWS_STACKNAME) ? stack_output(AWS_STACKNAME) : Dict()
+const ECR = !isempty(STACK) ? first(split(STACK["EcrUri"], ':')) : "aws-cluster-managers-test"
 
 const GIT_DIR = joinpath(@__DIR__, "..", ".git")
 const REV = try
@@ -40,8 +40,6 @@ catch
     end
 end
 
-const STACK = !isempty(AWS_STACKNAME) ? stack_output(AWS_STACKNAME) : Dict()
-const ECR = !isempty(STACK) ? first(split(STACK["EcrUri"], ':')) : "aws-cluster-managers-test"
 const ECR_IMAGE = "$ECR:$REV"
 const JULIA_BAKED_IMAGE = "292522074875.dkr.ecr.us-east-1.amazonaws.com/julia-baked:0.6"
 

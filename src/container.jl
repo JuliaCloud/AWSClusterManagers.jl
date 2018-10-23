@@ -92,7 +92,7 @@ function launch(manager::ContainerManager, params::Dict, launched::Array, c::Con
         if num_launched >= min_workers
             warn(logger, "Only managed to launch $num_launched/$max_workers workers")
         else
-            error(logger, "Unable to launch the minimum number of workers")
+            error("Unable to launch the minimum number of workers")
         end
     end
 
@@ -114,13 +114,14 @@ end
 
 # Waits for all of the `tasks` to complete. If we wait longer than the `timeout` the wait is
 # aborted and the `timeout_callback` is called with number of unfinished tasks.
-function wait(tasks::AbstractArray{Task}, timeout::Real, timeout_callback::Function=(n)->nothing)
+function wait(tasks::AbstractArray{Task}, timeout::Period, timeout_callback::Function=(n)->nothing)
+    timeout_secs = Dates.value(Second(timeout))
     start = time()
     unfinished = 0
     for t in tasks
         while true
             task_done = istaskdone(t)
-            timed_out = (time() - start) >= timeout
+            timed_out = (time() - start) >= timeout_secs
 
             if timed_out || task_done
                 if timed_out && !task_done

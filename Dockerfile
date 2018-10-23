@@ -15,7 +15,7 @@ RUN yum -y install $PINNED_PKGS && \
 
 # Copy the essentials from AWSClusterManagers package such that we can install the
 # package's requirements and run build. By only installing the minimum required files we
-# should  e able to make better use of the Docker cache. Only when the REQUIRE file or the
+# should be able to make better use of the Docker cache. Only when the REQUIRE file or the
 # deps folder have changed will we be forced to redo these steps.
 #
 # Note: The AWSClusterManagers package currently doesn't have a deps/build.jl so we could
@@ -30,7 +30,7 @@ COPY deps $PKG_PATH/deps
 # be a git repository.
 # RUN [ -d .git ] && rm -rf .git || true
 
-# Add and build the all of the required Julia packages. In order to allow the use of
+# Add and build all of the required Julia packages. In order to allow the use of
 # BinDeps.jl we need to temporarily install additional system packages.
 #
 # - BinDeps.jl runtime requirements: sudo, make, gcc, unzip, bzip2, xz, unzip
@@ -69,8 +69,8 @@ RUN yum -y install $PKGS && \
 # Perform the remainder AWSClusterManagers installation
 COPY . $PKG_PATH
 
-# Create a new system image. Improves the startup times of packages by pre-compiling 
-# AWSClusterManagers and it's dependencies into the default system image. Note in 
+# Create a new system image. Improves the startup times of packages by pre-compiling
+# AWSClusterManagers and it's dependencies into the default system image. Note in
 # situations where uploads are slow you probably want to disable this.
 ARG CREATE_SYSIMG="true"
 
