@@ -321,10 +321,19 @@ end
         # to wait for the cluster to scale up on subsequent tests.
         @testset "Online (n=$num_workers)" for num_workers in [10, 1, 0]
             job = run_batch_job(image_name, num_workers)
-            output = TestUtils.log_messages(job)
 
-            m = match(r"(?<=NumProcs: )\d+", output)
-            num_procs = m !== nothing ? parse(Int, m.match) : -1
+            # Retry getting the logs for the batch job because it can take several seconds
+            # for cloudwatch to ingest the log records
+            get_logs = retry(delays=rand(5:10, 2)) do
+                output = TestUtils.log_messages(job)
+                m = match(r"(?<=NumProcs: )\d+", output)
+                if m === nothing
+                    error("The logs do not contain the `NumProcs` for job \"$(job.id)\".")
+                end
+                num_procs = parse(Int, m.match)
+                return (output, num_procs)
+            end
+            output, num_procs = get_logs()
 
             # Spawned are the AWS Batch job IDs reported upon job submission at launch
             # while reported is the self-reported job ID of each worker.
