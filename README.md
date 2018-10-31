@@ -27,10 +27,8 @@ Adjustments can be made to the tests with the environmental variables `ONLINE` a
   "docker" and/or "batch".  Including "docker" will run the online Docker tests (requires
   [Docker](https://www.docker.com/community-edition) to be installed) and "batch" will run
   AWS Batch tests (see `AWS_STACKNAME` for details).
-- `AWS_STACKNAME`: Switch the AWS Batch tests to use the stack specified instead of using
-  the legacy "stack". If set, it is expected that the stack already exists in the current
-  AWS profile. If unset, it is the legacy "stack" will be used which requires that the
-  current AWS profile has access to legacy resources. Note that `AWS_STACKNAME` is only
+- `AWS_STACKNAME`: Set the AWS Batch tests to use the stack specified. It is expected that
+  the stack already exists in the current AWS profile. Note that `AWS_STACKNAME` is only
   used if `ONLINE` contains "batch".
 
 If you wish you can run the tests entirely inside of a Docker container which can be
@@ -45,18 +43,16 @@ docker run --rm -e ONLINE=docker -v /var/run/docker.sock:/var/run/docker.sock <i
 
 To run the online Docker tests you'll need to have [Docker](https://www.docker.com/community-edition)
 installed. Additionally you'll also need access to pull down the image
-"292522074875.dkr.ecr.us-east-1.amazonaws.com/julia-baked" using your current AWS profile.
+"468665244580.dkr.ecr.us-east-1.amazonaws.com/julia-baked" using your current AWS profile.
 If your current profile doesn't have access then ask `@sudo` in [#techsupport](https://invenia.slack.com/messages/C02A3K084/)
 to "Please grant account ID <ACCOUNT_ID> permissions to the [`julia-baked`](https://console.aws.amazon.com/ecs/home?region=us-east-1#/repositories/julia-baked#permissions) repo".
 Make sure to replace `<ACCOUNT_ID>` with the results of `aws sts get-caller-identity --query Account`.
 
 ### Online AWS Batch tests
 
-To run the online AWS Batch tests you need all of the requirements as specified in [Online Docker tests](#online-docker-tests)
-and one of the following:
-
-- The current AWS profile uses the Invenia "legacy" account ID (292522074875)
-- The current AWS profile has an aws-batch-manager-test stack running and `AWS_STACKNAME` is set
+To run the online AWS Batch tests you need all of the requirements as specified in [Online Docker tests](#online-docker-tests),
+the current AWS profile should have an aws-batch-manager-test stack running and
+`AWS_STACKNAME` needs to be set.
 
 To make an aws-batch-manager-test compatible stack you can use the included CloudFormation
 template [batch.yml](test/batch.yml). Alternatively you should be able to use your own

@@ -19,8 +19,8 @@ docker build -t aws-cluster-managers-test:latest .
 
 # Optionally tag and push the image to ECR to share with others or for use with the AWSBatchManager.
 $(aws ecr get-login --region us-east-1)
-docker tag aws-cluster-managers-test:latest 292522074875.dkr.ecr.us-east-1.amazonaws.com/aws-cluster-managers-test:latest
-docker push 292522074875.dkr.ecr.us-east-1.amazonaws.com/aws-cluster-managers-test:latest
+docker tag aws-cluster-managers-test:latest 468665244580.dkr.ecr.us-east-1.amazonaws.com/aws-cluster-managers-test:latest
+docker push 468665244580.dkr.ecr.us-east-1.amazonaws.com/aws-cluster-managers-test:latest
 ```
 
 ## Overview

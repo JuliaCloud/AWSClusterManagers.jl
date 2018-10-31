@@ -21,4 +21,6 @@ makedocs(
         "assets/figures/batch_project.svg",
         "assets/figures/docker_manager.svg",
     ],
+    strict = true,
+    checkdocs = :none,
 )

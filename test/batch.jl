@@ -314,7 +314,7 @@ end
         end
     end
 
-    if "batch" in ONLINE
+    if "batch" in ONLINE && !isempty(AWS_STACKNAME)
         image_name = batch_manager_build()
 
         # Note: Start with the largest number of workers so the remaining tests don't have

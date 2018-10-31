@@ -18,7 +18,6 @@ cache: {}
   before_script:
     - curl -s -o julia-ci https://gitlab.invenia.ca/infrastructure/gitlab-ci-helper/raw/master/julia-ci
     - chmod +x julia-ci
-    - ./julia-ci install-cred-helper
     - ./julia-ci install $JULIA_VERSION
   script:
     - source julia-ci export
@@ -58,7 +57,7 @@ cache: {}
     - julia-coverage $PKG_NAME
 
 .test_docker_0_6: &test_docker_0_6
-  image: 292522074875.dkr.ecr.us-east-1.amazonaws.com/julia-gitlab-ci:0.6
+  image: 468665244580.dkr.ecr.us-east-1.amazonaws.com/julia-gitlab-ci:0.6
   <<: *test_docker
 
 
@@ -160,7 +159,7 @@ cache: {}
 
 "Coverage":
   stage: coverage
-  image: 292522074875.dkr.ecr.us-east-1.amazonaws.com/julia-gitlab-ci:0.6
+  image: 468665244580.dkr.ecr.us-east-1.amazonaws.com/julia-gitlab-ci:0.6
   coverage: /Test Coverage (\d+\.\d+%)/
   artifacts:
     name: combined_coverage
@@ -170,14 +169,13 @@ cache: {}
   tags:
     - linux
     - docker-ci
+  before_script:
+    - curl -s -o julia-ci https://gitlab.invenia.ca/infrastructure/gitlab-ci-helper/raw/master/julia-ci
+    - chmod +x julia-ci
   script:
-    - genhtml --version
-    - mkdir $CI_PROJECT_DIR/combined_coverage
-    - cp -r $CI_PROJECT_DIR/src $CI_PROJECT_DIR/combined_coverage/
-    - ls */*.info | xargs -I{} echo "--summary \"{}\"" | xargs lcov --directory src
-    - echo "Test Coverage $(genhtml -o $CI_PROJECT_DIR/combined_coverage --no-prefix */coverage.info 2>&1 | grep lines | awk '{print $2}')"
-    - find $CI_PROJECT_DIR/combined_coverage -type f -name "*.jl" -delete
-
+    - ./julia-ci publish-coverage combined_coverage
+  after_script:
+    - ./julia-ci clean
 
 "Documentation":
   stage: docs
@@ -197,8 +195,6 @@ cache: {}
     - ./julia-ci install $JULIA_VERSION
   script:
     - source julia-ci export
-    - julia --depwarn=no -e "Pkg.clone(pwd()); Pkg.build(\"$PKG_NAME\"); Pkg.add(\"Documenter\")"
-    - julia --depwarn=no -e "cd(Pkg.dir(\"$PKG_NAME\", \"docs\")); include(\"make.jl\")"
-    - julia --depwarn=no -e "const DOCS_DIR = joinpath(\"/mnt\", \"docs\", \"$CI_PROJECT_NAMESPACE\", \"$CI_PROJECT_NAME\", \"$CI_BUILD_REF_NAME\"); mkpath(DOCS_DIR); cp(Pkg.dir(\"$PKG_NAME\", \"docs\", \"build\"), DOCS_DIR; remove_destination=true, follow_symlinks=true)"
+    - ./julia-ci docs
   after_script:
     - ./julia-ci clean

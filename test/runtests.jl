@@ -41,7 +41,7 @@ catch
 end
 
 const ECR_IMAGE = "$ECR:$REV"
-const JULIA_BAKED_IMAGE = "292522074875.dkr.ecr.us-east-1.amazonaws.com/julia-baked:0.6"
+const JULIA_BAKED_IMAGE = "468665244580.dkr.ecr.us-east-1.amazonaws.com/julia-baked:0.6"
 
 
 
