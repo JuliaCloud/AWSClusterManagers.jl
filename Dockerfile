@@ -7,6 +7,7 @@ RUN yum -y update-minimal && \
     yum -y clean all
 
 # Install AWSClusterManagers.jl test requirement: Docker
+RUN amazon-linux-extras install docker
 ENV PINNED_PKGS \
     docker
 RUN yum -y install $PINNED_PKGS && \
@@ -54,7 +55,8 @@ ENV PKGS \
     xz \
     unzip \
     epel-release \
-    yum-utils
+    yum-utils \
+    tar
 RUN yum -y install $PKGS && \
     yum-config-manager --setopt=assumeyes=1 --save > /dev/null && \
     yum-config-manager --enable epel > /dev/null && \
