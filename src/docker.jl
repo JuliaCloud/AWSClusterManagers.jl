@@ -42,11 +42,15 @@ struct DockerManager <: ContainerManager
     num_workers::Int
     image::AbstractString
     timeout::Second
+    min_ip::IPv4
+    max_ip::IPv4
 
     function DockerManager(
         num_workers::Integer,
         image::AbstractString,
         timeout::Union{Real, Period}=DOCKER_TIMEOUT,
+        min_ip::IPv4=ip"0.0.0.0",
+        max_ip::IPv4=ip"255.255.255.255",
     )
         if isa(timeout, Real)
             Base.depwarn(
@@ -64,7 +68,7 @@ struct DockerManager <: ContainerManager
             image = @mock image_id()
         end
 
-        new(num_workers, image, Second(timeout))
+        new(num_workers, image, Second(timeout), min_ip, max_ip)
     end
 end
 
@@ -72,8 +76,10 @@ function DockerManager(
     num_workers::Integer;
     image::AbstractString="",
     timeout::Union{Real, Period}=DOCKER_TIMEOUT,
+    min_ip::IPv4=ip"0.0.0.0",
+    max_ip::IPv4=ip"255.255.255.255",
 )
-    DockerManager(num_workers, image, timeout)
+    DockerManager(num_workers, image, timeout, min_ip, max_ip)
 end
 
 launch_timeout(mgr::DockerManager) = mgr.timeout

@@ -37,6 +37,41 @@ The minimum and maximum number of workers wanted by the manager.
 """
 desired_workers(::ContainerManager)
 
+using Base: uv_error
+# The location of `_sizeof_uv_interface_address` changed, so we'll fetch it from the
+# correct location based on the julia version
+# https://github.com/JuliaLang/julia/pull/25935
+if VERSION >= v"0.7.0-DEV.4442"
+    using Sockets: _sizeof_uv_interface_address, IPv4
+else
+    using Base: _sizeof_uv_interface_address
+end
+
+using Compat: Cvoid
+
+function getipaddrs()
+    addresses = IPv4[]
+    addr_ref = Ref{Ptr{UInt8}}(C_NULL)
+    count_ref = Ref{Int32}(1)
+    lo_present = false
+    err = ccall(:jl_uv_interface_addresses, Int32, (Ref{Ptr{UInt8}}, Ref{Int32}), addr_ref, count_ref)
+    uv_error("getlocalip", err)
+    addr, count = addr_ref[], count_ref[]
+    for i = 0:(count-1)
+        current_addr = addr + i*_sizeof_uv_interface_address
+        if 1 == ccall(:jl_uv_interface_address_is_internal, Int32, (Ptr{UInt8},), current_addr)
+            lo_present = true
+            continue
+        end
+        sockaddr = ccall(:jl_uv_interface_address_sockaddr, Ptr{Cvoid}, (Ptr{UInt8},), current_addr)
+        if ccall(:jl_sockaddr_in_is_ip4, Int32, (Ptr{Cvoid},), sockaddr) == 1
+            push!(addresses, IPv4(ntoh(ccall(:jl_sockaddr_host4, UInt32, (Ptr{Cvoid},), sockaddr))))
+        end
+    end
+    ccall(:uv_free_interface_addresses, Cvoid, (Ptr{UInt8}, Int32), addr, count)
+    return addresses
+end
+
 function launch(manager::ContainerManager, params::Dict, launched::Array, c::Condition)
     min_workers, max_workers = desired_workers(manager)
     launch_tasks = Vector{Task}(undef, max_workers)
@@ -60,6 +95,11 @@ function launch(manager::ContainerManager, params::Dict, launched::Array, c::Con
         end
     end
 
+    # Get the valid ips we want
+    ips = getipaddrs()
+    valid_ip = first(ips[Ref(manager.min_ip) .<= ips .<= Ref(manager.max_ip)])
+    info(logger, "Using ip address $valid_ip")
+
     # Generate command which starts a Julia worker and reports its information back to the
     # manager
     #
@@ -78,7 +118,7 @@ function launch(manager::ContainerManager, params::Dict, launched::Array, c::Con
         else
             using Base: start_worker
         end
-        sock = connect(ip\"$(getipaddr())\", $port)
+        sock = connect(ip\"$valid_ip\", $port)
         start_worker(sock, \"$(cluster_cookie())\")
         """
     override_cmd = `julia -e $exec`
