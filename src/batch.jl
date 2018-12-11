@@ -56,6 +56,8 @@ struct AWSBatchManager <: ContainerManager
     job_memory::Integer
     region::AbstractString
     timeout::Second
+    min_ip::IPv4
+    max_ip::IPv4
 
     function AWSBatchManager(
         min_workers::Integer,
@@ -66,6 +68,8 @@ struct AWSBatchManager <: ContainerManager
         memory::Integer,
         region::AbstractString,
         timeout::Union{Real, Period}=BATCH_TIMEOUT,
+        min_ip::IPv4=ip"0.0.0.0",
+        max_ip::IPv4=ip"255.255.255.255",
     )
         if isa(timeout, Real)
             Base.depwarn(
@@ -86,7 +90,7 @@ struct AWSBatchManager <: ContainerManager
 
         region = isempty(region) ? "us-east-1" : region
 
-        new(min_workers, max_workers, definition, name, queue, memory, region, Second(timeout))
+        new(min_workers, max_workers, definition, name, queue, memory, region, Second(timeout), min_ip, max_ip)
     end
 end
 
@@ -99,6 +103,8 @@ function AWSBatchManager(
     memory::Integer=-1,
     region::AbstractString="",
     timeout::Union{Real, Period}=BATCH_TIMEOUT,
+    min_ip::IPv4=ip"0.0.0.0",
+    max_ip::IPv4=ip"255.255.255.255",
 )
     AWSBatchManager(
         min_workers,
@@ -109,6 +115,8 @@ function AWSBatchManager(
         memory,
         region,
         timeout,
+        min_ip,
+        max_ip
     )
 end
 
@@ -132,7 +140,9 @@ function ==(a::AWSBatchManager, b::AWSBatchManager)
         a.job_queue == b.job_queue &&
         a.job_memory == b.job_memory &&
         a.region == b.region &&
-        a.timeout == b.timeout
+        a.timeout == b.timeout &&
+        a.min_ip == b.min_ip &&
+        a.max_ip == b.max_ip
     )
 end
 
