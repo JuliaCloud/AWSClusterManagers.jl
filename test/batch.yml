@@ -54,8 +54,15 @@ Parameters:
     AllowedValues:
       - on-demand
       - spot
+  CIRoleArn:
+    Description: The role ARN used when executing GitLab CI test stage jobs.
+    Type: String
+    Default: ""
+    AllowedPattern: "|arn:aws:iam::\\d{12}:role/[^/]+"
+
 Conditions:
   OnDemandComputeEnvironment: !Equals [!Ref ProvisioningModel, on-demand]
+  Testing: !Not [!Equals [!Ref CIRoleArn, ""]]
 
 Resources:
   ComputeEnvironment:
@@ -207,13 +214,60 @@ Resources:
               - batch:DescribeJobQueues
             Resource: '*'
 
+  JLBatchJobIngress:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      Description: Allows Julia managers/workers to connect to each other on any port
+      GroupId: !Ref SecurityGroup
+      IpProtocol: -1  # All protocols (TCP, UDP, ICMP) on all ports
+      SourceSecurityGroupId: !Ref SecurityGroup
+
+  # Note: It would be nice to use this as the base job definition and make use of overrides
+  # when starting the test manager
+  # See: https://gitlab.invenia.ca/invenia/AWSClusterManagers.jl/issues/19
+
+  # JobDefinition:
+  #   Type: AWS::Batch::JobDefinition
+  #   Properties:
+  #     Type: container
+  #     ContainerProperties:
+  #       Image: !Sub "${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${ECR}:latest",
+  #       JobRoleArn: !Ref JLBatchJobRole
+  #       Vcpus: 1
+  #       Memory: 1024
+  #       # By default this job should fail
+  #       Command:
+  #         - exit
+  #         - 1
+
+  ECR:
+    Type: AWS::ECR::Repository
+    # Note: Doesn't work. ECR repositories will not be deleted when the stack is deleted if
+    # the repo contains any images. Delete the repo manually first to solve this.
+    DeletionPolicy: Delete
+    Properties:
+      RepositoryName: !Ref AWS::StackName  # Named to be consistent with JobDefinitionName
+
+  TestRole:
+    Type: AWS::IAM::Role
+    Condition: Testing
+    Properties:
+      RoleName: !Sub ${AWS::StackName}-TestRole
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              AWS: !Ref CIRoleArn
+            Action: sts:AssumeRole
+
   # Similar to the "JLBatchManagerPolicy" but includes additional required permissions
   # necessary for running the AWSClusterManagers online batch tests.
-  AWSBatchManagerTestPolicy:
-    Type: AWS::IAM::ManagedPolicy
+  TestPolicy:
+    Type: AWS::IAM::Policy
+    Condition: Testing
     Properties:
-      Description: >-
-        Allow the AWSClusterManagers test to interact with AWS Batch
+      PolicyName: TestPolicy
       PolicyDocument:
         Version: 2012-10-17
         Statement:
@@ -249,40 +303,7 @@ Resources:
             Action:
               - iam:PassRole
             Resource: !GetAtt JLBatchJobRole.Arn
-
-  JLBatchJobIngress:
-    Type: AWS::EC2::SecurityGroupIngress
-    Properties:
-      Description: Allows Julia managers/workers to connect to each other on any port
-      GroupId: !Ref SecurityGroup
-      IpProtocol: -1  # All protocols (TCP, UDP, ICMP) on all ports
-      SourceSecurityGroupId: !Ref SecurityGroup
-
-  # Note: It would be nice to use this as the base job definition and make use of overrides
-  # when starting the test manager
-  # See: https://gitlab.invenia.ca/invenia/AWSClusterManagers.jl/issues/19
-
-  # JobDefinition:
-  #   Type: AWS::Batch::JobDefinition
-  #   Properties:
-  #     Type: container
-  #     ContainerProperties:
-  #       Image: !Sub "${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${ECR}:latest",
-  #       JobRoleArn: !Ref JLBatchJobRole
-  #       Vcpus: 1
-  #       Memory: 1024
-  #       # By default this job should fail
-  #       Command:
-  #         - exit
-  #         - 1
-
-  ECR:
-    Type: AWS::ECR::Repository
-    # Note: Doesn't work. ECR repositories will not be deleted when the stack is deleted if
-    # the repo contains any images. Delete the repo manually first to solve this.
-    DeletionPolicy: Delete
-    Properties:
-      RepositoryName: !Ref AWS::StackName  # Named to be consistent with JobDefinitionName
+      Roles: [!Ref TestRole]
 
 Outputs:
   # JobDefinitionArn:
@@ -299,9 +320,5 @@ Outputs:
     Value: !Ref WorkerJobQueue
   JobRoleArn:
     Value: !GetAtt JLBatchJobRole.Arn
-  TestPolicy:
-    Value: !Ref AWSBatchManagerTestPolicy
-    Export:
-      Name: !Sub ${AWS::StackName}-TestPolicy
   EcrUri:
     Value: !Sub ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${ECR}
