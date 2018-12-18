@@ -70,6 +70,7 @@ Resources:
     DependsOn: BatchServiceRole  # Removing the ServiceRole before deleting the ComputeEnvironment will cause issues
     Properties:
       Type: MANAGED
+      ComputeEnvironmentName: !Ref AWS::StackName
       ComputeResources:
         Type: !If [OnDemandComputeEnvironment, EC2, SPOT]
         BidPercentage: 100
@@ -83,10 +84,13 @@ Resources:
           - !Ref SecurityGroup
         InstanceRole: !Ref IamInstanceProfile
         SpotIamFleetRole: !Ref BatchSpotFleetRole
+        Tags:
+          Name: !Sub "AWS Batch (${AWS::StackName})"
       ServiceRole: !Ref BatchServiceRole
   ManagerJobQueue:
     Type: AWS::Batch::JobQueue
     Properties:
+      JobQueueName: !Sub ${AWS::StackName}-Managers
       Priority: 2  # Managers should have a higher priority relative to workers
       ComputeEnvironmentOrder:
         - Order: 1
@@ -94,6 +98,7 @@ Resources:
   WorkerJobQueue:
     Type: AWS::Batch::JobQueue
     Properties:
+      JobQueueName: !Sub ${AWS::StackName}-Workers
       Priority: 1
       ComputeEnvironmentOrder:
         - Order: 1
