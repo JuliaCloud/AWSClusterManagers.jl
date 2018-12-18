@@ -1,5 +1,6 @@
 stages:
   - test
+  - environment
   - online-test
   - coverage
   - documentation
@@ -16,7 +17,68 @@ cache: {}
 
 variables:
   JULIA_IMAGE: 468665244580.dkr.ecr.us-east-1.amazonaws.com/julia-gitlab-ci:0.6
+  AMAZON_LINUX_IMAGE: amazonlinux:2
+  STACKNAME_PREFIX: sandbox-awsclustermanagers
   ONLINE: ""
+
+# Variables that require shell execution or depend on a variable that does
+.runtime_variables: &runtime_variables
+  |
+  # Declare runtime variables
+  #
+  # Make unique stacks for each executed pipeline for `master`. This will allow fast successive merges
+  # to work correctly.
+  if [[ ${CI_COMMIT_REF_SLUG} == "master" ]]; then
+      STACKNAME="${STACKNAME_PREFIX}-master-${CI_PIPELINE_ID}"
+  else
+      STACKNAME="${STACKNAME_PREFIX}-${CI_COMMIT_REF_SLUG/\//}"  # Replace an forward slashes with a hyphen
+  fi
+  ACCOUNT_ID=$(curl -s http://169.254.169.254/latest/dynamic/instance-identity/document | grep -oP '(?<="accountId" : ")[^"]*(?=")')
+  REGION=$(curl -s http://169.254.169.254/latest/dynamic/instance-identity/document | grep -oP '(?<="region" : ")[^"]*(?=")')
+  export AWS_DEFAULT_REGION=$(echo $REGION)
+
+.awscli_install: &awscli_install
+  |
+  # Build cloudspy and its dependencies
+  NEED_SUDO="sudo"
+
+  # docker-ci has slightly different install parameters
+  if [[ ${CI_RUNNER_TAGS} == *"docker-ci"* ]]; then
+    # Install which command
+    yum -y install which
+    # Install epel to get python36 rather than python3
+    amazon-linux-extras install epel
+    # We don't need to use sudo on the docker-ci tagged instances
+    NEED_SUDO=""
+  fi
+
+  # Install python36, virtualenv, and necessary packages
+  ${NEED_SUDO} yum -y install python36 python36-devel python-virtualenv gcc git
+
+  # Install a virtualenv with python 3 and activate it
+  virtualenv --python=$(which python36) venv
+  source venv/bin/activate
+
+  # Install AWSCli
+  pip install --upgrade awscli
+
+  # Print aws version
+  aws --version
+
+.cloudspy_install: &cloudspy_install
+  |
+  # Install Cloudspy in the env
+  pip install git+https://gitlab-ci-token:${CI_BUILD_TOKEN}@gitlab.invenia.ca/infrastructure/cloudspy.git#egg=cloudspy
+  # Export temp credentials
+  export AWS_SHARED_CREDENTIALS_FILE="./tmp-creds"
+
+.assume_test_profile: &assume_test_profile
+  |
+  aws-credentials \
+    --credentials-file=$AWS_SHARED_CREDENTIALS_FILE \
+    --role-arn arn:aws:iam::${ACCOUNT_ID}:role/${STACKNAME}-TestRole \
+    --role-session-name test
+  export AWS_PROFILE=test
 
 
 "0.6 (Mac)":
@@ -79,27 +141,120 @@ variables:
     - shell-ci
   extends: .test_shell_nightly
 
+
+### Online Tests ###
+
+"Create Stack":
+  stage: test  # Include in the "test" stage so we don't have to wait for the stack to launch later
+  except:
+    - tags
+  tags:
+    - docker-ci
+    - ci-account
+  image: $AMAZON_LINUX_IMAGE
+  before_script:
+    - *runtime_variables
+    - yum -y update
+    - *awscli_install
+    - *cloudspy_install
+  script:
+    - aws cloudformation validate-template --template-body file://test/batch.yml
+    - |
+      aws-create-stack \
+        --role-arn arn:aws:iam::${ACCOUNT_ID}:role/CloudFormationAdmin \
+        --stackname $STACKNAME \
+        --template-body ./test/batch.yml \
+        --wait \
+        --params CIRoleArn=arn:aws:iam::${ACCOUNT_ID}:role/GitLabCIRunnerRole
+
 # Online test run as a separate stage to avoid running these expensive tests if the basic tests fail.
 "Online Tests":
   stage: online-test
   tags:
-    - linux
+    - amzn2
     - docker
     - ecr
-    - batch
+    - ci-account
   variables:
-    AWS_STACKNAME: aws-batch-manager-test
     ONLINE: "docker, batch"  # Runs the online tests for AWS Batch & Docker
+  before_script:
+    - curl -sS -o julia-ci https://gitlab.invenia.ca/infrastructure/gitlab-ci-helper/raw/master/julia-ci
+    - chmod +x julia-ci
+    - ./julia-ci install-cred-helper
+    - ./julia-ci install $JULIA_VERSION
+    - *runtime_variables
+    - *awscli_install
+    - *cloudspy_install
+    - *assume_test_profile
   script:
+    # Execute online tests
     - source julia-ci export
-    - export PATH="$PATH:/usr/local/bin"
-    - unset SSL_CERT_DIR
-    - ./julia-ci test
+    - AWS_STACKNAME=$STACKNAME ./julia-ci test
     - ./julia-ci coverage
   after_script:
     - ./julia-ci clean
     - sleep 5
-    - "ACCOUNT_ID=$(curl -s http://169.254.169.254/latest/dynamic/instance-identity/document | grep -oP '(?<=\"accountId\" : \")[^\"]*(?=\")')"
-    - "REGION=$(curl -s http://169.254.169.254/latest/dynamic/instance-identity/document | grep -oP '(?<=\"region\" : \")[^\"]*(?=\")')"
-    - docker rmi $ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com/aws-batch-manager-test:$(git rev-parse --short $CI_COMMIT_SHA)
+    - *runtime_variables
+    - export CI_COMMIT_SHA_SHORT=$(git rev-parse --short $CI_COMMIT_SHA)
+    - docker rmi $ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com/aws-batch-manager-test:$CI_COMMIT_SHA_SHORT
   extends: .test_shell_0_6
+
+"Setup Environment":
+  stage: environment
+  except:
+    - tags
+    - master
+  when: always
+  environment:
+    name: branch/$CI_COMMIT_REF_SLUG
+    on_stop: "Delete Environment"
+  script:
+    - echo "Setting up environment"
+
+.delete: &delete
+  tags:
+    - docker-ci
+    - ci-account
+  image: $AMAZON_LINUX_IMAGE
+  before_script:
+    - *runtime_variables
+    - *awscli_install
+    - *cloudspy_install
+    - *assume_test_profile
+  script:
+    - eval $(aws-stack-outputs $STACKNAME)
+    # Terminate any jobs that are still running as running jobs can keep the EC2 instances
+    # running which makes the stack fail to delete cleanly. Jobs can still be running in
+    # scenarios where they are stuck or the CI hits the timeout.
+    - aws-clear-queue $ManagerJobQueueArn $WorkerJobQueueArn --reason "Deleting CloudFormation stack" --disable --wait
+    # Empty the ECR repository
+    - image_ids=$(aws ecr list-images --repository-name $Ecr --query "imageIds[*]")
+    - aws ecr batch-delete-image --repository-name $Ecr --image-ids "$image_ids"
+    - unset AWS_PROFILE  # Switch to back to CI runner role
+    - |
+      aws cloudformation delete-stack \
+        --role-arn arn:aws:iam::${ACCOUNT_ID}:role/CloudFormationAdmin \
+        --stack-name $STACKNAME
+    - aws cloudformation wait stack-delete-complete --stack-name $STACKNAME
+
+"Delete Environment":
+  stage: environment
+  except:
+    - tags
+    - master
+  when: manual
+  environment:
+    name: branch/$CI_COMMIT_REF_SLUG
+    action: stop
+  dependencies:
+    - "Create Stack"
+  variables:
+    GIT_STRATEGY: none  # Avoid checking out a branch after deletion
+  <<: *delete
+
+"Delete Stack":
+  stage: environment
+  only:
+    - master
+  when: always
+  <<: *delete
