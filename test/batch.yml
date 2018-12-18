@@ -67,6 +67,7 @@ Conditions:
 Resources:
   ComputeEnvironment:
     Type: AWS::Batch::ComputeEnvironment
+    DependsOn: BatchServiceRole  # Removing the ServiceRole before deleting the ComputeEnvironment will cause issues
     Properties:
       Type: MANAGED
       ComputeResources:
