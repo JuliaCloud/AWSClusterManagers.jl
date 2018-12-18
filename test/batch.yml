@@ -309,6 +309,21 @@ Resources:
             Action:
               - iam:PassRole
             Resource: !GetAtt JLBatchJobRole.Arn
+
+          # aws-clear-queue
+          - Effect: Allow
+            Action:
+              - batch:ListJobs
+              - batch:TerminateJob
+              - batch:UpdateJobQueue
+            Resource: "*"
+
+          # batch-delete-image
+          - Effect: Allow
+            Action:
+              - ecr:ListImages
+              - ecr:BatchDeleteImage
+            Resource: !GetAtt ECR.Arn
       Roles: [!Ref TestRole]
 
 Outputs:
@@ -326,5 +341,7 @@ Outputs:
     Value: !Ref WorkerJobQueue
   JobRoleArn:
     Value: !GetAtt JLBatchJobRole.Arn
+  Ecr:
+    Value: !Ref ECR
   EcrUri:
     Value: !Sub ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${ECR}

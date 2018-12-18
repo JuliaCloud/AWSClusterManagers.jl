@@ -220,13 +220,17 @@ variables:
     - *runtime_variables
     - *awscli_install
     - *cloudspy_install
+    - *assume_test_profile
   script:
     - eval $(aws-stack-outputs $STACKNAME)
     # Terminate any jobs that are still running as running jobs can keep the EC2 instances
     # running which makes the stack fail to delete cleanly. Jobs can still be running in
     # scenarios where they are stuck or the CI hits the timeout.
     - aws-clear-queue $ManagerJobQueueArn $WorkerJobQueueArn --reason "Deleting CloudFormation stack" --disable --wait
-    # Use the deploy role to ensure that the role can actually delete the EIS stack.
+    # Empty the ECR repository
+    - image_ids=$(aws ecr list-images --repository-name $Ecr --query "imageIds[*]")
+    - aws ecr batch-delete-image --repository-name $Ecr --image-ids "$image_ids"
+    - unset AWS_PROFILE  # Switch to back to CI runner role
     - |
       aws cloudformation delete-stack \
         --role-arn arn:aws:iam::${ACCOUNT_ID}:role/CloudFormationAdmin \
