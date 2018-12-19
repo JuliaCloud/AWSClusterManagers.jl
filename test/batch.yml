@@ -181,6 +181,7 @@ Resources:
       SubnetId: !Ref Subnet
   Route:
     Type: AWS::EC2::Route
+    DependsOn: VPCGatewayAttachment
     Properties:
       RouteTableId: !Ref RouteTable
       DestinationCidrBlock: 0.0.0.0/0
