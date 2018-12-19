@@ -1,7 +1,8 @@
 stages:
+  - setup
   - test
-  - environment
   - online-test
+  - teardown
   - coverage
   - documentation
 
@@ -200,7 +201,7 @@ variables:
   extends: .test_shell_0_6
 
 "Setup Environment":
-  stage: environment
+  stage: setup
   except:
     - tags
     - master
@@ -239,7 +240,7 @@ variables:
     - aws cloudformation wait stack-delete-complete --stack-name $STACKNAME
 
 "Delete Environment":
-  stage: environment
+  stage: teardown
   except:
     - tags
     - master
@@ -255,7 +256,7 @@ variables:
   <<: *delete
 
 "Delete Stack":
-  stage: environment
+  stage: teardown
   only:
     - master
     - /^.+\/.*master$/
