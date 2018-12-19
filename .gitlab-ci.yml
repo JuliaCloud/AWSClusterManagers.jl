@@ -1,7 +1,8 @@
 stages:
+  - setup
   - test
-  - environment
   - online-test
+  - teardown
   - coverage
   - documentation
 
@@ -200,10 +201,11 @@ variables:
   extends: .test_shell_0_6
 
 "Setup Environment":
-  stage: environment
+  stage: setup
   except:
     - tags
     - master
+    - /^.+\/.*master$/  # e.g. jh/validate-master
   when: always
   environment:
     name: branch/$CI_COMMIT_REF_SLUG
@@ -229,7 +231,7 @@ variables:
     - aws-clear-queue $ManagerJobQueueArn $WorkerJobQueueArn --reason "Deleting CloudFormation stack" --disable --wait
     # Empty the ECR repository
     - image_ids=$(aws ecr list-images --repository-name $Ecr --query "imageIds[*]")
-    - aws ecr batch-delete-image --repository-name $Ecr --image-ids "$image_ids"
+    - '[[ "$image_ids" != "[]" ]] && aws ecr batch-delete-image --repository-name $Ecr --image-ids "$image_ids"'
     - unset AWS_PROFILE  # Switch to back to CI runner role
     - |
       aws cloudformation delete-stack \
@@ -238,10 +240,11 @@ variables:
     - aws cloudformation wait stack-delete-complete --stack-name $STACKNAME
 
 "Delete Environment":
-  stage: environment
+  stage: teardown
   except:
     - tags
     - master
+    - /^.+\/.*master$/
   when: manual
   environment:
     name: branch/$CI_COMMIT_REF_SLUG
@@ -253,8 +256,9 @@ variables:
   <<: *delete
 
 "Delete Stack":
-  stage: environment
+  stage: teardown
   only:
     - master
+    - /^.+\/.*master$/
   when: always
   <<: *delete
