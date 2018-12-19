@@ -204,6 +204,7 @@ variables:
   except:
     - tags
     - master
+    - /^.+\/.*master$/  # e.g. jh/validate-master
   when: always
   environment:
     name: branch/$CI_COMMIT_REF_SLUG
@@ -242,6 +243,7 @@ variables:
   except:
     - tags
     - master
+    - /^.+\/.*master$/
   when: manual
   environment:
     name: branch/$CI_COMMIT_REF_SLUG
@@ -256,5 +258,6 @@ variables:
   stage: environment
   only:
     - master
+    - /^.+\/.*master$/
   when: always
   <<: *delete
