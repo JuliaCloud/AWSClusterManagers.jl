@@ -71,7 +71,7 @@ variables:
   # Install Cloudspy in the env
   pip install git+https://gitlab-ci-token:${CI_BUILD_TOKEN}@gitlab.invenia.ca/infrastructure/cloudspy.git#egg=cloudspy
   # Export temp credentials
-  export AWS_SHARED_CREDENTIALS_FILE="./tmp-creds"
+  export AWS_SHARED_CREDENTIALS_FILE="$(pwd)/tmp-creds"
 
 .assume_test_profile: &assume_test_profile
   |
