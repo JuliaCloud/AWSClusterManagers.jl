@@ -71,7 +71,7 @@ variables:
   # Install Cloudspy in the env
   pip install git+https://gitlab-ci-token:${CI_BUILD_TOKEN}@gitlab.invenia.ca/infrastructure/cloudspy.git#egg=cloudspy
   # Export temp credentials
-  export AWS_SHARED_CREDENTIALS_FILE="./tmp-creds"
+  export AWS_SHARED_CREDENTIALS_FILE="$(pwd)/tmp-creds"
 
 .assume_test_profile: &assume_test_profile
   |
@@ -190,6 +190,7 @@ variables:
   script:
     # Execute online tests
     - source julia-ci export
+    # NOTE: Online tests require AWSCore 0.5.2 which requires Julia 1.0+. We can't enforce this unless we drop Julia 0.6 support
     - AWS_STACKNAME=$STACKNAME ./julia-ci test
     - ./julia-ci coverage
   after_script:
@@ -198,7 +199,7 @@ variables:
     - *runtime_variables
     - export CI_COMMIT_SHA_SHORT=$(git rev-parse --short $CI_COMMIT_SHA)
     - docker rmi $ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com/aws-batch-manager-test:$CI_COMMIT_SHA_SHORT
-  extends: .test_shell_0_6
+  extends: .test_shell_1_0
 
 "Setup Environment":
   stage: setup
