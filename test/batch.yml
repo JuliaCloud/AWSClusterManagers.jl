@@ -28,6 +28,12 @@ Description: >-
 
 # https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/parameters-section-structure.html#aws-specific-parameter-types
 Parameters:
+  OperationsAccountId:
+    Description: >-
+      Account ID for the operations account which stores the julia-baked ECR repository
+    Type: String
+    Default: 468665244580
+    AllowedPattern: "\\d{12}"
   VPCCidrBlock:
     # https://docs.aws.amazon.com/AmazonVPC/latest/UserGuide/VPC_Subnets.html#VPC_Sizing
     Description: >-
@@ -277,6 +283,7 @@ Resources:
       PolicyDocument:
         Version: 2012-10-17
         Statement:
+          # Permissions used by AWSBatch.jl
           - Effect: Allow
             Action:
               - batch:RegisterJobDefinition
@@ -288,27 +295,41 @@ Resources:
               - batch:DescribeComputeEnvironments
             Resource: "*"
           - Effect: Allow
-            Action:
-              - logs:GetLogEvents
+            Action: logs:GetLogEvents
             Resource: "*"
           - Effect: Allow
-            Action:
-              - cloudformation:DescribeStacks
+            Action: iam:PassRole
+            Resource: !GetAtt JLBatchJobRole.Arn
+
+          # AWSTools.stack_output
+          - Effect: Allow
+            Action: cloudformation:DescribeStacks
             Resource: !Sub arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/${AWS::StackName}/*
+
+          # AWSBatch.Docker.login
+          - Effect: Allow
+            Action: ecr:GetAuthorizationToken
+            Resource: "*"
+
+          # AWSBatch.Docker.pull
           - Effect: Allow
             Action:
               - ecr:GetDownloadUrlForLayer
               - ecr:BatchGetImage
               - ecr:BatchCheckLayerAvailability
+            Resource:
+              - !Sub arn:aws:ecr:${AWS::Region}:${OperationsAccountId}:repository/julia-baked
+              - !Sub arn:aws:ecr:${AWS::Region}:${AWS::AccountId}:repository/${ECR}
+
+          # AWSBatch.Docker.push
+          - Effect: Allow
+            Action:
               - ecr:PutImage
               - ecr:InitiateLayerUpload
               - ecr:UploadLayerPart
               - ecr:CompleteLayerUpload
-            Resource: !Sub arn:aws:ecr:${AWS::Region}:${AWS::AccountId}:repository/${ECR}
-          - Effect: Allow
-            Action:
-              - iam:PassRole
-            Resource: !GetAtt JLBatchJobRole.Arn
+            Resource:
+              - !Sub arn:aws:ecr:${AWS::Region}:${AWS::AccountId}:repository/${ECR}
 
           # aws-clear-queue
           - Effect: Allow
