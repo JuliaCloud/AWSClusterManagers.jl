@@ -1,14 +1,11 @@
 stages:
   - setup
   - test
-  - coverage
-  - documentation
   - teardown
 
 include:
-  - https://gitlab.invenia.ca/infrastructure/gitlab-ci-helper/raw/master/gitlab-templates/test_templates.yml
-  - https://gitlab.invenia.ca/infrastructure/gitlab-ci-helper/raw/master/gitlab-templates/coverage.yml
-  - https://gitlab.invenia.ca/infrastructure/gitlab-ci-helper/raw/master/gitlab-templates/documentation.yml
+  - https://gitlab.invenia.ca/infrastructure/gitlab-ci-helper/raw/master/templates/hidden-jobs.yml
+  - https://gitlab.invenia.ca/infrastructure/gitlab-ci-helper/raw/master/templates/teardown.yml
 
 # Disable GitLab CI's default cache policy of "pull-push"
 # https://docs.gitlab.com/ee/ci/yaml/#cache-policy
