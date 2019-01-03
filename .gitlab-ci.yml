@@ -96,8 +96,6 @@ variables:
 
 "Create Stack":
   stage: setup
-  except:
-    - tags
   tags:
     - docker-ci
     - ci-account
@@ -256,6 +254,7 @@ variables:
 "Delete Stack":
   stage: teardown
   only:
+    - tags
     - master
     - /^.+\/.*master$/
   when: always
