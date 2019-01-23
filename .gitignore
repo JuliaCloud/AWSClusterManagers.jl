@@ -8,3 +8,5 @@
 # System files
 *.swp
 .DS_Store
+
+/Manifest.toml
