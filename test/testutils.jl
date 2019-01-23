@@ -134,8 +134,7 @@ function read(cmd::Cmd, ::Type{String}, pass::Bool=true)
             @spawn run(Cmd(["julia", "-e", "$(cmd.exec[end])"]))
         else
             code = """
-                println(VERSION >= v"0.7.0-DEV.4068" ? stderr : STDERR,
-                        "Failed to come online")
+                println(stderr, "Failed to come online")
                 """
             @spawn run(Cmd(["julia", "-e", code]))
         end
