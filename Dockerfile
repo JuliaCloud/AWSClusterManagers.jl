@@ -1,10 +1,11 @@
-FROM julia-baked:0.6
+FROM julia-baked:1.0.3
 
 ENV PKG_NAME "AWSClusterManagers"
 
 # Get security updates
 RUN yum -y update-minimal && \
-    yum -y clean all
+    yum -y clean all && \
+    rm -rf /var/cache/yum
 
 # Install AWSClusterManagers.jl test requirement: Docker
 RUN amazon-linux-extras install docker
@@ -12,19 +13,16 @@ ENV PINNED_PKGS \
     docker
 RUN yum -y install $PINNED_PKGS && \
     echo $PINNED_PKGS | tr -s '\t ' '\n' > /etc/yum/protected.d/docker.conf && \
-    yum -y clean all
+    yum -y clean all && \
+    rm -rf /var/cache/yum
 
 # Copy the essentials from AWSClusterManagers package such that we can install the
-# package's requirements and run build. By only installing the minimum required files we
-# should be able to make better use of the Docker cache. Only when the REQUIRE file or the
-# deps folder have changed will we be forced to redo these steps.
-#
-# Note: The AWSClusterManagers package currently doesn't have a deps/build.jl so we could
-# just ignore the deps directory. However by performing the copy we future proof our
-# Dockerfile if we did add a deps/build.jl file.
-ENV PKG_PATH $JULIA_PKGDIR/$JULIA_PKGVER/$PKG_NAME
-COPY REQUIRE $PKG_PATH/REQUIRE
-COPY deps $PKG_PATH/deps
+# package's requirements. By only installing the minimum required files we should be able
+# to make better use of the Docker cache. Only when the Project.toml file or the
+# Manifest.toml have changed will we be forced to redo these steps.
+ENV PKG_PATH $HOME/$PKG_NAME
+COPY *Project.toml *Manifest.toml $PKG_PATH/
+RUN mkdir -p $PKG_PATH/src && touch $PKG_PATH/src/$PKG_NAME.jl
 
 # If the AWSClusterManagers directory is a git repository then Pkg.update will expect to
 # HEAD to be a branch which is tracked. An easier alternative is make the package no longer
@@ -51,17 +49,20 @@ ENV PKGS \
     make \
     gcc \
     gcc-c++ \
+    tar \
+    curl \
     bzip2 \
     xz \
     unzip \
+    gzip \
+    busybox \
     epel-release \
-    yum-utils \
-    tar
+    yum-utils
 RUN yum -y install $PKGS && \
     yum-config-manager --setopt=assumeyes=1 --save > /dev/null && \
     yum-config-manager --enable epel > /dev/null && \
     yum list installed | tr -s ' ' | cut -d' ' -f1 | sort > /tmp/pre_state && \
-    julia -e "using PrivateMetadata; PrivateMetadata.update(); Pkg.update(); Pkg.resolve(); Pkg.build(\"$PKG_NAME\")" && \
+    julia -e "using Pkg; Pkg.develop(PackageSpec(name=\"$PKG_NAME\", path=\"$PKG_PATH\")); Pkg.add(PackageSpec(\"Memento\"))" && \
     yum list installed | tr -s ' ' | cut -d' ' -f1 | sort > /tmp/post_state && \
     comm -3 /tmp/pre_state /tmp/post_state | grep $'\t' | sed 's/\t//' | sed 's/\..*//' > /etc/yum/protected.d/julia-pkgs.conf && \
     yum-config-manager --disable epel > /dev/null && \
@@ -69,33 +70,39 @@ RUN yum -y install $PKGS && \
     yum -y clean all
 
 # Perform the remainder AWSClusterManagers installation
-COPY . $PKG_PATH
+COPY . $PKG_PATH/
+RUN julia -e "using Pkg; Pkg.build(\"$PKG_NAME\")"
 
 # Create a new system image. Improves the startup times of packages by pre-compiling
 # AWSClusterManagers and it's dependencies into the default system image. Note in
 # situations where uploads are slow you probably want to disable this.
-ARG CREATE_SYSIMG="true"
+# Note: Disabling system image creation by default as this is much slower on Julia 1.0+
+ARG CREATE_SYSIMG="false"
 
 # Note: Need to have libc to avoid: "/usr/bin/ld: cannot find crti.o: No such file or directory"
+# https://docs.julialang.org/en/v1.0/devdocs/sysimg/#Building-the-Julia-system-image-1
 ENV PKGS \
     gcc
 ENV PINNED_PKGS \
     glibc
-RUN if [[ "$CREATE_SYSIMG" == "true" ]]; then \
+RUN echo "using $PKG_NAME" > $JULIA_PATH/userimg.jl && \
+    if [[ "$CREATE_SYSIMG" == "true" ]]; then \
         yum -y install $PKGS $PINNED_PKGS && \
         echo $PINNED_PKGS | tr -s '\t ' '\n' > /etc/yum/protected.d/julia-userimg.conf && \
-        cd $JULIA_PATH/base && \
         source $JULIA_PATH/Make.user && \
-        $JULIA_PATH/julia -C $MARCH --output-o $JULIA_PATH/userimg.o --sysimage $JULIA_PATH/usr/lib/julia/sys.so --startup-file=no -e "using $PKG_NAME" && \
-        cc -shared -o $JULIA_PATH/userimg.so $JULIA_PATH/userimg.o -ljulia -L$JULIA_PATH/usr/lib && \
-        mv $JULIA_PATH/userimg.o $JULIA_PATH/usr/lib/julia/sys.o && \
-        mv $JULIA_PATH/userimg.so $JULIA_PATH/usr/lib/julia/sys.so && \
-        yum -y autoremove $PKGS && \
-        yum -y clean all; \
+        julia -e "using Pkg; Pkg.add(\"PackageCompiler\"); using PackageCompiler: build_sysimg, default_sysimg_path; build_sysimg(default_sysimg_path(), \"$JULIA_PATH/userimg.jl\", cpu_target=\"$MARCH\")" && \
+        for p in $PKGS; do yum -y autoremove $p &>/dev/null && echo "Removed $p" || echo "Skipping removal of $p"; done && \
+        yum -y clean all && \
+        rm -rf /var/cache/yum ; \
+    else \
+        julia --compiled-modules=yes $JULIA_PATH/userimg.jl; \
     fi
+
+# Validate that the `julia` can start with the new system image
+RUN julia --history-file=no -e 'exit()'
 
 WORKDIR $PKG_PATH
 
 # To run these tests make sure to run docker with these flags:
 # `docker run -v /var/run/docker.sock:/var/run/docker.sock ...`
-CMD ["julia", "-e", "Pkg.test(ENV[\"PKG_NAME\"])"]
+CMD ["julia", "-e", "using Pkg; Pkg.test(ENV[\"PKG_NAME\"])"]

@@ -36,19 +36,23 @@ function run_batch_job(image_name::AbstractString, num_workers::Integer; timeout
     # Will be running the HEAD revision of the code remotely
     # Note: Pkg.checkout doesn't work on untracked branches / SHAs with Julia 0.5.1
     code = """
-    using AWSClusterManagers: AWSBatchManager
-    using Dates, Distributed
-    addprocs(AWSBatchManager($num_workers, queue="$(STACK["WorkerJobQueueArn"])", memory=512, timeout=Second($(timeout_secs - 15))))
-    println("NumProcs: ", nprocs())
-    using Memento
-    Memento.config!("debug"; fmt="{msg}")
-    setlevel!(getlogger(AWSClusterManagers), "debug")
-    @everywhere using AWSClusterManagers: container_id
-    for i in workers()
-        println("Worker container \$i: ", remotecall_fetch(container_id, i))
-        println("Worker job \$i: ", remotecall_fetch(() -> ENV["AWS_BATCH_JOB_ID"], i))
-    end
-    """
+        using AWSClusterManagers: AWSClusterManagers, AWSBatchManager
+        using Dates: Second
+        using Distributed
+        using Memento
+
+        Memento.config!("debug"; fmt="{msg}")
+        setlevel!(getlogger(AWSClusterManagers), "debug")
+
+        addprocs(AWSBatchManager($num_workers, queue="$(STACK["WorkerJobQueueArn"])", memory=512, timeout=Second($(timeout_secs - 15))))
+        println("NumProcs: ", nprocs())
+
+        @everywhere using AWSClusterManagers: container_id
+        for i in workers()
+            println("Worker container \$i: ", remotecall_fetch(container_id, i))
+            println("Worker job \$i: ", remotecall_fetch(() -> ENV["AWS_BATCH_JOB_ID"], i))
+        end
+        """
 
     # Note: The manager can run out of memory with enough workers:
     # - 64 workers with a manager with 1024 MB of memory
