@@ -1,6 +1,3 @@
-import Base: wait
-import Compat: Sys
-
 # Overview of how the ContainerManagers work:
 #
 # 1. Start a TCP server on the manager using a random port within the ephemeral range
@@ -40,7 +37,6 @@ desired_workers(::ContainerManager)
 # https://github.com/JuliaLang/julia/pull/30349
 if VERSION < v"1.2.0-DEV.56"
     using Base: uv_error
-    using Compat: Cvoid
     using Sockets: _sizeof_uv_interface_address, IPv4
 
     function getipaddrs()
@@ -143,7 +139,7 @@ end
 
 # Waits for all of the `tasks` to complete. If we wait longer than the `timeout` the wait is
 # aborted and the `timeout_callback` is called with number of unfinished tasks.
-function wait(tasks::AbstractArray{Task}, timeout::Period, timeout_callback::Function=(n)->nothing)
+function Base.wait(tasks::AbstractArray{Task}, timeout::Period, timeout_callback::Function=(n)->nothing)
     timeout_secs = Dates.value(Second(timeout))
     start = time()
     unfinished = 0

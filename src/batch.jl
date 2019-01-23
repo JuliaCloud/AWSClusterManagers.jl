@@ -1,5 +1,3 @@
-import Base: ==
-
 # Time to wait for the AWS Batch cluster to scale up, spot requests to be fufilled,
 # instances to finish initializing, and have the worker instances connect to the manager.
 # Note that when using 3 workers, it is not uncommon for the third worker to take 15 - 21
@@ -122,7 +120,7 @@ end
 launch_timeout(mgr::AWSBatchManager) = mgr.timeout
 desired_workers(mgr::AWSBatchManager) = mgr.min_workers, mgr.max_workers
 
-function ==(a::AWSBatchManager, b::AWSBatchManager)
+function Base.:(==)(a::AWSBatchManager, b::AWSBatchManager)
     return (
         a.min_workers == b.min_workers &&
         a.max_workers == b.max_workers &&

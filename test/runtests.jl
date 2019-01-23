@@ -5,16 +5,16 @@ using AWSBatch
 using AWSClusterManagers
 using AWSTools.Docker
 using AWSTools.CloudFormation: stack_output
+using Dates
+using Distributed
+using LibGit2
 using Memento
-using Compat.Test
-using Compat.LibGit2
-using Compat.Distributed
-using Compat.Dates
-using Compat.Sockets
-using Compat.Random
+using Random
+using Sockets
+using Test
 
-import Base: AbstractCmd
-import AWSClusterManagers: launch_timeout, desired_workers
+using Base: AbstractCmd
+using AWSClusterManagers: launch_timeout, desired_workers
 
 include("testutils.jl")
 using .TestUtils

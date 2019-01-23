@@ -1,5 +1,3 @@
-import Base: ==
-
 # Time to wait for the Docker containers to launch and the workers to connect to the
 # manager
 const DOCKER_TIMEOUT = Minute(1)
@@ -76,7 +74,7 @@ end
 launch_timeout(mgr::DockerManager) = mgr.timeout
 desired_workers(mgr::DockerManager) = mgr.num_workers, mgr.num_workers
 
-function ==(a::DockerManager, b::DockerManager)
+function Base.:(==)(a::DockerManager, b::DockerManager)
     return (
         a.num_workers == b.num_workers &&
         a.image == b.image &&

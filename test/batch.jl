@@ -37,7 +37,7 @@ function run_batch_job(image_name::AbstractString, num_workers::Integer; timeout
     # Note: Pkg.checkout doesn't work on untracked branches / SHAs with Julia 0.5.1
     code = """
     using AWSClusterManagers: AWSBatchManager
-    using Compat, Compat.Dates, Compat.Distributed
+    using Dates, Distributed
     addprocs(AWSBatchManager($num_workers, queue="$(STACK["WorkerJobQueueArn"])", memory=512, timeout=Second($(timeout_secs - 15))))
     println("NumProcs: ", nprocs())
     using Memento

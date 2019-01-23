@@ -1,18 +1,17 @@
 module TestUtils
 
 using AWSBatch
-using Compat.Distributed
-using Compat.Printf
-using Compat.Random
+using Distributed
 using IterTools
 using JSON
 using Memento
+using Printf
+using Random
 
 using AWSCore: AWSConfig
-using Compat: occursin
 using DataStructures: OrderedDict
 
-import Base: AbstractCmd, CmdRedirect
+using Base: AbstractCmd, CmdRedirect
 
 export time_str, ignore_stderr
 
