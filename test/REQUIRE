@@ -1,4 +1,4 @@
-AWSCore  # Online tests require 0.5.2 but that version is Julia 1.0+
+AWSCore 0.5.2  # Online tests require 0.5.2 but that version is Julia 1.0+
 AWSTools 0.1.0
 DataStructures 0.2.9
 IterTools 0.1

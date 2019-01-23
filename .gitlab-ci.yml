@@ -13,7 +13,7 @@ include:
 cache: {}
 
 variables:
-  JULIA_IMAGE: 468665244580.dkr.ecr.us-east-1.amazonaws.com/julia-gitlab-ci:0.6
+  JULIA_IMAGE: 468665244580.dkr.ecr.us-east-1.amazonaws.com/julia-gitlab-ci:1.0
   AMAZON_LINUX_IMAGE: amazonlinux:2
   STACKNAME_PREFIX: sandbox-awsclustermanagers
   ONLINE: ""
@@ -113,26 +113,6 @@ variables:
         --params CIRoleArn=arn:aws:iam::${ACCOUNT_ID}:role/GitLabCIRunnerRole
 
 
-"0.6 (Mac)":
-  tags:
-    - mac
-    - shell-ci
-  extends: .test_shell_0_6
-
-"0.6 (Linux, 64-bit)":
-  tags:
-    - linux
-    - 64-bit
-    - docker-ci
-  extends: .test_docker
-
-"0.6 (Linux, 32-bit)":
-  tags:
-    - linux
-    - 32-bit
-    - shell-ci
-  extends: .test_shell_0_6
-
 "1.0 (Mac)":
   tags:
     - mac
@@ -152,6 +132,26 @@ variables:
     - 32-bit
     - shell-ci
   extends: .test_shell_1_0
+
+"1.1 (Mac)":
+  tags:
+    - mac
+    - shell-ci
+  extends: .test_shell_1_1
+
+"1.1 (Linux, 64-bit)":
+  tags:
+    - linux
+    - 64-bit
+    - shell-ci
+  extends: .test_shell_1_1
+
+"1.1 (Linux, 32-bit)":
+  tags:
+    - linux
+    - 32-bit
+    - shell-ci
+  extends: .test_shell_1_1
 
 "Nightly (Mac)":
   tags:
@@ -194,7 +194,6 @@ variables:
   script:
     # Execute online tests
     - source julia-ci export
-    # NOTE: Online tests require AWSCore 0.5.2 which requires Julia 1.0+. We can't enforce this unless we drop Julia 0.6 support
     - AWS_STACKNAME=$STACKNAME ./julia-ci test
     - ./julia-ci coverage
   after_script:

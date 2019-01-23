@@ -41,7 +41,7 @@ catch
 end
 
 const ECR_IMAGE = "$ECR:$REV"
-const JULIA_BAKED_IMAGE = "468665244580.dkr.ecr.us-east-1.amazonaws.com/julia-baked:0.6"
+const JULIA_BAKED_IMAGE = "468665244580.dkr.ecr.us-east-1.amazonaws.com/julia-baked:1.0"
 
 
 
@@ -61,10 +61,10 @@ function docker_manager_build(image=ECR_IMAGE)
     end
 
     if Docker.login(registry_id(JULIA_BAKED_IMAGE))
-        # Pull the latest "julia-baked:0.6" on the local system
+        # Pull the latest "julia-baked:1.0" on the local system
         # TODO: If pulling fails we should still try and build the image as we may have a
         # local copy of the image.
-        Docker.pull(JULIA_BAKED_IMAGE, ["julia-baked:0.6"])
+        Docker.pull(JULIA_BAKED_IMAGE, ["julia-baked:1.0"])
     end
 
     Docker.build(PKG_DIR, image)
@@ -76,10 +76,10 @@ end
 Build the Docker image used for AWSBatchManager tests and push it to ECR.
 """
 function batch_manager_build(image=ECR_IMAGE)
-    # Pull in the latest "julia-baked:0.6" for building the AWSClusterManagers Docker image.
+    # Pull in the latest "julia-baked:1.0" for building the AWSClusterManagers Docker image.
     # If we cannot login we'll attempt to use base image that is currently available.
     if Docker.login(registry_id(JULIA_BAKED_IMAGE))
-        Docker.pull(JULIA_BAKED_IMAGE, ["julia-baked:0.6"])
+        Docker.pull(JULIA_BAKED_IMAGE, ["julia-baked:1.0"])
     end
 
     Docker.build(PKG_DIR, image)
