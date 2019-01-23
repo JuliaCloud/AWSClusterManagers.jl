@@ -9,7 +9,7 @@ using Printf
 using Random
 
 using AWSCore: AWSConfig
-using DataStructures: OrderedDict
+using OrderedCollections: OrderedDict
 
 using Base: AbstractCmd, CmdRedirect
 
