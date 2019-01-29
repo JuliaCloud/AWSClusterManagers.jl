@@ -31,13 +31,19 @@ const STACK = !isempty(AWS_STACKNAME) ? stack_output(AWS_STACKNAME) : Dict()
 const ECR = !isempty(STACK) ? first(split(STACK["EcrUri"], ':')) : "aws-cluster-managers-test"
 
 const GIT_DIR = joinpath(@__DIR__, "..", ".git")
-const REV = try
-    readchomp(`git --git-dir $GIT_DIR rev-parse --short HEAD`)
-catch
-    # Fallback to using the full SHA when git is not installed
-    LibGit2.with(LibGit2.GitRepo(GIT_DIR)) do repo
-        string(LibGit2.GitHash(LibGit2.GitObject(repo, "HEAD")))
+const REV = if isdir(GIT_DIR)
+    try
+        readchomp(`git --git-dir $GIT_DIR rev-parse --short HEAD`)
+    catch
+        # Fallback to using the full SHA when git is not installed
+        LibGit2.with(LibGit2.GitRepo(GIT_DIR)) do repo
+            string(LibGit2.GitHash(LibGit2.GitObject(repo, "HEAD")))
+        end
     end
+else
+    # Fallback when package is not a git repository. Only should occur when running tests
+    # from inside a Docker container produced by the Dockerfile for this package.
+    "latest"
 end
 
 const ECR_IMAGE = "$ECR:$REV"
