@@ -18,7 +18,7 @@ AWSTools = ">= 0.1.0"
 IterTools = ">= 0.1.0"
 Memento = ">= 0.7.0"
 Mocking = ">= 0.5.0"
-julia = "1.0, 1.1"
+julia = "0.7, 1.0, 1.1"
 
 [extras]
 AWSCore = "4f1ea46c-232b-54a6-9b17-cc2d0f3e6598"
