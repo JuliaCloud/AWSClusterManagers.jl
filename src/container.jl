@@ -139,7 +139,7 @@ end
 
 # Waits for all of the `tasks` to complete. If we wait longer than the `timeout` the wait is
 # aborted and the `timeout_callback` is called with number of unfinished tasks.
-function Base.wait(tasks::AbstractArray{Task}, timeout::Period, timeout_callback::Function=(n)->nothing)
+function Base.wait(tasks::AbstractArray{Task}, timeout::Period, timeout_callback::Function=n -> nothing)
     timeout_secs = Dates.value(Second(timeout))
     start = time()
     unfinished = 0

@@ -44,7 +44,14 @@ function run_batch_job(image_name::AbstractString, num_workers::Integer; timeout
         Memento.config!("debug"; fmt="{msg}")
         setlevel!(getlogger(AWSClusterManagers), "debug")
 
-        addprocs(AWSBatchManager($num_workers, queue="$(STACK["WorkerJobQueueArn"])", memory=512, timeout=Second($(timeout_secs - 15))))
+        addprocs(
+            AWSBatchManager(
+                $num_workers;
+                queue="$(STACK["WorkerJobQueueArn"])",
+                memory=512,
+                timeout=Second($(timeout_secs - 15))
+            )
+        )
         println("NumProcs: ", nprocs())
 
         @everywhere using AWSClusterManagers: container_id
@@ -65,7 +72,7 @@ function run_batch_job(image_name::AbstractString, num_workers::Integer; timeout
         role = STACK["JobRoleArn"],
         vcpus = 1,
         memory = 2048,
-        cmd = Cmd(["julia", "-e", replace(code, r"\n+" => "; ")]),
+        cmd = Cmd(["julia", "-e", code]),
     )
 
     # If no compute environment resources are available it could take around
