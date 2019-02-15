@@ -1,6 +1,3 @@
-import Base: wait
-import Compat: Sys
-
 # Overview of how the ContainerManagers work:
 #
 # 1. Start a TCP server on the manager using a random port within the ephemeral range
@@ -37,19 +34,10 @@ The minimum and maximum number of workers wanted by the manager.
 """
 desired_workers(::ContainerManager)
 
-using Base: uv_error
-# The location of `_sizeof_uv_interface_address` changed, so we'll fetch it from the
-# correct location based on the julia version
-# https://github.com/JuliaLang/julia/pull/25935
-if VERSION >= v"0.7.0-DEV.4442"
-    using Sockets: _sizeof_uv_interface_address, IPv4
-else
-    using Base: _sizeof_uv_interface_address
-end
-
 # https://github.com/JuliaLang/julia/pull/30349
 if VERSION < v"1.2.0-DEV.56"
-    using Compat: Cvoid
+    using Base: uv_error
+    using Sockets: _sizeof_uv_interface_address, IPv4
 
     function getipaddrs()
         addresses = IPv4[]
@@ -113,14 +101,8 @@ function launch(manager::ContainerManager, params::Dict, launched::Array, c::Con
     # reports the worker address and port to STDOUT. Instead we'll run the code ourselves
     # and report the connection information back to the manager over a socket.
     exec = """
-        if VERSION >= v"0.7.0-DEV.4442"
-            using Sockets
-        end
-        if VERSION >= v"0.7.0-DEV.2954"
-            using Distributed
-        else
-            using Base: start_worker
-        end
+        using Distributed
+        using Sockets
         sock = connect(ip\"$valid_ip\", $port)
         start_worker(sock, \"$(cluster_cookie())\")
         """
@@ -157,7 +139,7 @@ end
 
 # Waits for all of the `tasks` to complete. If we wait longer than the `timeout` the wait is
 # aborted and the `timeout_callback` is called with number of unfinished tasks.
-function wait(tasks::AbstractArray{Task}, timeout::Period, timeout_callback::Function=(n)->nothing)
+function Base.wait(tasks::AbstractArray{Task}, timeout::Period, timeout_callback::Function=n -> nothing)
     timeout_secs = Dates.value(Second(timeout))
     start = time()
     unfinished = 0

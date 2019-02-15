@@ -1,0 +1,34 @@
+name = "AWSClusterManagers"
+uuid = "69f5933c-162f-5d2f-a6d8-da72a0bfad91"
+authors = ["Curtis Vogt <curtis.vogt@invenia.ca", "Rory Finnegan <rory.finnegan@invenia.ca>"]
+
+[deps]
+AWSBatch = "dcae83d4-2881-5875-9d49-e5534165e9c0"
+Dates = "ade2ca70-3891-5945-98fb-dc099432e06a"
+Distributed = "8ba89e20-285c-5b6f-9357-94700520ee1b"
+JSON = "682c06a0-de6a-54ab-a142-c8b1cf79cde6"
+Memento = "f28f55f0-a522-5efc-85c2-fe41dfb9b2d9"
+Mocking = "78c3b35d-d492-501b-9361-3d52fe80e533"
+Sockets = "6462fe0b-24de-5631-8697-dd941f90decc"
+
+[compat]
+AWSBatch = ">= 0.5.1"
+AWSCore = ">= 0.5.2"
+AWSTools = ">= 0.1.0"
+IterTools = ">= 0.1.0"
+Memento = ">= 0.7.0"
+Mocking = ">= 0.5.0"
+julia = "0.7, 1.0, 1.1"
+
+[extras]
+AWSCore = "4f1ea46c-232b-54a6-9b17-cc2d0f3e6598"
+AWSTools = "83bcdc74-1232-581c-948a-f29122bf8259"
+IterTools = "c8e1da08-722c-5040-9ed9-7db0dc04731e"
+LibGit2 = "76f85450-5226-5b5a-8eaa-529ad045b433"
+OrderedCollections = "bac558e1-5e72-5ebc-8fee-abe8a469f55d"
+Printf = "de0858da-6303-5e67-8744-51eddeeeb8d7"
+Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+
+[targets]
+test = ["AWSCore", "AWSTools", "IterTools", "LibGit2", "OrderedCollections", "Printf", "Random", "Test"]

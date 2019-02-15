@@ -1,18 +1,17 @@
 module TestUtils
 
 using AWSBatch
-using Compat.Distributed
-using Compat.Printf
-using Compat.Random
+using Distributed
 using IterTools
 using JSON
 using Memento
+using Printf
+using Random
 
 using AWSCore: AWSConfig
-using Compat: occursin
-using DataStructures: OrderedDict
+using OrderedCollections: OrderedDict
 
-import Base: AbstractCmd, CmdRedirect
+using Base: AbstractCmd, CmdRedirect
 
 export time_str, ignore_stderr
 
@@ -134,8 +133,7 @@ function read(cmd::Cmd, ::Type{String}, pass::Bool=true)
             @spawn run(Cmd(["julia", "-e", "$(cmd.exec[end])"]))
         else
             code = """
-                println(VERSION >= v"0.7.0-DEV.4068" ? stderr : STDERR,
-                        "Failed to come online")
+                println(stderr, "Failed to come online")
                 """
             @spawn run(Cmd(["julia", "-e", code]))
         end

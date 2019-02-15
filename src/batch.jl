@@ -1,5 +1,3 @@
-import Base: ==
-
 # Time to wait for the AWS Batch cluster to scale up, spot requests to be fufilled,
 # instances to finish initializing, and have the worker instances connect to the manager.
 # Note that when using 3 workers, it is not uncommon for the third worker to take 15 - 21
@@ -37,7 +35,7 @@ requested `max_workers`.
 - `region::AbstractString`: The region in which the API requests are sent and in which new
   worker are spawned. Defaults to "us-east-1". [Available regions for AWS batch](http://docs.aws.amazon.com/general/latest/gr/rande.html#batch_region)
   can be found in the AWS documentation.
-- `timeout::Second`: The maximum number of seconds to wait for workers to become available
+- `timeout::Period`: The maximum number of seconds to wait for workers to become available
   before attempting to proceed without the missing workers.
 
 ## Examples
@@ -67,19 +65,10 @@ struct AWSBatchManager <: ContainerManager
         queue::AbstractString,
         memory::Integer,
         region::AbstractString,
-        timeout::Union{Real, Period}=BATCH_TIMEOUT,
+        timeout::Period=BATCH_TIMEOUT,
         min_ip::IPv4=ip"0.0.0.0",
         max_ip::IPv4=ip"255.255.255.255",
     )
-        if isa(timeout, Real)
-            Base.depwarn(
-                "Using a timeout of type `Real` is deprecated, use a `Period` type instead",
-                :AWSBatchManager
-            )
-            # Convert real to int equivalent so that Second(timeout) doesn't error
-            timeout = floor(timeout)
-        end
-
         min_workers >= 0 || throw(ArgumentError("min workers must be non-negative"))
         min_workers <= max_workers || throw(ArgumentError("min workers exceeds max workers"))
 
@@ -102,7 +91,7 @@ function AWSBatchManager(
     queue::AbstractString="",
     memory::Integer=-1,
     region::AbstractString="",
-    timeout::Union{Real, Period}=BATCH_TIMEOUT,
+    timeout::Period=BATCH_TIMEOUT,
     min_ip::IPv4=ip"0.0.0.0",
     max_ip::IPv4=ip"255.255.255.255",
 )
@@ -131,7 +120,7 @@ end
 launch_timeout(mgr::AWSBatchManager) = mgr.timeout
 desired_workers(mgr::AWSBatchManager) = mgr.min_workers, mgr.max_workers
 
-function ==(a::AWSBatchManager, b::AWSBatchManager)
+function Base.:(==)(a::AWSBatchManager, b::AWSBatchManager)
     return (
         a.min_workers == b.min_workers &&
         a.max_workers == b.max_workers &&

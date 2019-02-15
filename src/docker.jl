@@ -1,5 +1,3 @@
-import Base: ==
-
 # Time to wait for the Docker containers to launch and the workers to connect to the
 # manager
 const DOCKER_TIMEOUT = Minute(1)
@@ -48,19 +46,10 @@ struct DockerManager <: ContainerManager
     function DockerManager(
         num_workers::Integer,
         image::AbstractString,
-        timeout::Union{Real, Period}=DOCKER_TIMEOUT,
+        timeout::Period=DOCKER_TIMEOUT,
         min_ip::IPv4=ip"0.0.0.0",
         max_ip::IPv4=ip"255.255.255.255",
     )
-        if isa(timeout, Real)
-            Base.depwarn(
-                "Using a timeout of type `Real` is deprecated, use a `Period` type instead",
-                :DockerManager
-            )
-            # Convert real to int equivalent so that Second(timeout) doesn't error
-            timeout = floor(timeout)
-        end
-
         num_workers >= 0 || throw(ArgumentError("num workers must be non-negative"))
 
         # Workers by default inherit the defaults from the manager.
@@ -85,7 +74,7 @@ end
 launch_timeout(mgr::DockerManager) = mgr.timeout
 desired_workers(mgr::DockerManager) = mgr.num_workers, mgr.num_workers
 
-function ==(a::DockerManager, b::DockerManager)
+function Base.:(==)(a::DockerManager, b::DockerManager)
     return (
         a.num_workers == b.num_workers &&
         a.image == b.image &&

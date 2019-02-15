@@ -2,7 +2,7 @@ using Documenter, AWSClusterManagers
 
 makedocs(
     modules = [AWSClusterManagers],
-    format = :html,
+    format = Documenter.HTML(prettyurls = get(ENV, "CI", nothing) == "true"),
     pages = [
         "Home" => "index.md",
         "Docker" => "pages/docker.md",
@@ -21,6 +21,6 @@ makedocs(
         "assets/figures/batch_project.svg",
         "assets/figures/docker_manager.svg",
     ],
+    checkdocs = :exports,
     strict = true,
-    checkdocs = :none,
 )

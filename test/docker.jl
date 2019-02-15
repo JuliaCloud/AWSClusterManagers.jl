@@ -87,21 +87,27 @@ end
         @testset "Online" begin
             image_name = docker_manager_build()
 
+            # Note: Julia packages used here must be explicitly added to the environment
+            # within the Dockerfile.
             num_workers = 3
             code = """
-            using Memento
-            Memento.config!("debug"; fmt="{msg}")
-            using AWSClusterManagers: DockerManager
-            setlevel!(getlogger(AWSClusterManagers), "debug")
-            addprocs(DockerManager($num_workers))
-            println("NumProcs: ", nprocs())
-            @everywhere using AWSClusterManagers: container_id
-            for i in workers()
-                container = remotecall_fetch(container_id, i)
-                println("Worker container \$i: \$container")
-                println("Worker image \$i: \$(AWSClusterManagers.image_id(container))")
-            end
-            """
+                using AWSClusterManagers: AWSClusterManagers, DockerManager
+                using Distributed
+                using Memento
+
+                Memento.config!("debug"; fmt="{msg}")
+                setlevel!(getlogger(AWSClusterManagers), "debug")
+
+                addprocs(DockerManager($num_workers))
+                println("NumProcs: ", nprocs())
+
+                @everywhere using AWSClusterManagers: container_id
+                for i in workers()
+                    container = remotecall_fetch(container_id, i)
+                    println("Worker container \$i: \$container")
+                    println("Worker image \$i: \$(AWSClusterManagers.image_id(container))")
+                end
+                """
 
             # Make sure that the UNIX socket that the Docker daemon listens to exists.
             # Without this we will be unable to spawn worker containers.

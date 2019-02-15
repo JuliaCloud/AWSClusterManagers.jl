@@ -5,16 +5,16 @@ using AWSBatch
 using AWSClusterManagers
 using AWSTools.Docker
 using AWSTools.CloudFormation: stack_output
+using Dates
+using Distributed
+using LibGit2
 using Memento
-using Compat.Test
-using Compat.LibGit2
-using Compat.Distributed
-using Compat.Dates
-using Compat.Sockets
-using Compat.Random
+using Random
+using Sockets
+using Test
 
-import Base: AbstractCmd
-import AWSClusterManagers: launch_timeout, desired_workers
+using Base: AbstractCmd
+using AWSClusterManagers: launch_timeout, desired_workers
 
 include("testutils.jl")
 using .TestUtils
@@ -31,17 +31,23 @@ const STACK = !isempty(AWS_STACKNAME) ? stack_output(AWS_STACKNAME) : Dict()
 const ECR = !isempty(STACK) ? first(split(STACK["EcrUri"], ':')) : "aws-cluster-managers-test"
 
 const GIT_DIR = joinpath(@__DIR__, "..", ".git")
-const REV = try
-    readchomp(`git --git-dir $GIT_DIR rev-parse --short HEAD`)
-catch
-    # Fallback to using the full SHA when git is not installed
-    LibGit2.with(LibGit2.GitRepo(GIT_DIR)) do repo
-        string(LibGit2.GitHash(LibGit2.GitObject(repo, "HEAD")))
+const REV = if isdir(GIT_DIR)
+    try
+        readchomp(`git --git-dir $GIT_DIR rev-parse --short HEAD`)
+    catch
+        # Fallback to using the full SHA when git is not installed
+        LibGit2.with(LibGit2.GitRepo(GIT_DIR)) do repo
+            string(LibGit2.GitHash(LibGit2.GitObject(repo, "HEAD")))
+        end
     end
+else
+    # Fallback when package is not a git repository. Only should occur when running tests
+    # from inside a Docker container produced by the Dockerfile for this package.
+    "latest"
 end
 
 const ECR_IMAGE = "$ECR:$REV"
-const JULIA_BAKED_IMAGE = "468665244580.dkr.ecr.us-east-1.amazonaws.com/julia-baked:0.6"
+const JULIA_BAKED_IMAGE = "468665244580.dkr.ecr.us-east-1.amazonaws.com/julia-baked:1.0.3"
 
 
 
@@ -61,10 +67,10 @@ function docker_manager_build(image=ECR_IMAGE)
     end
 
     if Docker.login(registry_id(JULIA_BAKED_IMAGE))
-        # Pull the latest "julia-baked:0.6" on the local system
+        # Pull the "julia-baked" image onto the local system
         # TODO: If pulling fails we should still try and build the image as we may have a
         # local copy of the image.
-        Docker.pull(JULIA_BAKED_IMAGE, ["julia-baked:0.6"])
+        Docker.pull(JULIA_BAKED_IMAGE, [basename(JULIA_BAKED_IMAGE)])
     end
 
     Docker.build(PKG_DIR, image)
@@ -76,10 +82,10 @@ end
 Build the Docker image used for AWSBatchManager tests and push it to ECR.
 """
 function batch_manager_build(image=ECR_IMAGE)
-    # Pull in the latest "julia-baked:0.6" for building the AWSClusterManagers Docker image.
+    # Pull in the "julia-baked" image for building the AWSClusterManagers Docker image.
     # If we cannot login we'll attempt to use base image that is currently available.
     if Docker.login(registry_id(JULIA_BAKED_IMAGE))
-        Docker.pull(JULIA_BAKED_IMAGE, ["julia-baked:0.6"])
+        Docker.pull(JULIA_BAKED_IMAGE, [basename(JULIA_BAKED_IMAGE)])
     end
 
     Docker.build(PKG_DIR, image)

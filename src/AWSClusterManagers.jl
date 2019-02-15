@@ -1,15 +1,14 @@
 module AWSClusterManagers
 
-using Memento
-using Mocking
 using AWSBatch
 using AWSBatch: max_vcpus
+using Dates
+using Distributed
+import Distributed: manage, launch
 using JSON
-using Compat: @__MODULE__, undef
-using Compat.Sockets
-using Compat.Dates
-using Compat.Distributed
-import Compat.Distributed: manage, launch
+using Memento
+using Mocking
+using Sockets
 
 export ECSManager, AWSBatchManager, DockerManager
 
@@ -23,6 +22,5 @@ end
 include("container.jl")
 include("batch.jl")
 include("docker.jl")
-include("deprecated.jl")
 
 end  # module
