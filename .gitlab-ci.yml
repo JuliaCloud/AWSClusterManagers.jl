@@ -177,8 +177,7 @@ variables:
   stage: test
   tags:
     - amzn2
-    - docker
-    - ecr
+    - docker-build
     - ci-account
   variables:
     ONLINE: "docker, batch"  # Runs the online tests for AWS Batch & Docker
