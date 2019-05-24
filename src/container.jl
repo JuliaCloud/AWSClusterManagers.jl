@@ -68,8 +68,11 @@ function launch(manager::ContainerManager, params::Dict, launched::Array, c::Con
     launch_tasks = Vector{Task}(undef, max_workers)
 
     # Determine the IP address of the current host within the specified range
-    ips = getipaddrs()
-    valid_ip = first(ips[Ref(manager.min_ip) .<= ips .<= Ref(manager.max_ip)])
+    ips = filter!(getipaddrs()) do ip
+        typeof(ip) === typeof(manager.min_ip) &&
+        manager.min_ip <= ip <= manager.max_ip
+    end
+    valid_ip = first(ips)
     debug(logger, "Using IP address $valid_ip")
 
     # Only listen to the single IP address which the workers attempt to connect to.
