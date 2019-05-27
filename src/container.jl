@@ -67,8 +67,18 @@ function launch(manager::ContainerManager, params::Dict, launched::Array, c::Con
     min_workers, max_workers = desired_workers(manager)
     launch_tasks = Vector{Task}(undef, max_workers)
 
+    # Determine the IP address of the current host within the specified range
+    ips = filter!(getipaddrs()) do ip
+        typeof(ip) === typeof(manager.min_ip) &&
+        manager.min_ip <= ip <= manager.max_ip
+    end
+    valid_ip = first(ips)
+
+    # Only listen to the single IP address which the workers attempt to connect to.
     # TODO: Ideally should be using TLS connections.
-    port, server = listenany(ip"::", PORT_HINT)  # Listen on all IPv4 and IPv6 interfaces
+    port, server = listenany(valid_ip, PORT_HINT)
+    debug(logger, "Manager accepting worker connections via: $valid_ip:$port")
+
     for i in 1:max_workers
         launch_tasks[i] = @async begin
             sock = accept(server)
@@ -85,11 +95,6 @@ function launch(manager::ContainerManager, params::Dict, launched::Array, c::Con
             notify(c)
         end
     end
-
-    # Get the valid ips we want
-    ips = getipaddrs()
-    valid_ip = first(ips[Ref(manager.min_ip) .<= ips .<= Ref(manager.max_ip)])
-    info(logger, "Using ip address $valid_ip")
 
     # Generate command which starts a Julia worker and reports its information back to the
     # manager
