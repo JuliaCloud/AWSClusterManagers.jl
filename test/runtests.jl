@@ -3,7 +3,7 @@ Mocking.enable(force=true)
 
 using AWSBatch
 using AWSClusterManagers
-using AWSTools.Docker
+using AWSTools.Docker: Docker
 using AWSTools.CloudFormation: stack_output
 using Dates
 using Distributed
