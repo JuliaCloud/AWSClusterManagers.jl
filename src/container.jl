@@ -73,11 +73,12 @@ function launch(manager::ContainerManager, params::Dict, launched::Array, c::Con
         manager.min_ip <= ip <= manager.max_ip
     end
     valid_ip = first(ips)
-    debug(logger, "Using IP address $valid_ip")
 
     # Only listen to the single IP address which the workers attempt to connect to.
     # TODO: Ideally should be using TLS connections.
     port, server = listenany(valid_ip, PORT_HINT)
+    debug(logger, "Manager accepting worker connections via: $valid_ip:$port")
+
     for i in 1:max_workers
         launch_tasks[i] = @async begin
             sock = accept(server)
