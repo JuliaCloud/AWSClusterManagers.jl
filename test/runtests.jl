@@ -9,6 +9,7 @@ using Dates
 using Distributed
 using LibGit2
 using Memento
+using Memento.TestUtils: @test_log
 using Random
 using Sockets
 using Test
