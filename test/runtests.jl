@@ -47,7 +47,7 @@ else
 end
 
 const TEST_IMAGE = "$ECR:$REV"
-const BASE_IMAGE = "468665244580.dkr.ecr.us-east-1.amazonaws.com/julia-baked:1.0.3"
+const BASE_IMAGE = "468665244580.dkr.ecr.us-east-1.amazonaws.com/julia-baked:1.0"
 
 function registry_id(image::AbstractString)
     m = match(r"^\d+", image)
