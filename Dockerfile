@@ -1,4 +1,6 @@
-FROM julia-baked:1.0.3
+# Using an argument for FROM allows us to alternatively specify the fully URI for julia-baked
+ARG BASE_IMAGE=julia-baked:1.0.3
+FROM ${BASE_IMAGE}
 
 ENV PKG_NAME "AWSClusterManagers"
 
