@@ -85,8 +85,6 @@ end
     end
     if "docker" in ONLINE
         @testset "Online" begin
-            image_name = docker_manager_build()
-
             # Note: Julia packages used here must be explicitly added to the environment
             # within the Dockerfile.
             num_workers = 3
@@ -118,7 +116,7 @@ end
                 docker run
                 --network=host
                 -v /var/run/docker.sock:/var/run/docker.sock
-                -i $image_name
+                -i $TEST_IMAGE
                 julia -e $(replace(code, r"\n+" => "; "))
                 ```,
                 String
@@ -136,7 +134,7 @@ end
             @test num_procs == num_workers + 1
             @test length(reported_containers) == num_workers
             @test Set(spawned_containers) == Set(reported_containers)
-            @test all(full_image_sha(image_name) .== reported_images)
+            @test all(full_image_sha(TEST_IMAGE) .== reported_images)
         end
     else
         warn(logger, "Environment variable \"ONLINE\" does not contain \"docker\". Skipping online Docker tests.")

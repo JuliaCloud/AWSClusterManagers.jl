@@ -326,12 +326,11 @@ end
     end
 
     if "batch" in ONLINE && !isempty(AWS_STACKNAME)
-        image_name = batch_manager_build()
 
         # Note: Start with the largest number of workers so the remaining tests don't have
         # to wait for the cluster to scale up on subsequent tests.
         @testset "Online (n=$num_workers)" for num_workers in [10, 1, 0]
-            job = run_batch_job(image_name, num_workers)
+            job = run_batch_job(TEST_IMAGE, num_workers)
 
             # Retry getting the logs for the batch job because it can take several seconds
             # for cloudwatch to ingest the log records
@@ -369,8 +368,8 @@ end
             job_image_name(job_id::AbstractString) = job_image_name(BatchJob(job_id))
             job_image_name(job::BatchJob) = describe(job)["container"]["image"]
 
-            @test image_name == job_image_name(job)  # Manager's image
-            @test all(image_name .== job_image_name.(spawned_jobs))
+            @test TEST_IMAGE == job_image_name(job)  # Manager's image
+            @test all(TEST_IMAGE .== job_image_name.(spawned_jobs))
 
             # Report some details about the job
             d = describe(job)
@@ -389,7 +388,7 @@ end
 
         @testset "Exceed worker limit" begin
             num_workers = typemax(Int64)
-            job = run_batch_job(image_name, num_workers; should_fail=true)
+            job = run_batch_job(TEST_IMAGE, num_workers; should_fail=true)
             output = TestUtils.log_messages(job)
 
             m = match(r"(?<=NumProcs: )\d+", output)

@@ -23,7 +23,7 @@ using .TestUtils: logger
 const PKG_DIR = abspath(@__DIR__, "..")
 
 # Enables the running of the "docker" and "batch" online tests. e.g ONLINE=docker,batch
-const ONLINE = strip.(split(get(ENV, "ONLINE", ""), r"\s*,\s*"))
+const ONLINE = split(strip(get(ENV, "ONLINE", "")), r"\s*,\s*"; keepempty=false)
 
 # Run the tests on a stack created with the "test/batch.yml" CloudFormation template
 const AWS_STACKNAME = get(ENV, "AWS_STACKNAME", "")
@@ -46,59 +46,37 @@ else
     "latest"
 end
 
-const ECR_IMAGE = "$ECR:$REV"
-const JULIA_BAKED_IMAGE = "468665244580.dkr.ecr.us-east-1.amazonaws.com/julia-baked:1.0.3"
-
-
+const TEST_IMAGE = "$ECR:$REV"
+const BASE_IMAGE = "468665244580.dkr.ecr.us-east-1.amazonaws.com/julia-baked:1.0"
 
 function registry_id(image::AbstractString)
     m = match(r"^\d+", image)
     return m.match
 end
 
-"""
-Build the Docker image used for AWSDockerManager tests.
-"""
-function docker_manager_build(image=ECR_IMAGE)
-    # If this code is being executed from within a Docker container assume that the current
-    # image can be used as the image for the manager.
+# Note: By building the Docker image prior to running any tests (instead of just before the
+# image is required) we avoid having a Docker build log breaking up output from tests.
+if !isempty(ONLINE)
+    @info("Preparing Docker image for online tests")
+
+    # If the AWSClusterManager tests are being executed from within a container we will
+    # assume that the image currently in use should be used for online tests.
     if !isempty(AWSClusterManagers.container_id())
-        return AWSClusterManagers.image_id()
+        run(`docker tag $(AWSClusterManagers.image_id()) $TEST_IMAGE`)
+    else
+        Docker.login(registry_id(BASE_IMAGE))
+        Docker.pull(BASE_IMAGE)
+        run(`docker build -t $TEST_IMAGE --build-arg BASE_IMAGE=$BASE_IMAGE $PKG_DIR`)
     end
 
-    if Docker.login(registry_id(JULIA_BAKED_IMAGE))
-        # Pull the "julia-baked" image onto the local system
-        # TODO: If pulling fails we should still try and build the image as we may have a
-        # local copy of the image.
-        Docker.pull(JULIA_BAKED_IMAGE, [basename(JULIA_BAKED_IMAGE)])
+    # Push the image to ECR if the online tests require it. Note: `TEST_IMAGE` is required
+    # to be a full URI in order for the push operation to succeed.
+    if "batch" in ONLINE
+        Docker.login(registry_id(TEST_IMAGE))
+        Docker.push(TEST_IMAGE)
     end
-
-    Docker.build(PKG_DIR, image)
-
-    return image
 end
 
-"""
-Build the Docker image used for AWSBatchManager tests and push it to ECR.
-"""
-function batch_manager_build(image=ECR_IMAGE)
-    # Pull in the "julia-baked" image for building the AWSClusterManagers Docker image.
-    # If we cannot login we'll attempt to use base image that is currently available.
-    if Docker.login(registry_id(JULIA_BAKED_IMAGE))
-        Docker.pull(JULIA_BAKED_IMAGE, [basename(JULIA_BAKED_IMAGE)])
-    end
-
-    Docker.build(PKG_DIR, image)
-
-    # Push the image to ECR. Note: this step is what requires `image` to be a full URI
-    Docker.login(registry_id(image))
-    Docker.push(image)
-
-    # Temporary
-    # run(`aws batch update-compute-environment --compute-environment Demo --compute-resources desiredvCpus=4`)
-
-    return image
-end
 
 @testset "AWSClusterManagers" begin
     include("container.jl")
