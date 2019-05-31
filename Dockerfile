@@ -2,6 +2,8 @@
 ARG BASE_IMAGE=julia-baked:1.0
 FROM ${BASE_IMAGE}
 
+LABEL maintainer="curtis.vogt@invenia.ca"
+
 ENV PKG_NAME "AWSClusterManagers"
 
 # Get security updates
