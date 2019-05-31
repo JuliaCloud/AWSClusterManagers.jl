@@ -73,7 +73,9 @@ RUN yum -y install $PKGS && \
 
 # Perform the remainder AWSClusterManagers installation
 COPY . $PKG_PATH/
-RUN julia -e "using Pkg; Pkg.build(\"$PKG_NAME\")"
+RUN if [[ -f $PKG_PATH/deps/build.jl ]]; then \
+        julia -e "using Pkg; Pkg.build(\"$PKG_NAME\")"; \
+    fi
 
 # Create a new system image. Improves the startup times of packages by pre-compiling
 # AWSClusterManagers and it's dependencies into the default system image. Note in
