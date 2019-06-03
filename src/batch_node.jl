@@ -2,6 +2,12 @@
 # parallel jobs using "awsvpc" networking on containers
 const AWS_BATCH_JOB_NODE_PORT = 49152
 
+# The manager (main node) is started before the workers (other nodes). The delay allows the
+# manager to listen for worker connections before the workers attempt to connect. Due to the
+# delay we'll need to wait for the workers to connect. In some cases the worker nodes will
+# fail to start so we need to have a timeout for those cases.
+const AWS_BATCH_NODE_TIMEOUT = Minute(2)
+
 # Julia cluster manager for AWS Batch multi-node parallel jobs
 # https://docs.aws.amazon.com/batch/latest/userguide/multi-node-parallel-jobs.html
 struct AWSBatchNodeManager <: ContainerManager
@@ -34,7 +40,7 @@ function Distributed.launch(manager::AWSBatchNodeManager, params::Dict, launched
     server = listen(ip"::", AWS_BATCH_JOB_NODE_PORT)
     debug(LOGGER, "Manager accepting worker connections on port $AWS_BATCH_JOB_NODE_PORT")
 
-    while isopen(server) && connected_workers < num_workers
+    listen_task = @async while isopen(server) && connected_workers < num_workers
         # TODO: Potential issue with a random connection consuming a worker slot?
         sock = accept(server)
         connected_workers += 1
@@ -69,8 +75,16 @@ function Distributed.launch(manager::AWSBatchNodeManager, params::Dict, launched
         notify(c)
     end
 
+    wait(listen_task, AWS_BATCH_NODE_TIMEOUT)
+
     close(server)
     notify(c)
+
+    if connected_workers < num_workers
+        warn(LOGGER, "Only $connected_workers of the $num_workers workers job have reported in")
+    else
+        debug(LOGGER, "All workers have successfully reported in")
+    end
 end
 
 function start_batch_node_worker()
