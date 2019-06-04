@@ -2,6 +2,8 @@
 ARG BASE_IMAGE=julia-baked:1.0
 FROM ${BASE_IMAGE}
 
+LABEL maintainer="curtis.vogt@invenia.ca"
+
 ENV PKG_NAME "AWSClusterManagers"
 
 # Get security updates
@@ -71,9 +73,20 @@ RUN yum -y install $PKGS && \
     for p in $PKGS; do yum -y autoremove $p &>/dev/null && echo "Removed $p" || echo "Skipping removal of $p"; done && \
     yum -y clean all
 
+# Control if pre-compilation is run when new Julia packages are installed.
+ARG PRECOMPILE="true"
+
+# Note: perform incremental precompilation of packages. Equivalent to calling
+# `--compile-modules=yes` and loading packages or `Base.compilecache(...)`.
+RUN if [[ "$PRECOMPILE" == "true" ]]; then \
+        julia -e "using Pkg; Pkg.API.precompile()"; \
+    fi
+
 # Perform the remainder AWSClusterManagers installation
 COPY . $PKG_PATH/
-RUN julia -e "using Pkg; Pkg.build(\"$PKG_NAME\")"
+RUN if [[ -f $PKG_PATH/deps/build.jl ]]; then \
+        julia -e "using Pkg; Pkg.build(\"$PKG_NAME\")"; \
+    fi
 
 # Create a new system image. Improves the startup times of packages by pre-compiling
 # AWSClusterManagers and it's dependencies into the default system image. Note in
@@ -92,12 +105,16 @@ RUN echo "using $PKG_NAME" > $JULIA_PATH/userimg.jl && \
         yum -y install $PKGS $PINNED_PKGS && \
         echo $PINNED_PKGS | tr -s '\t ' '\n' > /etc/yum/protected.d/julia-userimg.conf && \
         source $JULIA_PATH/Make.user && \
-        julia -e "using Pkg; Pkg.add(\"PackageCompiler\"); using PackageCompiler: build_sysimg, default_sysimg_path; build_sysimg(default_sysimg_path(), \"$JULIA_PATH/userimg.jl\", cpu_target=\"$MARCH\")" && \
+        time julia -e "using Pkg; Pkg.add(\"PackageCompiler\"); using PackageCompiler: build_sysimg, default_sysimg_path; build_sysimg(default_sysimg_path(), \"$JULIA_PATH/userimg.jl\", cpu_target=\"$MARCH\")" && \
         for p in $PKGS; do yum -y autoremove $p &>/dev/null && echo "Removed $p" || echo "Skipping removal of $p"; done && \
         yum -y clean all && \
-        rm -rf /var/cache/yum ; \
+        rm -rf /var/cache/yum; \
+    elif [[ "$PRECOMPILE" == "true" ]]; then \
+        time julia -e "using Pkg; Pkg.API.precompile()"; \
     else \
-        julia --compiled-modules=yes $JULIA_PATH/userimg.jl; \
+        echo -n "WARNING: Disabling both PRECOMPILE and CREATE_SYSIMG will result in " >&2 && \
+        echo -n "packages being compiled at runtime which may cause containers to run " >&2 && \
+        echo "out of memory." >&2; \
     fi
 
 # Validate that the `julia` can start with the new system image
