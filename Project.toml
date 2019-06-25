@@ -1,6 +1,7 @@
 name = "AWSClusterManagers"
 uuid = "69f5933c-162f-5d2f-a6d8-da72a0bfad91"
-authors = ["Curtis Vogt <curtis.vogt@invenia.ca", "Rory Finnegan <rory.finnegan@invenia.ca>"]
+authors = ["Invenia Technical Computing"]
+version = "1.0.1"
 
 [deps]
 AWSBatch = "dcae83d4-2881-5875-9d49-e5534165e9c0"
@@ -12,12 +13,12 @@ Mocking = "78c3b35d-d492-501b-9361-3d52fe80e533"
 Sockets = "6462fe0b-24de-5631-8697-dd941f90decc"
 
 [compat]
-AWSBatch = ">= 0.5.1"
-AWSCore = ">= 0.5.2"
-AWSTools = ">= 0.1.0"
-IterTools = ">= 0.1.0"
-Memento = ">= 0.7.0"
-Mocking = ">= 0.5.0"
+AWSBatch = "0.5.1, 1"
+AWSCore = "0.5.2, 0.6"
+AWSTools = "0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 1"
+IterTools = "0.1, 0.2, 1"
+Memento = "0.11, 0.12"
+Mocking = "0.5"
 julia = "0.7, 1.0, 1.1"
 
 [extras]

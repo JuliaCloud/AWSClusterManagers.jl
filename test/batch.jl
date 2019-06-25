@@ -315,7 +315,7 @@ end
                     "of the requested workers (2) will be spawned.",
                 )
                 apply(patches) do
-                    added_procs = Memento.Test.@test_log(logger, "warn", msg, addprocs(AWSBatchManager(0:2, timeout=Second(5))))
+                    added_procs = @test_log(logger, "warn", msg, addprocs(AWSBatchManager(0:2, timeout=Second(5))))
                     # Check that the workers are available
                     @test length(added_procs) == 1
                     # Remove the added workers
