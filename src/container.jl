@@ -65,7 +65,7 @@ end
 
 function launch(manager::ContainerManager, params::Dict, launched::Array, c::Condition)
     min_workers, max_workers = desired_workers(manager)
-    launch_tasks = Vector{Task}(undef, max_workers)
+    num_workers = 0
 
     # Determine the IP address of the current host within the specified range
     ips = filter!(getipaddrs()) do ip
@@ -79,9 +79,11 @@ function launch(manager::ContainerManager, params::Dict, launched::Array, c::Con
     port, server = listenany(valid_ip, PORT_HINT)
     debug(logger, "Manager accepting worker connections via: $valid_ip:$port")
 
-    for i in 1:max_workers
-        launch_tasks[i] = @async begin
+    listen_task = @async begin
+        while isopen(server) && num_workers < max_workers
+            # TODO: Potential issue with a random connection consuming a worker slot?
             sock = accept(server)
+            num_workers += 1
 
             # The worker will report it's own address through the socket. Eventually the
             # built in Julia cluster manager code will parse the stream and record the
@@ -117,24 +119,22 @@ function launch(manager::ContainerManager, params::Dict, launched::Array, c::Con
     # report back to the manager via the open port we just opened.
     spawn_containers(manager, override_cmd)
 
-    function callback(num_failed)
-        num_launched = max_workers - num_failed
-        if num_launched >= min_workers
-            warn(logger, "Only managed to launch $num_launched/$max_workers workers")
-        else
-            error("Unable to launch the minimum number of workers")
-        end
-    end
-
-    # Wait for workers to inform the manager of their address. If all of the spawned
-    # containers are not launched by the timeout the `callback` will be executed.
-    wait(launch_tasks, launch_timeout(manager), callback)
+    # Wait up to the timeout for workers to inform the manager of their address.
+    wait(listen_task, launch_timeout(manager))
 
     # TODO: Does stopping listening terminate the sockets from `accept`? If so, we could
     # potentially close the socket before we know the name of the connected worker. During
     # prototyping this has not been an issue.
-    close(server)
+    close(server)  # Causes `listen_task` to complete
     notify(c)
+
+    if num_workers < max_workers
+        if num_workers >= min_workers
+            warn(logger, "Only managed to launch $num_workers/$max_workers workers")
+        else
+            error("Unable to launch the minimum number of workers")
+        end
+    end
 end
 
 function manage(manager::ContainerManager, id::Integer, config::WorkerConfig, op::Symbol)
@@ -142,29 +142,12 @@ function manage(manager::ContainerManager, id::Integer, config::WorkerConfig, op
     # worker to shutdown automatically.
 end
 
-# Waits for all of the `tasks` to complete. If we wait longer than the `timeout` the wait is
-# aborted and the `timeout_callback` is called with number of unfinished tasks.
-function Base.wait(tasks::AbstractArray{Task}, timeout::Period, timeout_callback::Function=n -> nothing)
+# Waits for the `task` to complete. Stops waiting if duration waited exceeds the `timeout`.
+function Base.wait(task::Task, timeout::Period)
     timeout_secs = Dates.value(Second(timeout))
     start = time()
-    unfinished = 0
-    for t in tasks
-        while true
-            task_done = istaskdone(t)
-            timed_out = (time() - start) >= timeout_secs
-
-            if timed_out || task_done
-                if timed_out && !task_done
-                    unfinished += 1
-                end
-                break
-            end
-
-            sleep(1)
-        end
-    end
-    if unfinished > 0
-        timeout_callback(unfinished)
+    while !istaskdone(task) && (time() - start) < timeout_secs
+        sleep(1)
     end
 end
 
