@@ -10,16 +10,14 @@ using Distributed
 using LibGit2
 using Memento
 using Memento.TestUtils: @test_log
-using Random
+using Printf: @sprintf
 using Sockets
 using Test
 
 using Base: AbstractCmd
 using AWSClusterManagers: launch_timeout, desired_workers
 
-include("testutils.jl")
-using .TestUtils
-using .TestUtils: logger
+logger = Memento.config!("info"; fmt="[{level} | {name}]: {msg}")
 
 const PKG_DIR = abspath(@__DIR__, "..")
 

@@ -159,7 +159,7 @@ function spawn_containers(mgr::AWSBatchManager, override_cmd::Cmd)
     end
 
     # Since each batch worker can only use one cpu we override the vcpus to one.
-    job = run_batch(
+    job = @mock run_batch(
         name = mgr.job_name,
         definition = mgr.job_definition,
         queue = mgr.job_queue,
