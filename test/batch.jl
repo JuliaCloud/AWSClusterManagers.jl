@@ -1,18 +1,23 @@
-using AWSCore: AWSConfig
-
-const BATCH_ENVS = (
-    "AWS_BATCH_JOB_ID" => "bcf0b186-a532-4122-842e-2ccab8d54efb",
-    "AWS_BATCH_JQ_NAME" => "HighPriority"
-)
-
 # Worst case 15 minute timeout. If the compute environment has just scaled it will wait
 # 8 minutes before scaling again. Spot instance requests can take some time to be fufilled
 # but are usually instant and instances take around 4 minutes before they are ready.
 const TIMEOUT = Minute(15)
 
+const BATCH_SPAWN_REGEX = r"Spawning (array )?job: (?<id>[0-9a-f\-]+)(?(1) \(n=(?<n>\d+)\))"
+
+# Gets the logs messages associated with a AWSBatch BatchJob as a single string
+function log_messages(job::BatchJob)
+    events = log_events(job)
+    return join([event.message for event in events], '\n')
+end
+
+function time_str(secs::Real)
+    @sprintf("%02d:%02d:%02d", div(secs, 3600), rem(div(secs, 60), 60), rem(secs, 60))
+end
+
 # Scrapes the log output to determine the worker job IDs as stated by the manager
 function scrape_worker_job_ids(output::AbstractString)
-    m = match(r"Spawning (array )?job: (?<id>[0-9a-f\-]+)(?(1) \(n=(?<n>\d+)\))", output)
+    m = match(BATCH_SPAWN_REGEX, output)
 
     if m !== nothing
         worker_job = m[:id]
@@ -106,8 +111,8 @@ end
 
 # Test inner constructor
 @testset "AWSBatchManager" begin
-    @testset "Constructors" begin
-        @testset "Inner" begin
+    @testset "constructors" begin
+        @testset "inner" begin
             mgr = AWSBatchManager(
                 1,
                 2,
@@ -115,9 +120,14 @@ end
                 "job-name",
                 "job-queue",
                 1000,
-                "us-east-1",
+                "us-east-2",
                 Minute(10),
+                ip"1.0.0.0",
+                ip"2.0.0.0",
             )
+
+            # Validate that no additional fields were added without the tests being updated
+            @test fieldcount(AWSBatchManager) == 10
 
             @test mgr.min_workers == 1
             @test mgr.max_workers == 2
@@ -125,105 +135,72 @@ end
             @test mgr.job_name == "job-name"
             @test mgr.job_queue == "job-queue"
             @test mgr.job_memory == 1000
-            @test mgr.region == "us-east-1"
+            @test mgr.region == "us-east-2"
             @test mgr.timeout == Minute(10)
+            @test mgr.min_ip == ip"1.0.0.0"
+            @test mgr.max_ip == ip"2.0.0.0"
 
             @test launch_timeout(mgr) == Minute(10)
             @test desired_workers(mgr) == (1, 2)
         end
 
-        @testset "Keyword" begin
+        @testset "keywords" begin
             mgr = AWSBatchManager(
                 3,
                 4,
-                definition="d",
-                name="n",
-                queue="q",
+                definition="keyword-def",
+                name="keyword-name",
+                queue="keyword-queue",
                 memory=1000,
                 region="us-west-1",
-                timeout=Second(5)
+                timeout=Second(5),
+                min_ip=ip"3.0.0.0",
+                max_ip=ip"4.0.0.0",
             )
 
             @test mgr.min_workers == 3
             @test mgr.max_workers == 4
-            @test mgr.job_definition == "d"
-            @test mgr.job_name == "n"
-            @test mgr.job_queue == "q"
+            @test mgr.job_definition == "keyword-def"
+            @test mgr.job_name == "keyword-name"
+            @test mgr.job_queue == "keyword-queue"
             @test mgr.job_memory == 1000
             @test mgr.region == "us-west-1"
             @test mgr.timeout == Second(5)
+            @test mgr.min_ip == ip"3.0.0.0"
+            @test mgr.max_ip == ip"4.0.0.0"
         end
 
-        @testset "Zero Workers" begin
-            mgr = AWSBatchManager(
-                0,
-                0,
-                definition="d",
-                name="n",
-                queue="q",
-                memory=1000,
-                region="us-west-1",
-                timeout=Second(5)
-            )
+        @testset "defaults" begin
+            mgr = AWSBatchManager(0)
 
             @test mgr.min_workers == 0
             @test mgr.max_workers == 0
+            @test isempty(mgr.job_definition)
+            @test isempty(mgr.job_name)
+            @test isempty(mgr.job_queue)
+            @test mgr.job_memory == -1
+            @test mgr.region == "us-east-1"
+            @test mgr.timeout == AWSClusterManagers.BATCH_TIMEOUT
+            @test mgr.min_ip == ip"0.0.0.0"
+            @test mgr.max_ip == ip"255.255.255.255"
+
+            @test launch_timeout(mgr) == AWSClusterManagers.BATCH_TIMEOUT
+            @test desired_workers(mgr) == (0, 0)
         end
 
-        @testset "Kwargs" begin
-            # Define the keywords definition, name, queue, and region to avoid
-            # calling BatchJob.
-            kwargs = Dict(
-                :definition => "d",
-                :name => "n",
-                :queue => "q",
-                :memory => 1000,
-                :region => "ca-central-1"
-            )
-            @test desired_workers(AWSBatchManager(3:4; kwargs...)) == (3, 4)
-            @test_throws MethodError AWSBatchManager(3:1:4; kwargs...)
-            @test_throws MethodError AWSBatchManager(3:2:4; kwargs...)
-            @test desired_workers(AWSBatchManager(5; kwargs...)) == (5, 5)
+        @testset "num workers" begin
+            @test_throws ArgumentError AWSBatchManager(-1)
+            @test_throws ArgumentError AWSBatchManager(2, 1)
+            @test desired_workers(AWSBatchManager(0, 0)) == (0, 0)
+            @test desired_workers(AWSBatchManager(2)) == (2, 2)
+            @test desired_workers(AWSBatchManager(3:4)) == (3, 4)
+            @test_throws MethodError AWSBatchManager(3:1:4)
+            @test_throws MethodError AWSBatchManager(3:2:4)
         end
 
-        @testset "Defaults" begin
-            # Running outside of the environment of an AWS batch job
-            withenv("AWS_BATCH_JOB_ID" => nothing) do
-                 patches = [
-                    @patch JobQueue(queue::AbstractString) = JobQueue("arn:aws:batch:us-east-1:000000000000:job-queue/queue")
-                    @patch max_vcpus(::JobQueue) = 3
-                ]
-
-                apply(patches) do
-                    mgr = AWSBatchManager(3)
-                    @test_throws AWSBatch.BatchEnvironmentError AWSClusterManagers.spawn_containers(mgr, ``)
-                end
-            end
-
+        @testset "queue env variable" begin
             # Mock being run on an AWS batch job
-            withenv(BATCH_ENVS...) do
-                mgr = AWSBatchManager(3)
-
-                @test mgr.min_workers == 3
-                @test mgr.max_workers == 3
-                @test mgr.timeout == AWSClusterManagers.BATCH_TIMEOUT
-
-                @test mgr.job_definition == ""
-                @test mgr.job_name == ""
-                @test mgr.job_queue == ""
-                @test mgr.job_memory == -1
-                @test mgr.region == "us-east-1"
-
-                @test launch_timeout(mgr) == AWSClusterManagers.BATCH_TIMEOUT
-                @test desired_workers(mgr) == (3, 3)
-
-                @test mgr == AWSBatchManager(3)
-            end
-        end
-
-        @testset "Queue environmental variable" begin
-            # Mock being run on an AWS batch job
-            withenv("WORKER_JOB_QUEUE" => "worker", BATCH_ENVS...) do
+            withenv("WORKER_JOB_QUEUE" => "worker") do
                 # Fall back to using the WORKER_JOB_QUEUE environmental variable
                 mgr = AWSBatchManager(3)
                 @test mgr.job_queue == "worker"
@@ -235,90 +212,93 @@ end
         end
     end
 
-    @testset "Adding procs" begin
-        @testset "Worker Succeeds" begin
-            withenv(BATCH_ENVS...) do
-                patches = [
-                    @patch read(cmd::AbstractCmd, ::Type{String}) = TestUtils.read(cmd, String)
-                    @patch describe_jobs(dict::Dict) = TestUtils.describe_jobs(dict)
-                    @patch describe_job_definitions(dict::Dict) = TestUtils.describe_job_definitions(dict)
-                    @patch submit_job(c::AWSConfig, d::AbstractArray) = TestUtils.submit_job(c, d)
-                    @patch JobQueue(queue::AbstractString) = JobQueue("arn:aws:batch:us-east-1:000000000000:job-queue/queue")
-                    @patch max_vcpus(::JobQueue) = 1
-                ]
+    @testset "equality" begin
+        @test AWSBatchManager(3) == AWSBatchManager(3)
+    end
 
-                apply(patches) do
-                    # Get an initial list of processes
-                    init_procs = procs()
-                    # Add a single AWSBatchManager worker
-                    added_procs = addprocs(AWSBatchManager(1))
-                    # Check that the workers are available
-                    @test length(added_procs) == 1
-                    @test procs() == vcat(init_procs, added_procs)
-                    # Remove the added workers
-                    rmprocs(added_procs; waitfor=5.0)
-                    # Double check that rmprocs worked
-                    @test init_procs == procs()
+    @testset "addprocs" begin
+        # Note: due to the `addprocs` running our code with @async it can be difficult to
+        # debug failures in these tests. If a failure does occur it is recommended you run
+        # the code with `launch(AWSBatchManager(...), Dict(), [], Condition())` to get a
+        # useful stacktrace.
+
+        @testset "success" begin
+            patches = [
+                @patch JobQueue(queue::AbstractString) = JobQueue("arn:aws:batch:us-east-1:000000000000:job-queue/queue")
+                @patch max_vcpus(::JobQueue) = 1
+                @patch function run_batch(; kwargs...)
+                    @async run(kwargs[:cmd])
+                    BatchJob("00000000-0000-0000-0000-000000000001")
+                end
+            ]
+
+            apply(patches) do
+                # Get an initial list of processes
+                init_procs = procs()
+                # Add a single AWSBatchManager worker
+                added_procs = @test_log logger "notice" BATCH_SPAWN_REGEX begin
+                     addprocs(AWSBatchManager(1))
+                end
+                # Check that the workers are available
+                @test length(added_procs) == 1
+                @test procs() == vcat(init_procs, added_procs)
+                # Remove the added workers
+                rmprocs(added_procs; waitfor=5.0)
+                # Double check that rmprocs worked
+                @test init_procs == procs()
+            end
+        end
+
+        @testset "worker timeout" begin
+            patches = [
+                @patch JobQueue(queue::AbstractString) = JobQueue("arn:aws:batch:us-east-1:000000000000:job-queue/queue")
+                @patch max_vcpus(::JobQueue) = 1
+                @patch function run_batch(; kwargs...)
+                    # Avoiding spawning a worker process
+                    BatchJob("00000000-0000-0000-0000-000000000002")
+                end
+            ]
+
+            @test_throws ErrorException apply(patches) do
+                @test_log logger "notice" BATCH_SPAWN_REGEX begin
+                    addprocs(AWSBatchManager(1; timeout=Second(1)))
                 end
             end
         end
 
-        @testset "Worker Timeout" begin
-            withenv(BATCH_ENVS...) do
+        @testset "VCPU limit" begin
+            @testset "minimum exceeds" begin
                 patches = [
-                    @patch read(cmd::AbstractCmd, ::Type{String}) = TestUtils.read(cmd, String, false)
-                    @patch describe_jobs(dict::Dict) = TestUtils.describe_jobs(dict)
-                    @patch describe_job_definitions(dict::Dict) = TestUtils.describe_job_definitions(dict)
-                    @patch submit_job(c::AWSConfig, d::AbstractArray) = TestUtils.submit_job(() -> sleep(3), c, d)
-                    @patch JobQueue(queue::AbstractString) = JobQueue("arn:aws:batch:us-east-1:000000000000:job-queue/queue")
-                    @patch max_vcpus(::JobQueue) = 1
-                ]
-
-                @test_throws ErrorException apply(patches) do
-                    # Suppress "unhandled task error" message
-                    # https://github.com/JuliaLang/julia/issues/12403
-                    ignore_stderr() do
-                        addprocs(AWSBatchManager(1; timeout=Second(1)))
-                    end
-                end
-            end
-        end
-
-        @testset "Max Tasks" begin
-            withenv(BATCH_ENVS...) do
-                patches = [
-                    @patch read(cmd::AbstractCmd, ::Type{String}) = TestUtils.read(cmd, String)
-                    @patch describe_jobs(dict::Dict) = TestUtils.describe_jobs(dict)
-                    @patch describe_job_definitions(dict::Dict) = TestUtils.describe_job_definitions(dict)
-                    @patch submit_job(c::AWSConfig, d::AbstractArray) = TestUtils.submit_job(c, d)
                     @patch JobQueue(queue::AbstractString) = JobQueue("arn:aws:batch:us-east-1:000000000000:job-queue/queue")
                     @patch max_vcpus(::JobQueue) = 3
                 ]
 
-                @test_throws ErrorException apply(patches) do
-                    ignore_stderr() do
-                        addprocs(AWSBatchManager(4, timeout=Second(5)))
-                        @test nprocs() == 1
-                    end
+                apply(patches) do
+                    @test_throws ErrorException addprocs(AWSBatchManager(4, timeout=Second(5)))
+                    @test nprocs() == 1
                 end
+            end
 
+            @testset "maximum exceeds" begin
                 patches = [
-                    @patch read(cmd::AbstractCmd, ::Type{String}) = TestUtils.read(cmd, String)
-                    @patch describe_jobs(dict::Dict) = TestUtils.describe_jobs(dict)
-                    @patch describe_job_definitions(dict::Dict) = TestUtils.describe_job_definitions(dict)
-                    @patch submit_job(c::AWSConfig, d::AbstractArray) = TestUtils.submit_job(c, d)
                     @patch JobQueue(queue::AbstractString) = JobQueue("arn:aws:batch:us-east-1:000000000000:job-queue/queue")
                     @patch max_vcpus(::JobQueue) = 1
+                    @patch function run_batch(; kwargs...)
+                        for _ in 1:kwargs[:num_jobs]
+                            @async run(kwargs[:cmd])
+                        end
+                        BatchJob("00000000-0000-0000-0000-000000000004")
+                    end
                 ]
                 msg = string(
                     "Due to the max VCPU limit (1) most likely only a partial amount ",
                     "of the requested workers (2) will be spawned.",
                 )
                 apply(patches) do
-                    added_procs = @test_log(logger, "warn", msg, addprocs(AWSBatchManager(0:2, timeout=Second(5))))
-                    # Check that the workers are available
-                    @test length(added_procs) == 1
-                    # Remove the added workers
+                    added_procs = @test_log logger "warn" msg begin
+                        addprocs(AWSBatchManager(0:2, timeout=Second(5)))
+                    end
+                    @test length(added_procs) > 0
                     rmprocs(added_procs; waitfor=5.0)
                 end
             end
@@ -329,13 +309,13 @@ end
 
         # Note: Start with the largest number of workers so the remaining tests don't have
         # to wait for the cluster to scale up on subsequent tests.
-        @testset "Online (n=$num_workers)" for num_workers in [10, 1, 0]
+        @testset "online (n=$num_workers)" for num_workers in [10, 1, 0]
             job = run_batch_job(TEST_IMAGE, num_workers)
 
             # Retry getting the logs for the batch job because it can take several seconds
             # for cloudwatch to ingest the log records
             get_logs = retry(delays=rand(5:10, 2)) do
-                output = TestUtils.log_messages(job)
+                output = log_messages(job)
                 m = match(r"(?<=NumProcs: )\d+", output)
                 if m === nothing
                     error("The logs do not contain the `NumProcs` for job \"$(job.id)\".")
@@ -386,10 +366,10 @@ end
             info(logger, "Job run duration:    $(time_str(run_duration))")
         end
 
-        @testset "Exceed worker limit" begin
+        @testset "exceed worker limit" begin
             num_workers = typemax(Int64)
             job = run_batch_job(TEST_IMAGE, num_workers; should_fail=true)
-            output = TestUtils.log_messages(job)
+            output = log_messages(job)
 
             m = match(r"(?<=NumProcs: )\d+", output)
             num_procs = m !== nothing ? parse(Int, m.match) : -1
