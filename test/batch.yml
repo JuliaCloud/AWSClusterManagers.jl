@@ -190,6 +190,7 @@ Resources:
     Type: AWS::EC2::InternetGateway
   VPCGatewayAttachment:
     Type: AWS::EC2::VPCGatewayAttachment
+    DependsOn: Subnet  # Detaching the gateway can fail if the VPC still contains public addresses
     Properties:
       VpcId: !Ref VPC
       InternetGatewayId: !Ref InternetGateway
