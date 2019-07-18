@@ -213,25 +213,25 @@ Resources:
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
       Policies:
-      - PolicyName: DeleteStackPolicy
-        PolicyDocument:
-          Version: 2012-10-17
-          Statement:
-          - Effect: Allow
-            Action:
-              - cloudformation:DescribeStacks
-              - cloudformation:DeleteStack
-            Resource: !Ref AWS::StackId
-          - Effect: Allow
-            Action:
-              - logs:*
-              - ec2:*
-              - batch:*
-              - iam:*
-              - events:*
-              - lambda:*
-              - ecr:*
-            Resource: "*"
+        - PolicyName: DeleteStackPolicy
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - cloudformation:DescribeStacks
+                  - cloudformation:DeleteStack
+                Resource: !Ref AWS::StackId
+              - Effect: Allow
+                Action:
+                  - logs:*
+                  - ec2:*
+                  - batch:*
+                  - iam:*
+                  - events:*
+                  - lambda:*
+                  - ecr:*
+                Resource: "*"
 
   DeleteStackLambda:
     Type: AWS::Lambda::Function
@@ -242,10 +242,10 @@ Resources:
       Role: !GetAtt DeleteStackRole.Arn
       Environment:
         Variables:
-          STACK_NAME: !Ref "AWS::StackName"
+          STACK_NAME: !Ref AWS::StackName
           WAIT_PERIOD: 3  # hours
       Code:
-        ZipFile: !Sub |
+        ZipFile: |
           from datetime import datetime, timedelta
           import boto3
           import os
