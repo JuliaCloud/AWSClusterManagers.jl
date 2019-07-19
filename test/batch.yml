@@ -69,6 +69,7 @@ Parameters:
 Conditions:
   OnDemandComputeEnvironment: !Equals [!Ref ProvisioningModel, on-demand]
   Testing: !Not [!Equals [!Ref CIRoleArn, ""]]
+  IsCI: !Equals [!Ref "AWS::AccountId", 813030647716]
 
 Resources:
   ComputeEnvironment:
@@ -162,6 +163,7 @@ Resources:
       VpcId: !Ref VPC
   VPC:
     Type: AWS::EC2::VPC
+    DependsOn: DeleteStackRole  # This role should be the last to delete
     Properties:
       CidrBlock: !Ref VPCCidrBlock
   Subnet:
@@ -194,6 +196,103 @@ Resources:
     Properties:
       VpcId: !Ref VPC
       InternetGatewayId: !Ref InternetGateway
+
+
+  #============================================#
+# Automatically delete stacks in the CI account that haven't been updated recently.
+
+  DeleteStackRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: DeleteStackPolicy
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - cloudformation:DescribeStacks
+                  - cloudformation:DeleteStack
+                Resource: !Ref AWS::StackId
+              - Effect: Allow
+                Action:
+                  - logs:*
+                  - ec2:*
+                  - batch:*
+                  - iam:*
+                  - events:*
+                  - lambda:*
+                  - ecr:*
+                Resource: "*"
+
+  DeleteStackLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      Handler: index.lambda_handler
+      Runtime: python3.6
+      Timeout: 5
+      Role: !GetAtt DeleteStackRole.Arn
+      Environment:
+        Variables:
+          STACK_NAME: !Ref AWS::StackName
+          WAIT_PERIOD: 3  # hours
+      Code:
+        ZipFile: |
+          from datetime import datetime, timedelta
+          import boto3
+          import os
+          STACK_NAME = os.environ["STACK_NAME"]
+          WAIT_PERIOD = os.environ["WAIT_PERIOD"]
+
+          def empty_repository(ecr):
+              client = boto3.client('ecr')
+              image_ids = client.list_images(repositoryName=ecr)["imageIds"]
+              client.batch_delete_image(repositoryName=ecr, imageIds=image_ids)
+              print(f"Finished emptying ECR repository \"{ecr}\".")
+
+          def lambda_handler(event, context):
+              cfn = boto3.resource('cloudformation')
+              stack = cfn.Stack(STACK_NAME)
+              wait_period = timedelta(hours=int(WAIT_PERIOD))
+              if stack.last_updated_time is None:
+                  last_update = stack.creation_time
+              else:
+                  last_update = stack.last_updated_time
+              tzaware_now = datetime.now(last_update.tzinfo)
+              if tzaware_now >= last_update + wait_period:
+                  print(f"Deleting stack after {WAIT_PERIOD} hours without updates.")
+                  stack_outputs = {x["OutputKey"]: x["OutputValue"] for x in stack.outputs}
+                  empty_repository(stack_outputs["Ecr"])
+                  stack.delete()
+
+  DeleteStackPermission:
+    Condition: IsCI
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref DeleteStackLambda
+      Action: lambda:InvokeFunction
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt DeleteStackRule.Arn
+
+  DeleteStackRule:
+    Condition: IsCI
+    Type: AWS::Events::Rule
+    Properties:
+      Description: Trigger deletion if stack has not been updated recently.
+      ScheduleExpression: cron(0 * * * ? *)  # Run every hour
+      State: ENABLED
+      Targets:
+        - Id: DeleteStackLambda
+          Arn: !GetAtt DeleteStackLambda.Arn
+
 
   #============================================#
 
