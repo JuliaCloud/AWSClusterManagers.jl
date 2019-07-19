@@ -249,8 +249,15 @@ Resources:
           from datetime import datetime, timedelta
           import boto3
           import os
-          STACK_NAME = os.environ['STACK_NAME']
-          WAIT_PERIOD = os.environ['WAIT_PERIOD']
+          STACK_NAME = os.environ["STACK_NAME"]
+          WAIT_PERIOD = os.environ["WAIT_PERIOD"]
+
+          def empty_repository(ecr):
+              client = boto3.client('ecr')
+              image_ids = client.list_images(repositoryName=ecr)["imageIds"]
+              client.batch_delete_image(repositoryName=ecr, imageIds=image_ids)
+              print(f"Finished emptying ECR repository \"{ecr}\".")
+
           def lambda_handler(event, context):
               cfn = boto3.resource('cloudformation')
               stack = cfn.Stack(STACK_NAME)
@@ -262,6 +269,8 @@ Resources:
               tzaware_now = datetime.now(last_update.tzinfo)
               if tzaware_now >= last_update + wait_period:
                   print(f"Deleting stack after {WAIT_PERIOD} hours without updates.")
+                  stack_outputs = {x["OutputKey"]: x["OutputValue"] for x in stack.outputs}
+                  empty_repository(stack_outputs["Ecr"])
                   stack.delete()
 
   DeleteStackPermission:
