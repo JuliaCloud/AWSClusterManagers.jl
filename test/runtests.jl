@@ -1,10 +1,6 @@
-using Mocking
-Mocking.enable(force=true)
-
 using AWSBatch
-using AWSBatch: JobQueue, max_vcpus, run_batch
 using AWSClusterManagers
-using AWSClusterManagers: desired_workers, image_id, launch_timeout
+using AWSClusterManagers: desired_workers, launch_timeout
 using AWSTools.CloudFormation: stack_output
 using AWSTools.Docker: Docker
 using Base: AbstractCmd
@@ -13,10 +9,12 @@ using Distributed
 using LibGit2
 using Memento
 using Memento.TestUtils: @test_log
+using Mocking
 using Printf: @sprintf
 using Sockets
 using Test
 
+Mocking.activate()
 logger = Memento.config!("info"; fmt="[{level} | {name}]: {msg}")
 
 const PKG_DIR = abspath(@__DIR__, "..")
