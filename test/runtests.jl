@@ -3,8 +3,10 @@ Mocking.enable(force=true)
 
 using AWSBatch
 using AWSClusterManagers
-using AWSTools.Docker: Docker
+using AWSClusterManagers: launch_timeout, desired_workers
 using AWSTools.CloudFormation: stack_output
+using AWSTools.Docker: Docker
+using Base: AbstractCmd
 using Dates
 using Distributed
 using LibGit2
@@ -13,9 +15,6 @@ using Memento.TestUtils: @test_log
 using Printf: @sprintf
 using Sockets
 using Test
-
-using Base: AbstractCmd
-using AWSClusterManagers: launch_timeout, desired_workers
 
 logger = Memento.config!("info"; fmt="[{level} | {name}]: {msg}")
 
