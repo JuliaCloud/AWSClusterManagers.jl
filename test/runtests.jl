@@ -2,8 +2,9 @@ using Mocking
 Mocking.enable(force=true)
 
 using AWSBatch
+using AWSBatch: JobQueue, max_vcpus, run_batch
 using AWSClusterManagers
-using AWSClusterManagers: launch_timeout, desired_workers
+using AWSClusterManagers: desired_workers, image_id, launch_timeout
 using AWSTools.CloudFormation: stack_output
 using AWSTools.Docker: Docker
 using Base: AbstractCmd
