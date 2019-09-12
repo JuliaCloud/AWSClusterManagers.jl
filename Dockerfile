@@ -1,5 +1,5 @@
-# Using an argument for FROM allows us to alternatively specify the full URI for julia-baked
-ARG BASE_IMAGE=julia-baked:1.0
+# https://gitlab.invenia.ca/invenia/Dockerfiles/tree/master/julia-baked
+ARG BASE_IMAGE=468665244580.dkr.ecr.us-east-1.amazonaws.com/julia-baked:1.0
 FROM ${BASE_IMAGE}
 
 LABEL maintainer="curtis.vogt@invenia.ca"
@@ -7,7 +7,7 @@ LABEL maintainer="curtis.vogt@invenia.ca"
 ENV PKG_NAME "AWSClusterManagers"
 
 # Get security updates
-RUN yum -y update-minimal && \
+RUN yum -y -d1 update-minimal && \
     yum -y clean all && \
     rm -rf /var/cache/yum
 
@@ -15,7 +15,7 @@ RUN yum -y update-minimal && \
 RUN amazon-linux-extras install docker
 ENV PINNED_PKGS \
     docker
-RUN yum -y install $PINNED_PKGS && \
+RUN yum -y -d1 install $PINNED_PKGS && \
     echo $PINNED_PKGS | tr -s '\t ' '\n' > /etc/yum/protected.d/docker.conf && \
     yum -y clean all && \
     rm -rf /var/cache/yum
@@ -33,53 +33,16 @@ RUN mkdir -p $PKG_PATH/src && touch $PKG_PATH/src/$PKG_NAME.jl
 # be a git repository.
 # RUN [ -d .git ] && rm -rf .git || true
 
-# Add and build all of the required Julia packages. In order to allow the use of
-# BinDeps.jl we need to temporarily install additional system packages.
-#
-# - BinDeps.jl runtime requirements: sudo, make, gcc, unzip, bzip2, xz, unzip
-#
-#   BinDeps runtime requirements are only used while other packages are being built which
-#   makes them safe to only be temporarily installed. When installing system libraries
-#   BinDeps always uses "sudo" to install system packages and waits for user confirmation
-#   before installing a package. We'll both install "sudo" and always supply the `-y` flag
-#   to ensure that BinDeps installations work automatically. A good test to make sure
-#   BinDeps is setup correctly is to run `Pkg.add("Cairo"); Pkg.test("Cairo")`
-#
-# - yum-config-manager is installed by: yum-utils
-# - Install EPEL repo to better handle Julia package requirements. e.g. HDF5.jl
-#   (https://aws.amazon.com/premiumsupport/knowledge-center/ec2-enable-epel/)
-ENV PKGS \
-    sudo \
-    make \
-    gcc \
-    gcc-c++ \
-    tar \
-    curl \
-    bzip2 \
-    xz \
-    unzip \
-    gzip \
-    busybox \
-    epel-release \
-    yum-utils
-RUN yum -y install $PKGS && \
-    yum-config-manager --setopt=assumeyes=1 --save > /dev/null && \
-    yum-config-manager --enable epel > /dev/null && \
-    yum list installed | tr -s ' ' | cut -d' ' -f1 | sort > /tmp/pre_state && \
-    julia -e "using Pkg; Pkg.develop(PackageSpec(name=\"$PKG_NAME\", path=\"$PKG_PATH\")); Pkg.add(PackageSpec(\"Memento\"))" && \
-    yum list installed | tr -s ' ' | cut -d' ' -f1 | sort > /tmp/post_state && \
-    comm -3 /tmp/pre_state /tmp/post_state | grep $'\t' | sed 's/\t//' | sed 's/\..*//' > /etc/yum/protected.d/julia-pkgs.conf && \
-    yum-config-manager --disable epel > /dev/null && \
-    for p in $PKGS; do yum -y autoremove $p &>/dev/null && echo "Removed $p" || echo "Skipping removal of $p"; done && \
-    yum -y clean all
+# Install and build the package requirements. Record any system packages that need to be
+# installed in order to build any dependencies which is helpful for future maintenence.
+RUN julia -e "using Pkg; Pkg.develop(PackageSpec(name=\"$PKG_NAME\", path=\"$PKG_PATH\")); Pkg.add(PackageSpec(\"Memento\"))"
 
 # Control if pre-compilation is run when new Julia packages are installed.
 ARG PRECOMPILE="true"
 
-# Note: perform incremental precompilation of packages. Equivalent to calling
-# `--compile-modules=yes` and loading packages or `Base.compilecache(...)`.
+# Perform precompilation of packages.
 RUN if [[ "$PRECOMPILE" == "true" ]]; then \
-        julia -e "using Pkg; Pkg.API.precompile()"; \
+        $HOME/precompile.sh; \
     fi
 
 # Perform the remainder AWSClusterManagers installation
@@ -102,15 +65,9 @@ ENV PINNED_PKGS \
     glibc
 RUN echo "using $PKG_NAME" > $JULIA_PATH/userimg.jl && \
     if [[ "$CREATE_SYSIMG" == "true" ]]; then \
-        yum -y install $PKGS $PINNED_PKGS && \
-        echo $PINNED_PKGS | tr -s '\t ' '\n' > /etc/yum/protected.d/julia-userimg.conf && \
-        source $JULIA_PATH/Make.user && \
-        time julia -e "using Pkg; Pkg.add(\"PackageCompiler\"); using PackageCompiler: build_sysimg, default_sysimg_path; build_sysimg(default_sysimg_path(), \"$JULIA_PATH/userimg.jl\", cpu_target=\"$MARCH\")" && \
-        for p in $PKGS; do yum -y autoremove $p &>/dev/null && echo "Removed $p" || echo "Skipping removal of $p"; done && \
-        yum -y clean all && \
-        rm -rf /var/cache/yum; \
+        time $HOME/create_sysimg.sh $JULIA_PATH/userimg.jl; \
     elif [[ "$PRECOMPILE" == "true" ]]; then \
-        time julia -e "using Pkg; Pkg.API.precompile()"; \
+        time $HOME/precompile.sh; \
     else \
         echo -n "WARNING: Disabling both PRECOMPILE and CREATE_SYSIMG will result in " >&2 && \
         echo -n "packages being compiled at runtime which may cause containers to run " >&2 && \
