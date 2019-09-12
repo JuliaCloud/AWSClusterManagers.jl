@@ -13,11 +13,11 @@ Mocking = "78c3b35d-d492-501b-9361-3d52fe80e533"
 Sockets = "6462fe0b-24de-5631-8697-dd941f90decc"
 
 [compat]
-AWSBatch = "0.5.1, 1"
-AWSTools = "0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 1"
+AWSBatch = "1"
+AWSTools = "1"
 Memento = "0.11, 0.12"
 Mocking = "0.7"
-julia = "0.7, 1.0, 1.1"
+julia = "1"
 
 [extras]
 AWSTools = "83bcdc74-1232-581c-948a-f29122bf8259"
