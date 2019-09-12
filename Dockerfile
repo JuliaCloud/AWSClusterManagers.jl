@@ -38,7 +38,7 @@ RUN mkdir -p $PKG_PATH/src && touch $PKG_PATH/src/$PKG_NAME.jl
 RUN julia -e "using Pkg; Pkg.develop(PackageSpec(name=\"$PKG_NAME\", path=\"$PKG_PATH\")); Pkg.add(PackageSpec(\"Memento\"))"
 
 # Control if pre-compilation is run when new Julia packages are installed.
-ARG PRECOMPILE="true"
+ARG PRECOMPILE="false"
 
 # Perform precompilation of packages.
 RUN if [[ "$PRECOMPILE" == "true" ]]; then \
@@ -55,7 +55,7 @@ RUN if [[ -f $PKG_PATH/deps/build.jl ]]; then \
 # AWSClusterManagers and it's dependencies into the default system image. Note in
 # situations where uploads are slow you probably want to disable this.
 # Note: Disabling system image creation by default as this is much slower on Julia 1.0+
-ARG CREATE_SYSIMG="false"
+ARG CREATE_SYSIMG="true"
 
 # Note: Need to have libc to avoid: "/usr/bin/ld: cannot find crti.o: No such file or directory"
 # https://docs.julialang.org/en/v1.0/devdocs/sysimg/#Building-the-Julia-system-image-1

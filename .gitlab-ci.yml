@@ -98,8 +98,7 @@ variables:
     TEST_IMAGE: aws-cluster-managers:pipeline-${CI_PIPELINE_ID}
   script:
     - docker pull $BASE_IMAGE  # Make sure image is up-to-date
-    # Note: Disable the system image to allow tests using Mocking to succeed
-    - docker build -t $TEST_IMAGE --build-arg BASE_IMAGE=$BASE_IMAGE --build-arg CREATE_SYSIMG=false .
+    - docker build -t $TEST_IMAGE --build-arg BASE_IMAGE=$BASE_IMAGE .
     - docker run --rm -e ONLINE=docker -v /var/run/docker.sock:/var/run/docker.sock $TEST_IMAGE
   after_script:
     - docker rmi $TEST_IMAGE $BASE_IMAGE
