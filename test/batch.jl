@@ -217,6 +217,8 @@ end
     end
 
     @testset "addprocs" begin
+        mock_queue_arn = "arn:aws:batch:us-east-1:000000000000:job-queue/queue"
+
         # Note: due to the `addprocs` running our code with @async it can be difficult to
         # debug failures in these tests. If a failure does occur it is recommended you run
         # the code with `launch(AWSBatchManager(...), Dict(), [], Condition())` to get a
@@ -224,9 +226,9 @@ end
 
         @testset "success" begin
             patches = [
-                @patch JobQueue(queue::AbstractString) = JobQueue("arn:aws:batch:us-east-1:000000000000:job-queue/queue")
-                @patch max_vcpus(::JobQueue) = 1
-                @patch function run_batch(; kwargs...)
+                @patch AWSBatch.JobQueue(queue::AbstractString) = JobQueue(mock_queue_arn)
+                @patch AWSBatch.max_vcpus(::JobQueue) = 1
+                @patch function AWSBatch.run_batch(; kwargs...)
                     @async run(kwargs[:cmd])
                     BatchJob("00000000-0000-0000-0000-000000000001")
                 end
@@ -251,9 +253,9 @@ end
 
         @testset "worker timeout" begin
             patches = [
-                @patch JobQueue(queue::AbstractString) = JobQueue("arn:aws:batch:us-east-1:000000000000:job-queue/queue")
-                @patch max_vcpus(::JobQueue) = 1
-                @patch function run_batch(; kwargs...)
+                @patch AWSBatch.JobQueue(queue::AbstractString) = JobQueue(mock_queue_arn)
+                @patch AWSBatch.max_vcpus(::JobQueue) = 1
+                @patch function AWSBatch.run_batch(; kwargs...)
                     # Avoiding spawning a worker process
                     BatchJob("00000000-0000-0000-0000-000000000002")
                 end
@@ -269,8 +271,8 @@ end
         @testset "VCPU limit" begin
             @testset "minimum exceeds" begin
                 patches = [
-                    @patch JobQueue(queue::AbstractString) = JobQueue("arn:aws:batch:us-east-1:000000000000:job-queue/queue")
-                    @patch max_vcpus(::JobQueue) = 3
+                    @patch AWSBatch.JobQueue(queue::AbstractString) = JobQueue(mock_queue_arn)
+                    @patch AWSBatch.max_vcpus(::JobQueue) = 3
                 ]
 
                 apply(patches) do
@@ -281,9 +283,9 @@ end
 
             @testset "maximum exceeds" begin
                 patches = [
-                    @patch JobQueue(queue::AbstractString) = JobQueue("arn:aws:batch:us-east-1:000000000000:job-queue/queue")
-                    @patch max_vcpus(::JobQueue) = 1
-                    @patch function run_batch(; kwargs...)
+                    @patch AWSBatch.JobQueue(queue::AbstractString) = JobQueue(mock_queue_arn)
+                    @patch AWSBatch.max_vcpus(::JobQueue) = 1
+                    @patch function AWSBatch.run_batch(; kwargs...)
                         for _ in 1:kwargs[:num_jobs]
                             @async run(kwargs[:cmd])
                         end

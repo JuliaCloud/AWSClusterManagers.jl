@@ -46,7 +46,7 @@ const DOCKER_SPAWN_REGEX = r"^Spawning container: [0-9a-z]{12}$"
         end
 
         @testset "defaults" begin
-            patch = @patch image_id() = mock_image
+            patch = @patch AWSClusterManagers.image_id() = mock_image
 
             apply(patch) do
                 mgr = DockerManager(0)
@@ -74,7 +74,7 @@ const DOCKER_SPAWN_REGEX = r"^Spawning container: [0-9a-z]{12}$"
     end
 
     @testset "equality" begin
-        patch = @patch image_id() = mock_image
+        patch = @patch AWSClusterManagers.image_id() = mock_image
 
         apply(patch) do
             @test DockerManager(3) == DockerManager(3)
