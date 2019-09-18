@@ -4,7 +4,6 @@ using AWSBatch
 using AWSBatch: max_vcpus
 using Dates
 using Distributed
-import Distributed: manage, launch
 using JSON
 using Memento
 using Mocking

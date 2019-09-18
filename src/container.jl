@@ -63,7 +63,7 @@ if VERSION < v"1.2.0-DEV.56"
     end
 end
 
-function launch(manager::ContainerManager, params::Dict, launched::Array, c::Condition)
+function Distributed.launch(manager::ContainerManager, params::Dict, launched::Array, c::Condition)
     min_workers, max_workers = desired_workers(manager)
     num_workers = 0
 
@@ -137,7 +137,7 @@ function launch(manager::ContainerManager, params::Dict, launched::Array, c::Con
     end
 end
 
-function manage(manager::ContainerManager, id::Integer, config::WorkerConfig, op::Symbol)
+function Distributed.manage(manager::ContainerManager, id::Integer, config::WorkerConfig, op::Symbol)
     # Note: Terminating the TCP connection from the master to the worker will cause the
     # worker to shutdown automatically.
 end
