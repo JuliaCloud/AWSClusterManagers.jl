@@ -39,18 +39,29 @@ function Distributed.launch(manager::AWSBatchNodeManager, params::Dict, launched
         sock = accept(server)
         connected_workers += 1
 
-        debug(LOGGER, "Worker connected")
+        # Receive the job id and node index from the connected worker
+        job_id = parse_job_id(readline(sock))
+        node_index = parse(Int, match(r"(?<=\#)\d+", job_id).match)
+
+        debug(LOGGER, "Worker connected from node $node_index")
 
         # Send the cluster cookie to the worker
-        println(sock, cluster_cookie())
+        println(sock, "julia_cookie:", cluster_cookie())
+        flush(sock)
 
         # The worker will report it's own address through the socket. Eventually the
         # built in Julia cluster manager code will parse the stream and record the
         # address and port.
         config = WorkerConfig()
         config.io = sock
+        config.userdata = Dict(
+            :job_id => job_id,
+            :node_index => node_index,
+        )
 
-        # TODO: Should try to Julia worker numbers match to the AWS_BATCH_JOB_NODE_INDEX
+        # Note: Julia worker numbers will not match up to the `node_index` of the worker.
+        # Primarily this is due to the worker numbers being 1-indexed while nodes are
+        # 0-indexed.
 
         # Note: `launched` is treated as a queue and will have elements removed from it
         # periodically.
@@ -73,10 +84,36 @@ function start_batch_node_worker()
     manager_ip = parse(IPAddr, ENV["AWS_BATCH_JOB_MAIN_NODE_PRIVATE_IPV4_ADDRESS"])
     sock = connect(manager_ip, AWS_BATCH_JOB_NODE_PORT)
 
+    # Note: The job ID also contains the node index
+    println(sock, "job_id:", ENV["AWS_BATCH_JOB_ID"])
+    flush(sock)
+
     # Retrieve the cluster cookie from the manager
-    cookie = readline(sock)
+    cookie = parse_cookie(readline(sock))
 
     # Hand off control to the Distributed stdlib which will have the worker report an IP
     # address and port at which connections can be established to this worker.
     start_worker(sock, cookie)
+end
+
+function parse_job_id(str::AbstractString)
+    # Note: Require match on prefix to ensure we are parsing the correct value
+    m = match(r"^job_id:([a-z0-9-]{36}\#\d+)", str)
+
+    if m !== nothing
+        return m.captures[1]
+    else
+        error(LOGGER, "Unable to parse job id: $str")
+    end
+end
+
+function parse_cookie(str::AbstractString)
+    # Note: Require match on prefix to ensure we are parsing the correct value
+    m = match(r"^julia_cookie:(\w+)", str)
+
+    if m !== nothing
+        return m.captures[1]
+    else
+        error(LOGGER, "Unable to parse cluster cookie: $str")
+    end
 end
