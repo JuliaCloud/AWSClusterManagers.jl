@@ -36,8 +36,9 @@ function Distributed.launch(manager::AWSBatchNodeManager, params::Dict, launched
     debug(LOGGER, "Awaiting connections")
 
     # We cannot listen only to the `ENV["AWS_BATCH_JOB_MAIN_NODE_PRIVATE_IPV4_ADDRESS"]` as
-    # this variable is not available on the main node.
-    server = listen(ip"::", AWS_BATCH_JOB_NODE_PORT)
+    # this variable is not available on the main node. However, since we known the workers
+    # will use this IPv4 specific address we'll only listen to IPv4 interfaces.
+    server = listen(IPv4(0), AWS_BATCH_JOB_NODE_PORT)
     debug(LOGGER, "Manager accepting worker connections on port $AWS_BATCH_JOB_NODE_PORT")
 
     listen_task = @async while isopen(server) && connected_workers < num_workers
@@ -95,7 +96,7 @@ function start_batch_node_worker()
     # The environmental variable for the main node address is only set within multi-node
     # parallel child nodes and is not present on the main node. See:
     # https://docs.aws.amazon.com/batch/latest/userguide/multi-node-parallel-jobs.html#mnp-env-vars
-    manager_ip = parse(IPAddr, ENV["AWS_BATCH_JOB_MAIN_NODE_PRIVATE_IPV4_ADDRESS"])
+    manager_ip = parse(IPv4, ENV["AWS_BATCH_JOB_MAIN_NODE_PRIVATE_IPV4_ADDRESS"])
     sock = connect(manager_ip, AWS_BATCH_JOB_NODE_PORT)
 
     # Note: The job ID also contains the node index
@@ -104,6 +105,40 @@ function start_batch_node_worker()
 
     # Retrieve the cluster cookie from the manager
     cookie = parse_cookie(readline(sock))
+
+    # Note: Limiting to IPv4 to match what AWS Batch provides us with for the manager.
+    function available_ipv4_msg()
+        io = IOBuffer()
+        write(io, "Available IPv4 interfaces are:")
+
+        # Include a listing of external IPv4 interfaces and addresses for debugging.
+        for i in get_interface_addrs()
+            if i.address isa IPv4 && !i.is_internal
+                write(io, "\n  $(i.name): inet $(i.address)")
+            end
+        end
+
+        return String(take!(io))
+    end
+
+    # A multi-node parallel job uses the "awsvpc" networking mode which defines "ecs-eth0"
+    # in addition to the "eth0" interface. By default Julia tries to use the IP address from
+    # "ecs-eth0" which uses a local-link address (169.254.0.0/16) which is unreachable from
+    # the manager. Typically this is fixed by specifying the "eth0" IP address as
+    # `--bind-to` when starting the Julia worker process.
+    ip = getipaddr()
+    if Base.JLOptions().bindto == C_NULL && is_link_local(ip)
+        error(LOGGER) do
+            "Aborting due to use of link-local address ($ip) on worker which will be " *
+            "unreachable by the manager. Be sure to specify a `--bind-to` address when " *
+            "starting Julia. $(available_ipv4_msg())"
+        end
+    else
+        info(LOGGER, "Reporting worker address $ip to the manager")
+        debug(LOGGER) do
+            available_ipv4_msg()
+        end
+    end
 
     # Hand off control to the Distributed stdlib which will have the worker report an IP
     # address and port at which connections can be established to this worker.

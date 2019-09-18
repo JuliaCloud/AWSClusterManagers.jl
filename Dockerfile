@@ -14,7 +14,8 @@ RUN yum -y -d1 update-minimal && \
 # Install AWSClusterManagers.jl test requirement: Docker
 RUN amazon-linux-extras install docker
 ENV PINNED_PKGS \
-    docker
+    docker \
+    iproute
 RUN yum -y -d1 install $PINNED_PKGS && \
     echo $PINNED_PKGS | tr -s '\t ' '\n' > /etc/yum/protected.d/docker.conf && \
     yum -y clean all && \
