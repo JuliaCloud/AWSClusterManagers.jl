@@ -8,7 +8,7 @@ using Memento: Memento, getlogger, warn, notice, debug
 using Mocking: Mocking, @mock
 using Sockets: IPv4, @ip_str, accept, listenany
 
-export ECSManager, AWSBatchManager, DockerManager
+export AWSBatchManager, DockerManager
 
 const logger = getlogger(@__MODULE__)
 
