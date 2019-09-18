@@ -18,6 +18,7 @@ function __init__()
     Memento.register(logger)
 end
 
+include("compat.jl")
 include("container.jl")
 include("batch.jl")
 include("docker.jl")
