@@ -1,13 +1,12 @@
 module AWSClusterManagers
 
-using AWSBatch
-using AWSBatch: max_vcpus
-using Dates
-using Distributed
-using JSON
-using Memento
-using Mocking
-using Sockets
+using AWSBatch: JobQueue, max_vcpus, run_batch
+using Dates: Dates, Period, Minute, Second
+using Distributed: Distributed, ClusterManager, WorkerConfig, cluster_cookie
+using JSON: JSON
+using Memento: Memento, getlogger, warn, notice, debug
+using Mocking: Mocking, @mock
+using Sockets: IPv4, @ip_str, accept, listenany
 
 export ECSManager, AWSBatchManager, DockerManager
 
