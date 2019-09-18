@@ -44,7 +44,6 @@ else
 end
 
 const TEST_IMAGE = "$ECR:$REV"
-const BASE_IMAGE = "468665244580.dkr.ecr.us-east-1.amazonaws.com/julia-baked:1.0"
 
 function registry_id(image::AbstractString)
     m = match(r"^\d+", image)
@@ -53,6 +52,10 @@ end
 
 # Note: By building the Docker image prior to running any tests (instead of just before the
 # image is required) we avoid having a Docker build log breaking up output from tests.
+#
+# Note: Users are expected to have Docker credential helpers setup such that images can be
+# retrieved automatically. For details see:
+# https://gitlab.invenia.ca/invenia/wiki/blob/master/setup/docker.md#repository-access
 if !isempty(ONLINE)
     @info("Preparing Docker image for online tests")
 
@@ -61,15 +64,12 @@ if !isempty(ONLINE)
     if !isempty(AWSClusterManagers.container_id())
         run(`docker tag $(AWSClusterManagers.image_id()) $TEST_IMAGE`)
     else
-        Docker.login(registry_id(BASE_IMAGE))
-        Docker.pull(BASE_IMAGE)
-        run(`docker build -t $TEST_IMAGE --build-arg BASE_IMAGE=$BASE_IMAGE $PKG_DIR`)
+        run(`docker build -t $TEST_IMAGE $PKG_DIR`)
     end
 
     # Push the image to ECR if the online tests require it. Note: `TEST_IMAGE` is required
     # to be a full URI in order for the push operation to succeed.
     if "batch" in ONLINE
-        Docker.login(registry_id(TEST_IMAGE))
         Docker.push(TEST_IMAGE)
     end
 end
