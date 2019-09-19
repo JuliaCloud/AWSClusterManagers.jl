@@ -29,8 +29,8 @@ const PKG_DIR = abspath(@__DIR__, "..")
 const ONLINE = split(strip(get(ENV, "ONLINE", "")), r"\s*,\s*"; keepempty=false)
 
 # Run the tests on a stack created with the "test/batch.yml" CloudFormation template
-const AWS_STACKNAME = get(ENV, "AWS_STACKNAME", "")
-const STACK = !isempty(AWS_STACKNAME) ? stack_output(AWS_STACKNAME) : Dict()
+const STACK_NAME = get(ENV, "STACK_NAME", "")
+const STACK = !isempty(STACK_NAME) ? stack_output(STACK_NAME) : Dict()
 const ECR = !isempty(STACK) ? first(split(STACK["EcrUri"], ':')) : "aws-cluster-managers-test"
 
 const GIT_DIR = joinpath(@__DIR__, "..", ".git")
@@ -95,7 +95,7 @@ end
         end
     end
 
-    if "batch" in ONLINE && !isempty(AWS_STACKNAME)
+    if "batch" in ONLINE && !isempty(STACK_NAME)
         include("batch_online.jl")
     else
         warn(LOGGER) do

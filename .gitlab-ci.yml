@@ -77,7 +77,7 @@ variables:
   script:
     # Execute online tests
     - source julia-ci export
-    - AWS_STACKNAME=$STACK_NAME ./julia-ci test
+    - STACK_NAME=$STACK_NAME ./julia-ci test
     - ./julia-ci coverage
   after_script:
     - ./julia-ci clean

@@ -20,16 +20,16 @@ Pkg.test("AWSClusterManagers")
 ```
 
 Adjustments can be made to the tests with the environmental variables `ONLINE` and
-`AWS_STACKNAME`:
+`STACK_NAME`:
 
 - `ONLINE`: Should contain a comma separated list which contain elements from the set
   "docker" and/or "batch".  Including "docker" will run the online Docker tests (requires
   [Docker](https://www.docker.com/community-edition) to be installed) and "batch" will run
-  AWS Batch tests (see `AWS_STACKNAME` for details). Running online tests requires that you
+  AWS Batch tests (see `STACK_NAME` for details). Running online tests requires that you
   have [setup the Amazon ECR credential helper](https://gitlab.invenia.ca/invenia/wiki/blob/master/setup/docker.md#repository-access)
   for Docker.
-- `AWS_STACKNAME`: Set the AWS Batch tests to use the stack specified. It is expected that
-  the stack already exists in the current AWS profile. Note that `AWS_STACKNAME` is only
+- `STACK_NAME`: Set the AWS Batch tests to use the stack specified. It is expected that
+  the stack already exists in the current AWS profile. Note that `STACK_NAME` is only
   used if `ONLINE` contains "batch".
 
 If you wish you can run the tests entirely inside of a Docker container which can be
@@ -53,7 +53,7 @@ Make sure to replace `<ACCOUNT_ID>` with the results of `aws sts get-caller-iden
 
 To run the online AWS Batch tests you need all of the requirements as specified in [Online Docker tests](#online-docker-tests),
 the current AWS profile should have an aws-batch-manager-test stack running and
-`AWS_STACKNAME` needs to be set.
+`STACK_NAME` needs to be set.
 
 To make an aws-batch-manager-test compatible stack you can use the included CloudFormation
 template [batch.yml](test/batch.yml). Alternatively you should be able to use your own
