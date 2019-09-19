@@ -70,7 +70,14 @@ if !isempty(ONLINE)
     if !isempty(AWSClusterManagers.container_id())
         run(`docker tag $(AWSClusterManagers.image_id()) $TEST_IMAGE`)
     else
-        run(`docker build -t $TEST_IMAGE $PKG_DIR`)
+        # Build using the system image on the CI
+        build_args = if get(ENV, "CI", "false") == "true"
+            `--build-arg PRECOMPILE=false --build-arg CREATE_SYSIMG=true`
+        else
+            ``
+        end
+
+        run(`docker build -t $TEST_IMAGE $build_args $PKG_DIR`)
     end
 
     # Push the image to ECR if the online tests require it. Note: `TEST_IMAGE` is required
