@@ -1,11 +1,13 @@
 using AWSBatch
 using AWSClusterManagers
 using AWSClusterManagers: desired_workers, launch_timeout
+using AWSCore: AWSCore
 using AWSTools.CloudFormation: stack_output
 using AWSTools.Docker: Docker
 using Base: AbstractCmd
 using Dates
 using Distributed
+using JSON: JSON
 using LibGit2
 using Memento
 using Memento.TestUtils: @test_log
@@ -82,11 +84,12 @@ if !isempty(ONLINE)
 
     # Push the image to ECR if the online tests require it. Note: `TEST_IMAGE` is required
     # to be a full URI in order for the push operation to succeed.
-    if "batch" in ONLINE
+    if !isempty(intersect(ONLINE, ["batch", "batch-node"]))
         Docker.push(TEST_IMAGE)
     end
 end
 
+include("utils.jl")
 
 @testset "AWSClusterManagers" begin
     include("container.jl")
@@ -108,6 +111,15 @@ end
         warn(LOGGER) do
             "Environment variable \"ONLINE\" does not contain \"batch\". " *
             "Skipping online AWSBatchManager tests."
+        end
+    end
+
+    if "batch-node" in ONLINE && !isempty(STACK_NAME)
+        include("batch_node_online.jl")
+    else
+        warn(LOGGER) do
+            "Environment variable \"ONLINE\" does not contain \"batch-node\". " *
+            "Skipping online AWSBatchNodeManager tests."
         end
     end
 end

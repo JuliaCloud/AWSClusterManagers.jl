@@ -4,16 +4,6 @@
 const TIMEOUT = Minute(15)
 
 
-# Gets the logs messages associated with a AWSBatch BatchJob as a single string
-function log_messages(job::BatchJob)
-    events = log_events(job)
-    return join([event.message for event in events], '\n')
-end
-
-function time_str(secs::Real)
-    @sprintf("%02d:%02d:%02d", div(secs, 3600), rem(div(secs, 60), 60), rem(secs, 60))
-end
-
 # Scrapes the log output to determine the worker job IDs as stated by the manager
 function scrape_worker_job_ids(output::AbstractString)
     m = match(BATCH_SPAWN_REGEX, output)

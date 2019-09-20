@@ -28,6 +28,15 @@ Description: >-
 
 # https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/parameters-section-structure.html#aws-specific-parameter-types
 Parameters:
+  SafeUpdate:
+    Description: >-
+      Allow the stack to update successfully when normally an update would be rolled back.
+      Using this parameter can save time by avoiding having to recreate the stack.
+      To use, update your stack with SafeUpdate set to "true" then update again with it
+      set to "false".
+    Type: String
+    Default: false
+    AllowedValues: [true, false]
   OperationsAccountId:
     Description: >-
       Account ID for the operations account which stores the julia-baked ECR repository
@@ -56,7 +65,7 @@ Parameters:
   ProvisioningModel:
     Description: Spot instances are cheaper than on-demand but can be abruptly terminated
     Type: String
-    Default: spot
+    Default: on-demand
     AllowedValues:
       - on-demand
       - spot
@@ -67,6 +76,7 @@ Parameters:
     AllowedPattern: "|arn:aws:iam::\\d{12}:role/[^/]+"
 
 Conditions:
+  SafeUpdate: !Equals [!Ref SafeUpdate, true]
   OnDemandComputeEnvironment: !Equals [!Ref ProvisioningModel, on-demand]
   Testing: !Not [!Equals [!Ref CIRoleArn, ""]]
   IsCI: !Equals [!Ref "AWS::AccountId", 813030647716]
@@ -77,18 +87,15 @@ Resources:
     DependsOn: BatchServiceRole  # Removing the ServiceRole before deleting the ComputeEnvironment will cause issues
     Properties:
       Type: MANAGED
-      ComputeEnvironmentName: !Ref AWS::StackName
+      ComputeEnvironmentName: !If [SafeUpdate, !Ref "AWS::NoValue", !Ref "AWS::StackName"]
       ComputeResources:
         Type: !If [OnDemandComputeEnvironment, EC2, SPOT]
         BidPercentage: 100
         MinvCpus: !Ref MinVCPUs
         MaxvCpus: !Ref MaxVCPUs
-        InstanceTypes:
-          - optimal
-        Subnets:
-          - !Ref Subnet
-        SecurityGroupIds:
-          - !Ref SecurityGroup
+        InstanceTypes: [optimal]
+        Subnets: [!Ref Subnet]
+        SecurityGroupIds: [!Ref SecurityGroup]
         InstanceRole: !Ref IamInstanceProfile
         SpotIamFleetRole: !Ref BatchSpotFleetRole
         Tags:
@@ -335,6 +342,14 @@ Resources:
       IpProtocol: -1  # All protocols (TCP, UDP, ICMP) on all ports
       SourceSecurityGroupId: !Ref SecurityGroup
 
+  ECR:
+    Type: AWS::ECR::Repository
+    # Note: Doesn't work. ECR repositories will not be deleted when the stack is deleted if
+    # the repo contains any images. Delete the repo manually first to solve this.
+    DeletionPolicy: Delete
+    Properties:
+      RepositoryName: !Ref AWS::StackName  # Named to be consistent with JobDefinitionName
+
   # Note: It would be nice to use this as the base job definition and make use of overrides
   # when starting the test manager
   # See: https://gitlab.invenia.ca/invenia/AWSClusterManagers.jl/issues/19
@@ -353,13 +368,29 @@ Resources:
   #         - exit
   #         - 1
 
-  ECR:
-    Type: AWS::ECR::Repository
-    # Note: Doesn't work. ECR repositories will not be deleted when the stack is deleted if
-    # the repo contains any images. Delete the repo manually first to solve this.
-    DeletionPolicy: Delete
+  MultiNodeJobDefinition:
+    Type: AWS::Batch::JobDefinition
     Properties:
-      RepositoryName: !Ref AWS::StackName  # Named to be consistent with JobDefinitionName
+      Type: multinode
+      NodeProperties:
+        NumNodes: 2
+        MainNode: 0
+        NodeRangeProperties:
+          # TODO: Not required? https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-batch-jobdefinition-containerproperties.html#cfn-batch-jobdefinition-containerproperties-vcpus#cfn-batch-jobdefinition-containerproperties-jobrolearn
+          - TargetNodes: "0"
+            Container:
+              Image: !Sub "${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${ECR}:latest"
+              Vcpus: 1
+              Memory: 1024  # MiB
+              Command: ["julia", "-e", "error(\"Manager command not overwritten\")"]
+              JobRoleArn: !Ref JLBatchJobRole
+          - TargetNodes: "1:"
+            Container:
+              Image: !Sub "${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${ECR}:latest"
+              Vcpus: 1
+              Memory: 1024  # MiB
+              Command: ["julia", "-e", "error(\"Worker command not overwritten\")"]
+              JobRoleArn: !Ref JLBatchJobRole
 
   TestRole:
     Type: AWS::IAM::Role
@@ -455,6 +486,8 @@ Outputs:
     Value: !Ref AWS::StackName
   JobDefinitionName:
     Value: !Ref AWS::StackName
+  MultiNodeJobDefinitionArn:
+    Value: !Ref MultiNodeJobDefinition
   ComputeEnvironmentArn:
     Value: !Ref ComputeEnvironment
   ManagerJobQueueArn:

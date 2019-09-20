@@ -64,7 +64,7 @@ variables:
     - docker-build
     - ci-account
   variables:
-    ONLINE: "docker, batch"  # Runs the online tests for AWS Batch & Docker
+    ONLINE: "docker, batch, batch-node"  # Runs the online tests for AWS Batch & Docker
   before_script:
     - curl -sS -o julia-ci https://gitlab.invenia.ca/infrastructure/gitlab-ci-helper/raw/master/julia-ci
     - chmod +x julia-ci
