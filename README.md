@@ -32,14 +32,6 @@ Adjustments can be made to the tests with the environmental variables `ONLINE` a
   the stack already exists in the current AWS profile. Note that `STACK_NAME` is only
   used if `ONLINE` contains "batch".
 
-If you wish you can run the tests entirely inside of a Docker container which can be
-generated from the included [Dockerfile](Dockerfile). You'll need to include the `-v`
-option to be able to run the online Docker tests.
-
-```bash
-docker run --rm -e ONLINE=docker -v /var/run/docker.sock:/var/run/docker.sock <image>
-```
-
 ### Online Docker tests
 
 To run the online Docker tests you'll need to have [Docker](https://www.docker.com/community-edition)

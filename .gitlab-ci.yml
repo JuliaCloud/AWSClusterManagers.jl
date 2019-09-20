@@ -88,21 +88,6 @@ variables:
   extends: .test_shell_1_0
 
 
-# Execute the Docker tests from within Docker itself
-"Online Tests (within Docker)":
-  stage: test
-  tags:
-    - docker-build
-  variables:
-    BASE_IMAGE: 468665244580.dkr.ecr.us-east-1.amazonaws.com/julia-baked:1.0
-    TEST_IMAGE: aws-cluster-managers:pipeline-${CI_PIPELINE_ID}
-  script:
-    - docker pull $BASE_IMAGE  # Make sure image is up-to-date
-    - docker build -t $TEST_IMAGE --build-arg BASE_IMAGE=$BASE_IMAGE --build-arg PRECOMPILE=false --build-arg CREATE_SYSIMG=true .
-    - docker run --rm -e ONLINE=docker -v /var/run/docker.sock:/var/run/docker.sock $TEST_IMAGE
-  after_script:
-    - docker rmi $TEST_IMAGE $BASE_IMAGE
-
 .delete: &delete
   tags:
     - docker-ci
