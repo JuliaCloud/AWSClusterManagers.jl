@@ -71,18 +71,10 @@ function batch_node_job_definition(;
     )
 end
 
-const BATCH_NODE_INDEX_REGEX = r"Worker job (?<worker_id>\d+): (?<node_index>\d+)"
-const BATCH_NODE_JOB_DEF = register_job_definition(batch_node_job_definition())  # ARN
 
-
-# TODO: It would be great if we could spawn all of the AWS Batch jobs at once and then
-# perform the associated tests once that job had completed. I suspect we'd see the tests
-# run much faster but at the moment `@async` and `@testset` don't work together.
-
-@testset "AWSBatchNodeManager (online)" begin
-    # AWS Batch parallel multi-node jobs will only run on on-demand clusters. When running
-    # on spot the jobs will remain stuck in the RUNNABLE state
-    ce = describe_compute_environment(STACK["ComputeEnvironmentArn"])
+# AWS Batch parallel multi-node jobs will only run on on-demand clusters. When running
+# on spot the jobs will remain stuck in the RUNNABLE state
+let ce = describe_compute_environment(STACK["ComputeEnvironmentArn"])
     if ce["computeResources"]["type"] != "EC2"  # on-demand
         error(
             "Aborting as compute environment $(STACK["ComputeEnvironmentArn"]) is not " *
@@ -90,12 +82,79 @@ const BATCH_NODE_JOB_DEF = register_job_definition(batch_node_job_definition()) 
             "parallel jobs."
         )
     end
+end
 
+
+const BATCH_NODE_INDEX_REGEX = r"Worker job (?<worker_id>\d+): (?<node_index>\d+)"
+const BATCH_NODE_JOB_DEF = register_job_definition(batch_node_job_definition())  # ARN
+
+
+# Spawn all of the AWS Batch jobs at once in order to make online tests run faster. Each
+# job spawned below has a corresponding testset. Ideally, the job spawning would be
+# contained within the testset bun unfortunately that doesn't seem possible as `@sync` and
+# `@testset` currently do not work together.
+const BATCH_NODE_JOBS = Dict{String,BatchJob}()
+
+let job_name = "test-worker-spawn-success"
+    BATCH_NODE_JOBS[job_name] = submit_job(
+        job_name=job_name,
+        job_definition=BATCH_NODE_JOB_DEF,
+    )
+end
+
+let job_name = "test-worker-spawn-failure"
+    overrides = Dict(
+        "numNodes" => 2,
+        "nodePropertyOverrides" => [
+            Dict(
+                "targetNodes" => "1:",
+                "containerOverrides" => Dict(
+                    "command" => ["bash", "-c", "exit 0"],
+                )
+            )
+        ]
+    )
+
+    BATCH_NODE_JOBS[job_name] = submit_job(
+        job_name=job_name,
+        job_definition=BATCH_NODE_JOB_DEF,
+        node_overrides=overrides,
+    )
+end
+
+let job_name = "test-worker-link-local"
+    overrides = Dict(
+        "numNodes" => 2,
+        "nodePropertyOverrides" => [
+            Dict(
+                "targetNodes" => "1:",
+                "containerOverrides" => Dict(
+                    "command" => [
+                        "julia",
+                        "-e",
+                        """
+                        using AWSClusterManagers, Memento
+                        Memento.config!("debug", recursive=true)
+                        start_batch_node_worker()
+                        """
+                    ]
+                )
+            )
+        ]
+    )
+
+    BATCH_NODE_JOBS[job_name] = submit_job(
+        job_name=job_name,
+        job_definition=BATCH_NODE_JOB_DEF,
+        node_overrides=overrides,
+    )
+end
+
+
+@testset "AWSBatchNodeManager (online)" begin
     @testset "Success" begin
-        job = submit_job(
-            job_name="test-worker-spawn-success",
-            job_definition=BATCH_NODE_JOB_DEF,
-        )
+        job = BATCH_NODE_JOBS["test-worker-spawn-success"]
+
         manager_job = BatchJob(job.id * "#0")
         worker_jobs = BatchJob.(job.id .* ("#1", "#2"))
 
@@ -126,23 +185,8 @@ const BATCH_NODE_JOB_DEF = register_job_definition(batch_node_job_definition()) 
 
     @testset "Worker spawn failure" begin
         # Simulate a batch job which failed to start
-        overrides = Dict(
-            "numNodes" => 2,
-            "nodePropertyOverrides" => [
-                Dict(
-                    "targetNodes" => "1:",
-                    "containerOverrides" => Dict(
-                        "command" => ["bash", "-c", "exit 0"],
-                    )
-                )
-            ]
-        )
+        job = BATCH_NODE_JOBS["test-worker-spawn-failure"]
 
-        job = submit_job(
-            job_name="test-worker-spawn-failure",
-            job_definition=BATCH_NODE_JOB_DEF,
-            node_overrides=overrides,
-        )
         manager_job = BatchJob(job.id * "#0")
         worker_job = BatchJob(job.id * "#1")
 
@@ -170,31 +214,8 @@ const BATCH_NODE_JOB_DEF = register_job_definition(batch_node_job_definition()) 
     @testset "Worker using link-local address" begin
         # Failing to specify a `--bind-to` address results in the link-local address being
         # reported from the workers which cannot be used by the manager to connect.
-        overrides = Dict(
-            "numNodes" => 2,
-            "nodePropertyOverrides" => [
-                Dict(
-                    "targetNodes" => "1:",
-                    "containerOverrides" => Dict(
-                        "command" => [
-                            "julia",
-                            "-e",
-                            """
-                            using AWSClusterManagers, Memento
-                            Memento.config!("debug", recursive=true)
-                            start_batch_node_worker()
-                            """
-                        ]
-                    )
-                )
-            ]
-        )
+        job = BATCH_NODE_JOBS["test-worker-link-local"]
 
-        job = submit_job(
-            job_name="test-worker-link-local",
-            job_definition=BATCH_NODE_JOB_DEF,
-            node_overrides=overrides,
-        )
         manager_job = BatchJob(job.id * "#0")
         worker_job = BatchJob(job.id * "#1")
 
