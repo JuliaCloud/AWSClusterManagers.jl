@@ -93,19 +93,6 @@ function start_batch_node_worker()
         error("Unable to start a worker outside of a running AWS Batch multi-node parallel job")
     end
 
-    # The environmental variable for the main node address is only set within multi-node
-    # parallel child nodes and is not present on the main node. See:
-    # https://docs.aws.amazon.com/batch/latest/userguide/multi-node-parallel-jobs.html#mnp-env-vars
-    manager_ip = parse(IPv4, ENV["AWS_BATCH_JOB_MAIN_NODE_PRIVATE_IPV4_ADDRESS"])
-    sock = connect(manager_ip, AWS_BATCH_JOB_NODE_PORT)
-
-    # Note: The job ID also contains the node index
-    println(sock, "job_id:", ENV["AWS_BATCH_JOB_ID"])
-    flush(sock)
-
-    # Retrieve the cluster cookie from the manager
-    cookie = parse_cookie(readline(sock))
-
     # Note: Limiting to IPv4 to match what AWS Batch provides us with for the manager.
     function available_ipv4_msg()
         io = IOBuffer()
@@ -139,6 +126,19 @@ function start_batch_node_worker()
             available_ipv4_msg()
         end
     end
+
+    # The environmental variable for the main node address is only set within multi-node
+    # parallel child nodes and is not present on the main node. See:
+    # https://docs.aws.amazon.com/batch/latest/userguide/multi-node-parallel-jobs.html#mnp-env-vars
+    manager_ip = parse(IPv4, ENV["AWS_BATCH_JOB_MAIN_NODE_PRIVATE_IPV4_ADDRESS"])
+    sock = connect(manager_ip, AWS_BATCH_JOB_NODE_PORT)
+
+    # Note: The job ID also contains the node index
+    println(sock, "job_id:", ENV["AWS_BATCH_JOB_ID"])
+    flush(sock)
+
+    # Retrieve the cluster cookie from the manager
+    cookie = something(parse_cookie(readline(sock)), "")
 
     # Hand off control to the Distributed stdlib which will have the worker report an IP
     # address and port at which connections can be established to this worker.

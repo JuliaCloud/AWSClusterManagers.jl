@@ -166,4 +166,54 @@ const BATCH_NODE_JOB_DEF = register_job_definition(batch_node_job_definition()) 
             @info "Job output for worker ($(worker_job)):\n$(worker_log)"
         end
     end
+
+    @testset "Worker using link-local address" begin
+        # Failing to specify a `--bind-to` address results in the link-local address being
+        # reported from the workers which cannot be used by the manager to connect.
+        overrides = Dict(
+            "numNodes" => 2,
+            "nodePropertyOverrides" => [
+                Dict(
+                    "targetNodes" => "1:",
+                    "containerOverrides" => Dict(
+                        "command" => [
+                            "julia",
+                            "-e",
+                            """
+                            using AWSClusterManagers, Memento
+                            Memento.config!("debug", recursive=true)
+                            start_batch_node_worker()
+                            """
+                        ]
+                    )
+                )
+            ]
+        )
+
+        job = submit_job(
+            job_name="test-worker-link-local",
+            job_definition=BATCH_NODE_JOB_DEF,
+            node_overrides=overrides,
+        )
+        manager_job = BatchJob(job.id * "#0")
+        worker_job = BatchJob(job.id * "#1")
+
+        wait_finish(job)
+
+        @test status(manager_job) == AWSBatch.SUCCEEDED
+        @test status(worker_job) == AWSBatch.FAILED
+
+        manager_log = log_messages(manager_job)
+        worker_log = log_messages(worker_job)
+        test_results = [
+            @test occursin("Only 0 of the 1 workers job have reported in", manager_log)
+            @test occursin("Aborting due to use of link-local address", worker_log)
+        ]
+
+        # Display the logs for all the jobs if any of the log tests fail
+        if any(r -> !(r isa Test.Pass), test_results)
+            @info "Job output for manager ($(manager_job)):\n$manager_log"
+            @info "Job output for worker ($(worker_job)):\n$(worker_log)"
+        end
+    end
 end
