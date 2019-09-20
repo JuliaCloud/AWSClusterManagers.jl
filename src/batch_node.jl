@@ -41,6 +41,9 @@ function Distributed.launch(manager::AWSBatchNodeManager, params::Dict, launched
     server = listen(IPv4(0), AWS_BATCH_JOB_NODE_PORT)
     debug(LOGGER, "Manager accepting worker connections on port $AWS_BATCH_JOB_NODE_PORT")
 
+    # Maintain an internal array of worker configs to allow us to set the ordering
+    workers = sizehint!(WorkerConfig[], num_workers)
+
     listen_task = @async while isopen(server) && connected_workers < num_workers
         # TODO: Potential issue with a random connection consuming a worker slot?
         sock = accept(server)
@@ -66,19 +69,19 @@ function Distributed.launch(manager::AWSBatchNodeManager, params::Dict, launched
             :node_index => node_index,
         )
 
-        # Note: Julia worker numbers will not match up to the `node_index` of the worker.
-        # Primarily this is due to the worker numbers being 1-indexed while nodes are
-        # 0-indexed.
-
-        # Note: `launched` is treated as a queue and will have elements removed from it
-        # periodically.
-        push!(launched, config)
-        notify(c)
+        push!(workers, config)
     end
 
     wait(listen_task, AWS_BATCH_NODE_TIMEOUT)
-
     close(server)
+
+    # Note: `launched` is treated as a queue and will have elements removed from it
+    # periodically from `addprocs`. By adding all the elements at once we can control the
+    # ordering of the workers make it the same as the node index ordering.
+    #
+    # Note: Julia worker numbers will not match up to the node index of the worker.
+    # Primarily this is due to the worker numbers being 1-indexed while nodes are 0-indexed.
+    append!(launched, sort!(workers, by=w -> w.userdata[:node_index]))
     notify(c)
 
     if connected_workers < num_workers

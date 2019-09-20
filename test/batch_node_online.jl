@@ -169,9 +169,9 @@ end
         test_results = [
             @test length(matches) == 2
             @test matches[1][:worker_id] == "2"
-            # @test matches[1][:node_index] == "1"  # Ordering currently doesn't work
+            @test matches[1][:node_index] == "1"
             @test matches[2][:worker_id] == "3"
-            # @test matches[2][:node_index] == "2"  # Ordering currently doesn't work
+            @test matches[2][:node_index] == "2"
         ]
 
         # Display the logs for all the jobs if any of the log tests fail
