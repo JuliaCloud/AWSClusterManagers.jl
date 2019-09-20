@@ -4,9 +4,30 @@ function log_messages(job::BatchJob)
     return join([event.message for event in events], '\n')
 end
 
+function job_duration(job::BatchJob)
+    d = describe(job)
+    if haskey(d, "createdAt") && haskey(d, "stoppedAt")
+        Millisecond(d["stoppedAt"] - d["createdAt"])
+    else
+        nothing
+    end
+end
+
+function job_runtime(job::BatchJob)
+    d = describe(job)
+    if haskey(d, "startedAt") && haskey(d, "stoppedAt")
+        Millisecond(d["stoppedAt"] - d["startedAt"])
+    else
+        nothing
+    end
+end
+
 function time_str(secs::Real)
     @sprintf("%02d:%02d:%02d", div(secs, 3600), rem(div(secs, 60), 60), rem(secs, 60))
 end
+
+time_str(seconds::Second) = time_str(Dates.value(seconds))
+time_str(p::Period) = time_str(floor(p, Second))
 
 function register_job_definition(job_definition::AbstractDict)
     output = AWSCore.Services.batch("POST", "/v1/registerjobdefinition", job_definition)
@@ -60,9 +81,11 @@ function wait_finish(job::BatchJob; timeout::Period=Minute(15))
     timeout_secs = Dates.value(Second(timeout))
 
     info(LOGGER, "Waiting for AWS Batch job to finish (~5 minutes)")
-    start_time = time()
     # TODO: Disable logging from wait? Or at least emit timestamps
     wait(job, [AWSBatch.FAILED, AWSBatch.SUCCEEDED], timeout=timeout_secs)  # TODO: Support timeout as Period
-    info(LOGGER, "Job duration: $(time_str(time() - start_time))")
+    duration = job_duration(job)
+    runtime = job_runtime(job)
+    info(LOGGER, "Job duration: $(time_str(duration)), Job runtime: $(time_str(runtime))")
+
     return nothing
 end
