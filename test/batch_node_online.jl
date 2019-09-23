@@ -15,7 +15,6 @@
 function batch_node_job_definition(;
     job_definition_name::AbstractString="$(STACK_NAME)-node",
     image::AbstractString=TEST_IMAGE,
-    job_role_arn::AbstractString=STACK["JobRoleArn"],
 )
     manager_code = """
         using AWSClusterManagers, Distributed, Memento
@@ -51,7 +50,6 @@ function batch_node_job_definition(;
                         "command" => [
                             "julia", "-e", manager_code,
                         ],
-                        "jobRoleArn" => job_role_arn,
                     )
                 ),
                 Dict(
@@ -63,7 +61,6 @@ function batch_node_job_definition(;
                         "command" => [
                             "bash", "-c", "julia $bind_to -e \"$worker_code\"",
                         ],
-                        "jobRoleArn" => job_role_arn,
                     )
                 )
             ]
