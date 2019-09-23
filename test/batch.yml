@@ -98,7 +98,7 @@ Resources:
         Subnets: [!Ref Subnet]
         SecurityGroupIds: [!Ref SecurityGroup]
         InstanceRole: !Ref IamInstanceProfile
-        SpotIamFleetRole: !Ref BatchSpotFleetRole
+        SpotIamFleetRole: !If [OnDemandComputeEnvironment, !Ref "AWS::NoValue", !Ref BatchSpotFleetRole]
         Tags:
           Name: !Sub "AWS Batch (${AWS::StackName})"
       ServiceRole: !Ref BatchServiceRole
