@@ -94,6 +94,7 @@ Resources:
         MinvCpus: !Ref MinVCPUs
         MaxvCpus: !Ref MaxVCPUs
         InstanceTypes: [optimal]
+        PlacementGroup: !Ref PlacementGroup
         Subnets: [!Ref Subnet]
         SecurityGroupIds: [!Ref SecurityGroup]
         InstanceRole: !Ref IamInstanceProfile
@@ -173,6 +174,10 @@ Resources:
     DependsOn: DeleteStackRole  # This role should be the last to delete
     Properties:
       CidrBlock: !Ref VPCCidrBlock
+  PlacementGroup:
+    Type: AWS::EC2::PlacementGroup
+    Properties:
+      Strategy: cluster
   Subnet:
     Type: AWS::EC2::Subnet
     Properties:
