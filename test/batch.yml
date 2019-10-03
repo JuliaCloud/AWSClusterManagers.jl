@@ -28,15 +28,6 @@ Description: >-
 
 # https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/parameters-section-structure.html#aws-specific-parameter-types
 Parameters:
-  SafeUpdate:
-    Description: >-
-      Allow the stack to update successfully when normally an update would be rolled back.
-      Using this parameter can save time by avoiding having to recreate the stack.
-      To use, update your stack with SafeUpdate set to "true" then update again with it
-      set to "false".
-    Type: String
-    Default: false
-    AllowedValues: [true, false]
   OperationsAccountId:
     Description: >-
       Account ID for the operations account which stores the julia-baked ECR repository
@@ -90,7 +81,6 @@ Parameters:
     AllowedPattern: "|arn:aws:iam::\\d{12}:role/[^/]+"
 
 Conditions:
-  SafeUpdate: !Equals [!Ref SafeUpdate, true]
   UsePublicSubnet: !Equals [!Ref SubnetType, public]
   UsePrivateSubnet: !Equals [!Ref SubnetType, private]
   UseNAT: !And
@@ -110,7 +100,11 @@ Resources:
     DependsOn: BatchServiceRole  # Removing the ServiceRole before deleting the ComputeEnvironment will cause issues
     Properties:
       Type: MANAGED
-      ComputeEnvironmentName: !If [SafeUpdate, !Ref "AWS::NoValue", !Ref "AWS::StackName"]
+      # Make the ComputeEnvironment name unique for every conditional variation
+      ComputeEnvironmentName: !Sub
+        - "${AWS::StackName}-${InstanceType}-${SubnetType}"
+        - InstanceType: !If [OnDemandComputeEnvironment, demand, spot]
+          SubnetType: !If [UsePrivateSubnet, private, public]
       ComputeResources:
         Type: !If [OnDemandComputeEnvironment, EC2, SPOT]
         BidPercentage: 100
