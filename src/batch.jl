@@ -152,7 +152,7 @@ function spawn_containers(mgr::AWSBatchManager, override_cmd::Cmd)
         # the number of worker we request. Unfortunately since we don't know how many jobs
         # are currently running or how long they will take we'll leave `max_workers`
         # untouched.
-        warn(logger, string(
+        warn(LOGGER, string(
             "Due to the max VCPU limit ($max_compute) most likely only a partial amount ",
             "of the requested workers ($max_workers) will be spawned.",
         ))
@@ -172,9 +172,9 @@ function spawn_containers(mgr::AWSBatchManager, override_cmd::Cmd)
     )
 
     if max_workers > 1
-        notice(logger, "Spawning array job: $(job.id) (n=$(mgr.max_workers))")
+        notice(LOGGER, "Spawning array job: $(job.id) (n=$(mgr.max_workers))")
     else
-        notice(logger, "Spawning job: $(job.id)")
+        notice(LOGGER, "Spawning job: $(job.id)")
     end
 
     return nothing

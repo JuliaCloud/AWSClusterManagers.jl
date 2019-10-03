@@ -48,7 +48,7 @@ function Distributed.launch(manager::ContainerManager, params::Dict, launched::A
     # Only listen to the single IP address which the workers attempt to connect to.
     # TODO: Ideally should be using TLS connections.
     port, server = listenany(valid_ip, PORT_HINT)
-    debug(logger, "Manager accepting worker connections via: $valid_ip:$port")
+    debug(LOGGER, "Manager accepting worker connections via: $valid_ip:$port")
 
     listen_task = @async begin
         while isopen(server) && num_workers < max_workers
@@ -101,7 +101,7 @@ function Distributed.launch(manager::ContainerManager, params::Dict, launched::A
 
     if num_workers < max_workers
         if num_workers >= min_workers
-            warn(logger, "Only managed to launch $num_workers/$max_workers workers")
+            warn(LOGGER, "Only managed to launch $num_workers/$max_workers workers")
         else
             error("Unable to launch the minimum number of workers")
         end

@@ -90,7 +90,7 @@ function spawn_containers(mgr::DockerManager, override_cmd::Cmd)
     # Docker only allow us to spawn a job at a time
     for id in 1:mgr.num_workers
         container_id = @mock read(cmd, String)
-        notice(logger, "Spawning container: $container_id")
+        notice(LOGGER, "Spawning container: $container_id")
     end
 end
 
