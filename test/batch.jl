@@ -261,7 +261,7 @@ end
                 end
             ]
 
-            @test_throws ErrorException apply(patches) do
+            @test_throws TaskFailedException apply(patches) do
                 @test_log logger "notice" BATCH_SPAWN_REGEX begin
                     addprocs(AWSBatchManager(1; timeout=Second(1)))
                 end
@@ -276,7 +276,7 @@ end
                 ]
 
                 apply(patches) do
-                    @test_throws ErrorException addprocs(AWSBatchManager(4, timeout=Second(5)))
+                    @test_throws TaskFailedException addprocs(AWSBatchManager(4, timeout=Second(5)))
                     @test nprocs() == 1
                 end
             end

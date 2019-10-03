@@ -115,7 +115,7 @@ const DOCKER_SPAWN_REGEX = r"^Spawning container: [0-9a-z]{12}$"
                 return "000000000002"
             end
 
-            @test_throws ErrorException apply(patch) do
+            @test_throws TaskFailedException apply(patch) do
                 @test_log logger "notice" DOCKER_SPAWN_REGEX begin
                     addprocs(DockerManager(1, mock_image, Second(1)))
                 end
