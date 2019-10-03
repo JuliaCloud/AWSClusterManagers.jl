@@ -64,7 +64,7 @@ function Distributed.launch(manager::AWSBatchNodeManager, params::Dict, launched
         # address and port.
         config = WorkerConfig()
         config.io = sock
-        config.userdata = Dict(
+        config.userdata = (;
             :job_id => job_id,
             :node_index => node_index,
         )
@@ -81,7 +81,7 @@ function Distributed.launch(manager::AWSBatchNodeManager, params::Dict, launched
     #
     # Note: Julia worker numbers will not match up to the node index of the worker.
     # Primarily this is due to the worker numbers being 1-indexed while nodes are 0-indexed.
-    append!(launched, sort!(workers, by=w -> w.userdata[:node_index]))
+    append!(launched, sort!(workers, by=w -> w.userdata.node_index))
     notify(c)
 
     if connected_workers < num_workers
