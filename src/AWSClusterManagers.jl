@@ -10,11 +10,11 @@ using Sockets: IPv4, @ip_str, accept, listenany
 
 export AWSBatchManager, DockerManager
 
-const logger = getlogger(@__MODULE__)
+const LOGGER = getlogger(@__MODULE__)
 
 function __init__()
     # https://invenia.github.io/Memento.jl/latest/faq/pkg-usage.html
-    Memento.register(logger)
+    Memento.register(LOGGER)
 end
 
 include("compat.jl")

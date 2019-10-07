@@ -15,7 +15,13 @@ using Sockets
 using Test
 
 Mocking.activate()
-logger = Memento.config!("info"; fmt="[{level} | {name}]: {msg}")
+const LOGGER = Memento.config!("info"; fmt="[{level} | {name}]: {msg}")
+
+ # https://github.com/JuliaLang/julia/pull/32814
+if VERSION < v"1.3.0-alpha.110"
+    const TaskFailedException = ErrorException
+end
+
 
 const PKG_DIR = abspath(@__DIR__, "..")
 

@@ -96,7 +96,7 @@ const DOCKER_SPAWN_REGEX = r"^Spawning container: [0-9a-z]{12}$"
                 # Get an initial list of processes
                 init_procs = procs()
                 # Add a single AWSBatchManager worker
-                added_procs = @test_log logger "notice" DOCKER_SPAWN_REGEX begin
+                added_procs = @test_log LOGGER "notice" DOCKER_SPAWN_REGEX begin
                      addprocs(DockerManager(1, mock_image))
                 end
                 # Check that the workers are available
@@ -115,8 +115,8 @@ const DOCKER_SPAWN_REGEX = r"^Spawning container: [0-9a-z]{12}$"
                 return "000000000002"
             end
 
-            @test_throws ErrorException apply(patch) do
-                @test_log logger "notice" DOCKER_SPAWN_REGEX begin
+            @test_throws TaskFailedException apply(patch) do
+                @test_log LOGGER "notice" DOCKER_SPAWN_REGEX begin
                     addprocs(DockerManager(1, mock_image, Second(1)))
                 end
             end
@@ -177,6 +177,6 @@ const DOCKER_SPAWN_REGEX = r"^Spawning container: [0-9a-z]{12}$"
             @test all(full_image_sha(TEST_IMAGE) .== reported_images)
         end
     else
-        warn(logger, "Environment variable \"ONLINE\" does not contain \"docker\". Skipping online Docker tests.")
+        warn(LOGGER, "Environment variable \"ONLINE\" does not contain \"docker\". Skipping online Docker tests.")
     end
 end

@@ -68,7 +68,7 @@ function run_batch_job(image_name::AbstractString, num_workers::Integer; timeout
 
     # Note: The manager can run out of memory with enough workers:
     # - 64 workers with a manager with 1024 MB of memory
-    info(logger, "Submitting AWS Batch job with $num_workers workers")
+    info(LOGGER, "Submitting AWS Batch job with $num_workers workers")
     job = run_batch(;
         name = STACK["JobName"] * "-n$num_workers",
         queue = STACK["ManagerJobQueueArn"],
@@ -82,10 +82,10 @@ function run_batch_job(image_name::AbstractString, num_workers::Integer; timeout
 
     # If no compute environment resources are available it could take around
     # 5 minutes before the manager job is running
-    info(logger, "Waiting for AWS Batch manager job $(job.id) to run (~5 minutes)")
+    info(LOGGER, "Waiting for AWS Batch manager job $(job.id) to run (~5 minutes)")
     start_time = time()
     @test wait(state -> state < AWSBatch.RUNNING, job, timeout=timeout_secs) == true
-    info(logger, "Manager spawning duration: $(time_str(time() - start_time))")
+    info(LOGGER, "Manager spawning duration: $(time_str(time() - start_time))")
 
     # Once the manager job is running it will spawn additional AWS Batch jobs as
     # the workers.
@@ -93,14 +93,14 @@ function run_batch_job(image_name::AbstractString, num_workers::Integer; timeout
     # Since compute environments only scale every 5 minutes we will definitely have
     # to wait if we scaled up for the mananager job. To reduce this wait time make
     # sure you have one VCPU available for the manager to start right away.
-    info(logger, "Waiting for AWS Batch workers and manager job to complete (~5 minutes)")
+    info(LOGGER, "Waiting for AWS Batch workers and manager job to complete (~5 minutes)")
     start_time = time()
     if should_fail
         @test wait(job, [AWSBatch.FAILED], [AWSBatch.SUCCEEDED], timeout=timeout_secs) == true
     else
         @test wait(job, [AWSBatch.SUCCEEDED], timeout=timeout_secs) == true
     end
-    info(logger, "Worker spawning duration: $(time_str(time() - start_time))")
+    info(LOGGER, "Worker spawning duration: $(time_str(time() - start_time))")
 
     # Remove the job definition as it is specific to a revision
     job_definition = JobDefinition(job)
@@ -238,7 +238,7 @@ end
                 # Get an initial list of processes
                 init_procs = procs()
                 # Add a single AWSBatchManager worker
-                added_procs = @test_log logger "notice" BATCH_SPAWN_REGEX begin
+                added_procs = @test_log LOGGER "notice" BATCH_SPAWN_REGEX begin
                      addprocs(AWSBatchManager(1))
                 end
                 # Check that the workers are available
@@ -261,8 +261,8 @@ end
                 end
             ]
 
-            @test_throws ErrorException apply(patches) do
-                @test_log logger "notice" BATCH_SPAWN_REGEX begin
+            @test_throws TaskFailedException apply(patches) do
+                @test_log LOGGER "notice" BATCH_SPAWN_REGEX begin
                     addprocs(AWSBatchManager(1; timeout=Second(1)))
                 end
             end
@@ -276,7 +276,7 @@ end
                 ]
 
                 apply(patches) do
-                    @test_throws ErrorException addprocs(AWSBatchManager(4, timeout=Second(5)))
+                    @test_throws TaskFailedException addprocs(AWSBatchManager(4, timeout=Second(5)))
                     @test nprocs() == 1
                 end
             end
@@ -297,7 +297,7 @@ end
                     "of the requested workers (2) will be spawned.",
                 )
                 apply(patches) do
-                    added_procs = @test_log logger "warn" msg begin
+                    added_procs = @test_log LOGGER "warn" msg begin
                         addprocs(AWSBatchManager(0:2, timeout=Second(5)))
                     end
                     @test length(added_procs) > 0
@@ -364,8 +364,8 @@ end
             launch_duration = Dates.value(started_at - created_at) / 1000
             run_duration = Dates.value(stopped_at - started_at) / 1000
 
-            info(logger, "Job launch duration: $(time_str(launch_duration))")
-            info(logger, "Job run duration:    $(time_str(run_duration))")
+            info(LOGGER, "Job launch duration: $(time_str(launch_duration))")
+            info(LOGGER, "Job run duration:    $(time_str(run_duration))")
         end
 
         @testset "exceed worker limit" begin
@@ -385,7 +385,7 @@ end
         end
     else
         warn(
-            logger,
+            LOGGER,
             "Environment variable \"ONLINE\" does not contain \"batch\". " *
             "Skipping online AWS Batch tests."
         )
