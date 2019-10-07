@@ -85,4 +85,22 @@ end
     include("container.jl")
     include("docker.jl")
     include("batch.jl")
+
+    if "docker" in ONLINE
+        include("docker_online.jl")
+    else
+        warn(LOGGER) do
+            "Environment variable \"ONLINE\" does not contain \"docker\". " *
+            "Skipping online DockerManager tests."
+        end
+    end
+
+    if "batch" in ONLINE && !isempty(AWS_STACKNAME)
+        include("batch_online.jl")
+    else
+        warn(LOGGER) do
+            "Environment variable \"ONLINE\" does not contain \"batch\". " *
+            "Skipping online AWSBatchManager tests."
+        end
+    end
 end
