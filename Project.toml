@@ -1,7 +1,7 @@
 name = "AWSClusterManagers"
 uuid = "69f5933c-162f-5d2f-a6d8-da72a0bfad91"
 authors = ["Invenia Technical Computing"]
-version = "1.0.2"
+version = "1.1.0"
 
 [deps]
 AWSBatch = "dcae83d4-2881-5875-9d49-e5534165e9c0"
