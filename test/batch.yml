@@ -37,10 +37,31 @@ Parameters:
   VPCCidrBlock:
     # https://docs.aws.amazon.com/AmazonVPC/latest/UserGuide/VPC_Subnets.html#VPC_Sizing
     Description: >-
-      The IP address range used for batch instances in the new VPC.
+      The IP address range used for batch instances in the VPC.
     Type: String
     Default: 10.0.0.0/16
-    AllowedPattern: "(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})/(\\d{1,2})"
+    AllowedPattern: "\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}/\\d{1,2}"
+  SubnetType:
+    Description: Specify the use of a private or public subnet
+    Type: String
+    Default: public
+    AllowedValues:
+      - private
+      - public
+  ExternalNetworking:
+    Description: Specify how external networking is setup within private subnets
+    Type: String
+    Default: nat
+    AllowedValues:
+      - none
+      - nat
+  ProvisioningModel:
+    Description: Spot instances are cheaper than on-demand but can be abruptly terminated
+    Type: String
+    Default: on-demand
+    AllowedValues:
+      - on-demand
+      - spot
   MinVCPUs:
     Description: >-
       The minimum number of VCPUs to be available. Setting to 1 or higher makes jobs start
@@ -53,13 +74,6 @@ Parameters:
       The maximum number of VCPUs. Typically this number does not need to be touched
     Type: Number
     Default: 16
-  ProvisioningModel:
-    Description: Spot instances are cheaper than on-demand but can be abruptly terminated
-    Type: String
-    Default: spot
-    AllowedValues:
-      - on-demand
-      - spot
   CIRoleArn:
     Description: The role ARN used when executing GitLab CI test stage jobs.
     Type: String
@@ -67,9 +81,18 @@ Parameters:
     AllowedPattern: "|arn:aws:iam::\\d{12}:role/[^/]+"
 
 Conditions:
+  UsePublicSubnet: !Equals [!Ref SubnetType, public]
+  UsePrivateSubnet: !Equals [!Ref SubnetType, private]
+  UseNAT: !And
+    - !Condition UsePrivateSubnet
+    - !Equals [!Ref ExternalNetworking, nat]
+  UseExternalNetworking: !Or
+    - !Condition UsePublicSubnet
+    - !Condition UseNAT
   OnDemandComputeEnvironment: !Equals [!Ref ProvisioningModel, on-demand]
   Testing: !Not [!Equals [!Ref CIRoleArn, ""]]
   IsCI: !Equals [!Ref "AWS::AccountId", 813030647716]
+
 
 Resources:
   ComputeEnvironment:
@@ -77,20 +100,22 @@ Resources:
     DependsOn: BatchServiceRole  # Removing the ServiceRole before deleting the ComputeEnvironment will cause issues
     Properties:
       Type: MANAGED
-      ComputeEnvironmentName: !Ref AWS::StackName
+      # Make the ComputeEnvironment name unique for every conditional variation
+      ComputeEnvironmentName: !Sub
+        - "${AWS::StackName}-${InstanceType}-${SubnetType}"
+        - InstanceType: !If [OnDemandComputeEnvironment, demand, spot]
+          SubnetType: !If [UsePrivateSubnet, private, public]
       ComputeResources:
         Type: !If [OnDemandComputeEnvironment, EC2, SPOT]
         BidPercentage: 100
         MinvCpus: !Ref MinVCPUs
         MaxvCpus: !Ref MaxVCPUs
-        InstanceTypes:
-          - optimal
-        Subnets:
-          - !Ref Subnet
-        SecurityGroupIds:
-          - !Ref SecurityGroup
+        InstanceTypes: [optimal]
+        PlacementGroup: !Ref PlacementGroup
+        Subnets: [!If [UsePrivateSubnet, !Ref PrivateSubnet, !Ref PublicSubnet]]
+        SecurityGroupIds: [!Ref SecurityGroup]
         InstanceRole: !Ref IamInstanceProfile
-        SpotIamFleetRole: !Ref BatchSpotFleetRole
+        SpotIamFleetRole: !If [OnDemandComputeEnvironment, !Ref "AWS::NoValue", !Ref BatchSpotFleetRole]
         Tags:
           Name: !Sub "AWS Batch (${AWS::StackName})"
       ServiceRole: !Ref BatchServiceRole
@@ -122,8 +147,7 @@ Resources:
       AssumeRolePolicyDocument:
         Version: 2008-10-17
         Statement:
-          - Sid: ''
-            Effect: Allow
+          - Effect: Allow
             Principal:
               Service: ec2.amazonaws.com
             Action: sts:AssumeRole
@@ -166,36 +190,88 @@ Resources:
     DependsOn: DeleteStackRole  # This role should be the last to delete
     Properties:
       CidrBlock: !Ref VPCCidrBlock
-  Subnet:
+  PlacementGroup:
+    Type: AWS::EC2::PlacementGroup
+    Properties:
+      Strategy: cluster
+
+  # For details see: "docs/src/pages/design.md#compute-environment-networking-considerations"
+  PrivateSubnet:
+    Type: AWS::EC2::Subnet
+    Condition: UsePrivateSubnet
+    Properties:
+      # e.g. 10.0.0.0/16 would become 10.0.0.0/18 (10.0.0.0 - 10.0.63.255). See: "/design#cidr-blocks"
+      CidrBlock: !Select [0, !Cidr [!GetAtt VPC.CidrBlock, 2, 14]]
+      VpcId: !Ref VPC
+      MapPublicIpOnLaunch: false
+  PrivateRouteTable:
+    Type: AWS::EC2::RouteTable
+    Condition: UsePrivateSubnet
+    Properties:
+      VpcId: !Ref VPC
+  PrivateSubnetRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Condition: UsePrivateSubnet
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable
+      SubnetId: !Ref PrivateSubnet
+  PrivateRoute:
+    Type: AWS::EC2::Route
+    Condition: UseNAT
+    DependsOn: VPCGatewayAttachment
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref NATGateway
+  NATGateway:
+    Type: AWS::EC2::NatGateway  # "/design.md#nat-gateway"
+    Condition: UseNAT
+    Properties:
+      AllocationId: !GetAtt EIP.AllocationId
+      SubnetId: !Ref PublicSubnet
+  EIP:
+    Type: AWS::EC2::EIP
+    Condition: UseNAT
+    DependsOn: VPCGatewayAttachment
+    Properties:
+      Domain: vpc
+
+  PublicSubnet:
     Type: AWS::EC2::Subnet
     Properties:
-      CidrBlock: !Ref VPCCidrBlock
+      AvailabilityZone: !Select [0, !GetAZs ""]  # Grab the first Availability Zone
+      # e.g. 10.0.0.0/16 would become 10.0.64.0/18 (10.0.64.0 - 10.0.127.255). See: "/design#cidr-blocks"
+      CidrBlock: !Select [1, !Cidr [!GetAtt VPC.CidrBlock, 2, 14]]
       VpcId: !Ref VPC
-      MapPublicIpOnLaunch: True
-  RouteTable:
+      MapPublicIpOnLaunch: true
+  PublicRouteTable:
     Type: AWS::EC2::RouteTable
     Properties:
       VpcId: !Ref VPC
-  SubnetRouteTableAssociation:
+  PublicSubnetRouteTableAssociation:
     Type: AWS::EC2::SubnetRouteTableAssociation
     Properties:
-      RouteTableId: !Ref RouteTable
-      SubnetId: !Ref Subnet
-  Route:
+      RouteTableId: !Ref PublicRouteTable
+      SubnetId: !Ref PublicSubnet
+  PublicRoute:
     Type: AWS::EC2::Route
+    Condition: UseExternalNetworking
     DependsOn: VPCGatewayAttachment
     Properties:
-      RouteTableId: !Ref RouteTable
+      RouteTableId: !Ref PublicRouteTable
       DestinationCidrBlock: 0.0.0.0/0
       GatewayId: !Ref InternetGateway
-  InternetGateway:
-    Type: AWS::EC2::InternetGateway
+
   VPCGatewayAttachment:
     Type: AWS::EC2::VPCGatewayAttachment
-    DependsOn: Subnet  # Detaching the gateway can fail if the VPC still contains public addresses
+    Condition: UseExternalNetworking
+    DependsOn: PublicSubnet  # Detaching the gateway can fail if the VPC still contains public addresses
     Properties:
       VpcId: !Ref VPC
       InternetGatewayId: !Ref InternetGateway
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Condition: UseExternalNetworking
 
 
   #============================================#
@@ -243,7 +319,7 @@ Resources:
       Environment:
         Variables:
           STACK_NAME: !Ref AWS::StackName
-          WAIT_PERIOD: 3  # hours
+          WAIT_PERIOD: "3"  # hours
       Code:
         ZipFile: |
           from datetime import datetime, timedelta
@@ -332,8 +408,16 @@ Resources:
     Properties:
       Description: Allows Julia managers/workers to connect to each other on any port
       GroupId: !Ref SecurityGroup
-      IpProtocol: -1  # All protocols (TCP, UDP, ICMP) on all ports
+      IpProtocol: "-1"  # All protocols (TCP, UDP, ICMP) on all ports
       SourceSecurityGroupId: !Ref SecurityGroup
+
+  ECR:
+    Type: AWS::ECR::Repository
+    # Note: Doesn't work. ECR repositories will not be deleted when the stack is deleted if
+    # the repo contains any images. Delete the repo manually first to solve this.
+    DeletionPolicy: Delete
+    Properties:
+      RepositoryName: !Ref AWS::StackName  # Named to be consistent with JobDefinitionName
 
   # Note: It would be nice to use this as the base job definition and make use of overrides
   # when starting the test manager
@@ -353,13 +437,29 @@ Resources:
   #         - exit
   #         - 1
 
-  ECR:
-    Type: AWS::ECR::Repository
-    # Note: Doesn't work. ECR repositories will not be deleted when the stack is deleted if
-    # the repo contains any images. Delete the repo manually first to solve this.
-    DeletionPolicy: Delete
+  MultiNodeJobDefinition:
+    Type: AWS::Batch::JobDefinition
     Properties:
-      RepositoryName: !Ref AWS::StackName  # Named to be consistent with JobDefinitionName
+      Type: multinode
+      NodeProperties:
+        NumNodes: 2
+        MainNode: 0
+        NodeRangeProperties:
+          # TODO: Not required? https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-batch-jobdefinition-containerproperties.html#cfn-batch-jobdefinition-containerproperties-vcpus#cfn-batch-jobdefinition-containerproperties-jobrolearn
+          - TargetNodes: "0"
+            Container:
+              Image: !Sub "${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${ECR}:latest"
+              Vcpus: 1
+              Memory: 1024  # MiB
+              Command: ["julia", "-e", "error(\"Manager command not overwritten\")"]
+              JobRoleArn: !Ref JLBatchJobRole
+          - TargetNodes: "1:"
+            Container:
+              Image: !Sub "${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${ECR}:latest"
+              Vcpus: 1
+              Memory: 1024  # MiB
+              Command: ["julia", "-e", "error(\"Worker command not overwritten\")"]
+              JobRoleArn: !Ref JLBatchJobRole
 
   TestRole:
     Type: AWS::IAM::Role
@@ -455,6 +555,8 @@ Outputs:
     Value: !Ref AWS::StackName
   JobDefinitionName:
     Value: !Ref AWS::StackName
+  MultiNodeJobDefinitionArn:
+    Value: !Ref MultiNodeJobDefinition
   ComputeEnvironmentArn:
     Value: !Ref ComputeEnvironment
   ManagerJobQueueArn:

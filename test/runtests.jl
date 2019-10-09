@@ -1,11 +1,13 @@
 using AWSBatch
 using AWSClusterManagers
 using AWSClusterManagers: desired_workers, launch_timeout
+using AWSCore: AWSCore
 using AWSTools.CloudFormation: stack_output
 using AWSTools.Docker: Docker
 using Base: AbstractCmd
 using Dates
 using Distributed
+using JSON: JSON
 using LibGit2
 using Memento
 using Memento.TestUtils: @test_log
@@ -29,8 +31,8 @@ const PKG_DIR = abspath(@__DIR__, "..")
 const ONLINE = split(strip(get(ENV, "ONLINE", "")), r"\s*,\s*"; keepempty=false)
 
 # Run the tests on a stack created with the "test/batch.yml" CloudFormation template
-const AWS_STACKNAME = get(ENV, "AWS_STACKNAME", "")
-const STACK = !isempty(AWS_STACKNAME) ? stack_output(AWS_STACKNAME) : Dict()
+const STACK_NAME = get(ENV, "STACK_NAME", "")
+const STACK = !isempty(STACK_NAME) ? stack_output(STACK_NAME) : Dict()
 const ECR = !isempty(STACK) ? first(split(STACK["EcrUri"], ':')) : "aws-cluster-managers-test"
 
 const GIT_DIR = joinpath(@__DIR__, "..", ".git")
@@ -70,16 +72,24 @@ if !isempty(ONLINE)
     if !isempty(AWSClusterManagers.container_id())
         run(`docker tag $(AWSClusterManagers.image_id()) $TEST_IMAGE`)
     else
-        run(`docker build -t $TEST_IMAGE $PKG_DIR`)
+        # Build using the system image on the CI
+        build_args = if get(ENV, "CI", "false") == "true"
+            `--build-arg PRECOMPILE=false --build-arg CREATE_SYSIMG=true`
+        else
+            ``
+        end
+
+        run(`docker build -t $TEST_IMAGE $build_args $PKG_DIR`)
     end
 
     # Push the image to ECR if the online tests require it. Note: `TEST_IMAGE` is required
     # to be a full URI in order for the push operation to succeed.
-    if "batch" in ONLINE
+    if !isempty(intersect(ONLINE, ["batch", "batch-node"]))
         Docker.push(TEST_IMAGE)
     end
 end
 
+include("utils.jl")
 
 @testset "AWSClusterManagers" begin
     include("container.jl")
@@ -95,12 +105,21 @@ end
         end
     end
 
-    if "batch" in ONLINE && !isempty(AWS_STACKNAME)
+    if "batch" in ONLINE && !isempty(STACK_NAME)
         include("batch_online.jl")
     else
         warn(LOGGER) do
             "Environment variable \"ONLINE\" does not contain \"batch\". " *
             "Skipping online AWSBatchManager tests."
+        end
+    end
+
+    if "batch-node" in ONLINE && !isempty(STACK_NAME)
+        include("batch_node_online.jl")
+    else
+        warn(LOGGER) do
+            "Environment variable \"ONLINE\" does not contain \"batch-node\". " *
+            "Skipping online AWSBatchNodeManager tests."
         end
     end
 end
