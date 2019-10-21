@@ -182,6 +182,40 @@ let job_name = "test-worker-link-local-bind-to"
     )
 end
 
+let job_name = "test-slow-manager"
+    # Should match code in `batch_node_job_definition` but with an added delay
+    manager_code = """
+        using AWSClusterManagers, Distributed, Memento
+        Memento.config!("debug", recursive=true)
+
+        sleep(120)
+        addprocs(AWSBatchNodeManager())
+
+        println("NumProcs: ", nprocs())
+        for i in workers()
+            println("Worker job \$i: ", remotecall_fetch(() -> ENV["AWS_BATCH_JOB_NODE_INDEX"], i))
+        end
+        """
+
+    overrides = Dict(
+        "numNodes" => 2,
+        "nodePropertyOverrides" => [
+            Dict(
+                "targetNodes" => "0",
+                "containerOverrides" => Dict(
+                    "command" => ["julia", "-e", manager_code]
+                )
+            )
+        ]
+    )
+
+    BATCH_NODE_JOBS[job_name] = submit_job(
+        job_name=job_name,
+        job_definition=BATCH_NODE_JOB_DEF,
+        node_overrides=overrides,
+    )
+end
+
 
 @testset "AWSBatchNodeManager (online)" begin
     @testset "Success" begin
@@ -290,6 +324,35 @@ end
         ]
 
         # Display the logs for all the jobs if any of the log tests fail
+        if any(r -> !(r isa Test.Pass), test_results)
+            @info "Job output for manager ($(manager_job)):\n$manager_log"
+            @info "Job output for worker ($(worker_job)):\n$(worker_log)"
+        end
+    end
+
+    @testset "Worker connects before manager is ready" begin
+        # If the workers manage to start and attempt to connect to the manager before the
+        # manager is listening for connections the worker should attempt to reconnect.
+        job = BATCH_NODE_JOBS["test-slow-manager"]
+
+        manager_job = BatchJob(job.id * "#0")
+        worker_job = BatchJob(job.id * "#1")
+
+        wait_finish(job)
+
+        @test status(manager_job) == AWSBatch.SUCCEEDED
+        @test status(worker_job) == AWSBatch.SUCCEEDED
+
+        manager_log = log_messages(manager_job)
+        worker_log = log_messages(worker_job)
+
+        test_results = [
+            @test occursin("All workers have successfully reported in", manager_log)
+        ]
+
+        # Display the logs for all the jobs if any of the log tests fail
+        # When the worker fails to connect the following error will occur:
+        # `ERROR: IOError: connect: connection refused (ECONNREFUSED)`
         if any(r -> !(r isa Test.Pass), test_results)
             @info "Job output for manager ($(manager_job)):\n$manager_log"
             @info "Job output for worker ($(worker_job)):\n$(worker_log)"

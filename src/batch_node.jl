@@ -140,7 +140,15 @@ function start_batch_node_worker()
     # parallel child nodes and is not present on the main node. See:
     # https://docs.aws.amazon.com/batch/latest/userguide/multi-node-parallel-jobs.html#mnp-env-vars
     manager_ip = parse(IPv4, ENV["AWS_BATCH_JOB_MAIN_NODE_PRIVATE_IPV4_ADDRESS"])
-    sock = connect(manager_ip, AWS_BATCH_JOB_NODE_PORT)
+
+    # Establish a connection to the manager. If the manager is slow to startup the worker
+    # will attempt to connect for ~2 minutes.
+    manager_connect = retry(
+        () -> connect(manager_ip, AWS_BATCH_JOB_NODE_PORT),
+        delays=ExponentialBackOff(n=8, max_delay=30),
+        check=(s, e) -> e isa Base.IOError,
+    )
+    sock = manager_connect()
 
     # Note: The job ID also contains the node index
     println(sock, "job_id:", ENV["AWS_BATCH_JOB_ID"])
