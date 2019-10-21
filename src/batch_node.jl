@@ -116,8 +116,14 @@ function start_batch_node_worker()
     # "ecs-eth0" which uses a local-link address (169.254.0.0/16) which is unreachable from
     # the manager. Typically this is fixed by specifying the "eth0" IP address as
     # `--bind-to` when starting the Julia worker process.
-    ip = getipaddr()
-    if Base.JLOptions().bindto == C_NULL && is_link_local(ip)
+    opts = Base.JLOptions()
+    ip = if opts.bindto != C_NULL
+        parse(IPAddr, unsafe_string(opts.bindto))
+    else
+        getipaddr()
+    end
+
+    if is_link_local(ip)
         error(LOGGER) do
             "Aborting due to use of link-local address ($ip) on worker which will be " *
             "unreachable by the manager. Be sure to specify a `--bind-to` address when " *
