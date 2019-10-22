@@ -77,7 +77,7 @@ function describe_compute_environment(compute_environment::AbstractString)
     return details
 end
 
-function wait_finish(job::BatchJob; timeout::Period=Minute(15))
+function wait_finish(job::BatchJob; timeout::Period=Minute(20))
     timeout_secs = Dates.value(Second(timeout))
 
     info(LOGGER, "Waiting for AWS Batch job to finish (~5 minutes)")
