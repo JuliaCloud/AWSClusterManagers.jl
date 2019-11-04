@@ -59,7 +59,9 @@ function batch_node_job_definition(;
                         "vcpus" => 1,
                         "memory" => 1024,  # MiB
                         "command" => [
-                            "bash", "-c", "julia $bind_to -e \"$worker_code\"",
+                            "bash",
+                            "-c",
+                            "julia $bind_to -e \"$(escape_quote(worker_code))\"",
                         ],
                     )
                 )
@@ -67,6 +69,8 @@ function batch_node_job_definition(;
         )
     )
 end
+
+escape_quote(str::AbstractString) = replace(str, "\"" => "\\\"")
 
 
 # AWS Batch parallel multi-node jobs will only run on on-demand clusters. When running
@@ -135,6 +139,71 @@ let job_name = "test-worker-link-local"
                         start_batch_node_worker()
                         """
                     ]
+                )
+            )
+        ]
+    )
+
+    BATCH_NODE_JOBS[job_name] = submit_job(
+        job_name=job_name,
+        job_definition=BATCH_NODE_JOB_DEF,
+        node_overrides=overrides,
+    )
+end
+
+let job_name = "test-worker-link-local-bind-to"
+    bind_to = "--bind-to \$(ip -o -4 addr list ecs-eth0 | awk '{print \$4}' | cut -d/ -f1)"
+    worker_code = """
+        using AWSClusterManagers, Memento
+        Memento.config!("debug", recursive=true)
+        start_batch_node_worker()
+        """
+
+    overrides = Dict(
+        "numNodes" => 2,
+        "nodePropertyOverrides" => [
+            Dict(
+                "targetNodes" => "1:",
+                "containerOverrides" => Dict(
+                    "command" => [
+                        "bash",
+                        "-c",
+                        "julia $bind_to -e \"$(escape_quote(worker_code))\"",
+                    ]
+                )
+            )
+        ]
+    )
+
+    BATCH_NODE_JOBS[job_name] = submit_job(
+        job_name=job_name,
+        job_definition=BATCH_NODE_JOB_DEF,
+        node_overrides=overrides,
+    )
+end
+
+let job_name = "test-slow-manager"
+    # Should match code in `batch_node_job_definition` but with an added delay
+    manager_code = """
+        using AWSClusterManagers, Distributed, Memento
+        Memento.config!("debug", recursive=true)
+
+        sleep(120)
+        addprocs(AWSBatchNodeManager())
+
+        println("NumProcs: ", nprocs())
+        for i in workers()
+            println("Worker job \$i: ", remotecall_fetch(() -> ENV["AWS_BATCH_JOB_NODE_INDEX"], i))
+        end
+        """
+
+    overrides = Dict(
+        "numNodes" => 2,
+        "nodePropertyOverrides" => [
+            Dict(
+                "targetNodes" => "0",
+                "containerOverrides" => Dict(
+                    "command" => ["julia", "-e", manager_code]
                 )
             )
         ]
@@ -229,6 +298,61 @@ end
         ]
 
         # Display the logs for all the jobs if any of the log tests fail
+        if any(r -> !(r isa Test.Pass), test_results)
+            @info "Job output for manager ($(manager_job)):\n$manager_log"
+            @info "Job output for worker ($(worker_job)):\n$(worker_log)"
+        end
+    end
+
+    @testset "Worker using link-local bind-to address" begin
+        # Accidentially specifying the link-local address in `--bind-to`.
+        job = BATCH_NODE_JOBS["test-worker-link-local-bind-to"]
+
+        manager_job = BatchJob(job.id * "#0")
+        worker_job = BatchJob(job.id * "#1")
+
+        wait_finish(job)
+
+        @test status(manager_job) == AWSBatch.SUCCEEDED
+        @test status(worker_job) == AWSBatch.FAILED
+
+        manager_log = log_messages(manager_job)
+        worker_log = log_messages(worker_job)
+        test_results = [
+            @test occursin("Only 0 of the 1 workers job have reported in", manager_log)
+            @test occursin("Aborting due to use of link-local address", worker_log)
+        ]
+
+        # Display the logs for all the jobs if any of the log tests fail
+        if any(r -> !(r isa Test.Pass), test_results)
+            @info "Job output for manager ($(manager_job)):\n$manager_log"
+            @info "Job output for worker ($(worker_job)):\n$(worker_log)"
+        end
+    end
+
+    @testset "Worker connects before manager is ready" begin
+        # If the workers manage to start and attempt to connect to the manager before the
+        # manager is listening for connections the worker should attempt to reconnect.
+        job = BATCH_NODE_JOBS["test-slow-manager"]
+
+        manager_job = BatchJob(job.id * "#0")
+        worker_job = BatchJob(job.id * "#1")
+
+        wait_finish(job)
+
+        @test status(manager_job) == AWSBatch.SUCCEEDED
+        @test status(worker_job) == AWSBatch.SUCCEEDED
+
+        manager_log = log_messages(manager_job)
+        worker_log = log_messages(worker_job)
+
+        test_results = [
+            @test occursin("All workers have successfully reported in", manager_log)
+        ]
+
+        # Display the logs for all the jobs if any of the log tests fail
+        # When the worker fails to connect the following error will occur:
+        # `ERROR: IOError: connect: connection refused (ECONNREFUSED)`
         if any(r -> !(r isa Test.Pass), test_results)
             @info "Job output for manager ($(manager_job)):\n$manager_log"
             @info "Job output for worker ($(worker_job)):\n$(worker_log)"

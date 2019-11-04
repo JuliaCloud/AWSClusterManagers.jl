@@ -6,7 +6,7 @@ using Distributed: Distributed, ClusterManager, WorkerConfig, cluster_cookie, st
 using JSON: JSON
 using Memento: Memento, getlogger, warn, notice, info, debug
 using Mocking: Mocking, @mock
-using Sockets: IPv4, @ip_str, accept, connect, getipaddr, listen, listenany
+using Sockets: IPAddr, IPv4, @ip_str, accept, connect, getipaddr, listen, listenany
 
 export AWSBatchManager, AWSBatchNodeManager, DockerManager, start_batch_node_worker
 
