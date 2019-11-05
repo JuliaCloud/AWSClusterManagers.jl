@@ -157,9 +157,19 @@ function start_batch_node_worker()
     # Retrieve the cluster cookie from the manager
     cookie = parse_cookie(readline(sock))
 
+    # Modify the default worker timeout used by the workers when waiting for the manager to
+    # connect. The manager may not connect immediately as it waits for all worker to connect
+    # to be able to set the ordering of the workers. Note: If a worker is terminated while
+    # the manager is setting up the cluster then the manager will hang.
+    worker_timeout_secs = get(ENV, "JULIA_WORKER_TIMEOUT") do
+        Dates.value(Second(AWS_BATCH_NODE_TIMEOUT))
+    end
+
     # Hand off control to the Distributed stdlib which will have the worker report an IP
     # address and port at which connections can be established to this worker.
-    start_worker(sock, cookie)
+    withenv("JULIA_WORKER_TIMEOUT" => worker_timeout_secs) do
+        start_worker(sock, cookie)
+    end
 end
 
 function parse_job_id(str::AbstractString)
