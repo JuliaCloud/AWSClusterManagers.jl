@@ -18,7 +18,7 @@ function batch_node_job_definition(;
 )
     manager_code = """
         using AWSClusterManagers, Distributed, Memento
-        Memento.config!("debug", recursive=true)
+        setlevel!(getlogger("root"), "debug", recursive=true)
 
         addprocs(AWSBatchNodeManager())
 
@@ -135,7 +135,7 @@ let job_name = "test-worker-link-local"
                         "-e",
                         """
                         using AWSClusterManagers, Memento
-                        Memento.config!("debug", recursive=true)
+                        setlevel!(getlogger("root"), "debug", recursive=true)
                         start_batch_node_worker()
                         """
                     ]
@@ -155,7 +155,7 @@ let job_name = "test-worker-link-local-bind-to"
     bind_to = "--bind-to \$(ip -o -4 addr list ecs-eth0 | awk '{print \$4}' | cut -d/ -f1)"
     worker_code = """
         using AWSClusterManagers, Memento
-        Memento.config!("debug", recursive=true)
+        setlevel!(getlogger("root"), "debug", recursive=true)
         start_batch_node_worker()
         """
 
@@ -186,7 +186,7 @@ let job_name = "test-slow-manager"
     # Should match code in `batch_node_job_definition` but with an added delay
     manager_code = """
         using AWSClusterManagers, Distributed, Memento
-        Memento.config!("debug", recursive=true)
+        setlevel!(getlogger("root"), "debug", recursive=true)
 
         sleep(120)
         addprocs(AWSBatchNodeManager())
