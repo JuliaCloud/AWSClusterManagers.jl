@@ -155,7 +155,7 @@ function start_batch_node_worker()
     flush(sock)
 
     # Retrieve the cluster cookie from the manager
-    cookie = something(parse_cookie(readline(sock)), "")
+    cookie = parse_cookie(readline(sock))
 
     # Hand off control to the Distributed stdlib which will have the worker report an IP
     # address and port at which connections can be established to this worker.
