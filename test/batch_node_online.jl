@@ -15,6 +15,7 @@
 function batch_node_job_definition(;
     job_definition_name::AbstractString="$(STACK_NAME)-node",
     image::AbstractString=TEST_IMAGE,
+    job_role_arn::AbstractString=STACK["TestBatchNodeJobRoleArn"],
 )
     manager_code = """
         using AWSClusterManagers, Distributed, Memento
@@ -45,6 +46,7 @@ function batch_node_job_definition(;
                     "targetNodes" => "0",
                     "container" => Dict(
                         "image" => image,
+                        "jobRoleArn" => job_role_arn,
                         "vcpus" => 1,
                         "memory" => 1024,  # MiB
                         "command" => [
@@ -56,6 +58,7 @@ function batch_node_job_definition(;
                     "targetNodes" => "1:",
                     "container" => Dict(
                         "image" => image,
+                        "jobRoleArn" => job_role_arn,
                         "vcpus" => 1,
                         "memory" => 1024,  # MiB
                         "command" => [
@@ -136,7 +139,7 @@ let job_name = "test-worker-link-local"
                         "-e",
                         """
                         using AWSClusterManagers, Memento
-                        setlevel!(getlogger("root"), "debug", recursive=true)
+                        setlevel!(getlogger(), "debug", recursive=true)
                         start_batch_node_worker()
                         """
                     ]
@@ -205,6 +208,109 @@ let job_name = "test-slow-manager"
                 "targetNodes" => "0",
                 "containerOverrides" => Dict(
                     "command" => ["julia", "-e", manager_code]
+                )
+            )
+        ]
+    )
+
+    BATCH_NODE_JOBS[job_name] = submit_job(
+        job_name=job_name,
+        job_definition=BATCH_NODE_JOB_DEF,
+        node_overrides=overrides,
+    )
+end
+
+let job_name = "test-worker-timeout"
+    # The default duration a worker process will wait for the manager to connect. For this
+    # test this is also the amount of time between when the early worker checks in with the
+    # manager and the late worker checks in.
+    #
+    # Note: Make sure to ignore any modification made on the local system that will not be
+    # present for the batch job.
+    worker_timeout = withenv("JULIA_WORKER_TIMEOUT" => nothing) do
+        Distributed.worker_timeout()  # In seconds
+    end
+
+    # Amount of time it from the job start to executing `start_worker` (when the worker
+    # timeout timer starts).
+    start_delay = 10  # In seconds
+
+    # Modify the manager to extend the worker check-in time. Ensures that the worker doesn't
+    # timeout before the late worker checks in.
+    manager_code = """
+        using AWSClusterManagers, Dates, Distributed, Memento
+        using AWSClusterManagers: AWS_BATCH_NODE_TIMEOUT
+        setlevel!(getlogger(), "debug", recursive=true)
+
+        check_in_timeout = Second(AWS_BATCH_NODE_TIMEOUT) + Second($(worker_timeout + start_delay))
+        addprocs(AWSBatchNodeManager(timeout=check_in_timeout))
+
+        println("NumProcs: ", nprocs())
+        for i in workers()
+            println("Worker job \$i: ", remotecall_fetch(() -> ENV["AWS_BATCH_JOB_NODE_INDEX"], i))
+        end
+        """
+
+    bind_to = "--bind-to \$(ip -o -4 addr list eth0 | awk '{print \$4}' | cut -d/ -f1)"
+
+    # Note: The worker code logic tries to ensure that the execution of
+    # `start_batch_node_worker` occurs around the same time for all workers.
+    #
+    # Requires that worker jobs have external network access and have permissions for IAM
+    # access `batch:DescribeJobs`.
+    worker_code = """
+        using AWSBatch, AWSClusterManagers, Memento
+        setlevel!(getlogger(), "debug")
+        setlevel!(getlogger("AWSClusterManager"), "debug")
+        node_index = parse(Int, ENV["AWS_BATCH_JOB_NODE_INDEX"])
+        sibling_index = node_index % 2 + 1  # Assumes only 2 workers
+
+        function wait_job_start(job::BatchJob)
+            started_at = nothing
+            while started_at === nothing
+                started_at = get(describe(job), "startedAt", nothing)
+                sleep(1)
+            end
+        end
+
+        sibling_job_id = replace(
+            ENV["AWS_BATCH_JOB_ID"],
+            "#\$node_index" => "#\$sibling_index",
+        )
+        @info "Waiting for sibling job: \$sibling_job_id"
+        wait_job_start(BatchJob(sibling_job_id))
+
+        # Delaying a worker from reporting to the manager will delay the manager and cause
+        # the workers that did report in to encounter the worker timeout. The delay here
+        # should be less than the manager timeout to allow the delayed worker to still
+        # report in.
+        if node_index == 2  # The late worker will
+            @info "Sleeping"
+            sleep($(worker_timeout + start_delay))
+        end
+
+        start_batch_node_worker()
+        """
+
+    overrides = Dict(
+        "numNodes" => 3,
+        "nodePropertyOverrides" => [
+            Dict(
+                "targetNodes" => "0",
+                "containerOverrides" => Dict(
+                    "command" => [
+                        "julia", "-e", manager_code,
+                    ],
+                )
+            ),
+            Dict(
+                "targetNodes" => "1:",
+                "containerOverrides" => Dict(
+                    "command" => [
+                        "bash",
+                        "-c",
+                        "julia $bind_to -e $(bash_quote(worker_code))",
+                    ]
                 )
             )
         ]
@@ -357,6 +463,56 @@ end
         if any(r -> !(r isa Test.Pass), test_results)
             @info "Job output for manager ($(manager_job)):\n$manager_log"
             @info "Job output for worker ($(worker_job)):\n$(worker_log)"
+        end
+    end
+
+    @testset "Worker timeout" begin
+        # In order to modify the Julia worker ordering the manager needs to wait for all
+        # worker to check-in before the manager connects to any worker. Due to this
+        # restriction it is possible that worker may wait longer than the
+        # `Distributed.worker_timeout()` at which time the worker will self-terminate. If
+        # this occurs during the cluster setup the manager node will hang and not proceed
+        # past the initial cluster setup.
+        #
+        # If enough workers exist it is possible that the worker will self-terminate due to
+        # hitting a timeout (The issue has been seen with as low as 30 nodes with a timeout
+        # of 60 seconds). We typically shouldn't encounter this due to increasing the worker
+        # timeout.
+        #
+        # Log example:
+        # ```
+        # [debug | AWSClusterManagers]: Worker connected from node B
+        # [debug | AWSClusterManagers]: Worker connected from node A
+        # ...
+        # [debug | AWSClusterManagers]: All workers have successfully reported in
+        # Worker X terminated.
+        # Worker Y terminated.
+        # ...
+        # <manager stalled>
+        # ```
+
+        job = BATCH_NODE_JOBS["test-worker-timeout"]
+
+        manager_job = BatchJob(job.id * "#0")
+        early_worker_job = BatchJob(job.id * "#1")
+        late_worker_job = BatchJob(job.id * "#2")
+
+        wait_finish(job)
+
+        test_results = [
+            @test status(manager_job) == AWSBatch.SUCCEEDED
+            @test status(early_worker_job) == AWSBatch.SUCCEEDED
+            @test status(late_worker_job) == AWSBatch.SUCCEEDED
+        ]
+
+        if any(r -> !(r isa Test.Pass), test_results)
+            manager_log = log_messages(manager_job)
+            early_worker_log = log_messages(early_worker_job)
+            late_worker_log = log_messages(late_worker_job)
+
+            @info "Job output for manager ($(manager_job)):\n$manager_log"
+            @info "Job output for early worker ($(early_worker_job)):\n$(early_worker_log)"
+            @info "Job output for late worker ($(late_worker_job)):\n$(late_worker_log)"
         end
     end
 end

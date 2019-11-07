@@ -1,7 +1,7 @@
 module AWSClusterManagers
 
 using AWSBatch: JobQueue, max_vcpus, run_batch
-using Dates: Dates, Period, Minute, Second
+using Dates: Dates, Period, Minute, Second, Millisecond
 using Distributed: Distributed, ClusterManager, WorkerConfig, cluster_cookie, start_worker
 using JSON: JSON
 using Memento: Memento, getlogger, warn, notice, info, debug
