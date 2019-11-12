@@ -1,7 +1,7 @@
 # Gets the logs messages associated with a AWSBatch BatchJob as a single string
 function log_messages(job::BatchJob)
     events = log_events(job)
-    return join([event.message for event in events], '\n')
+    return join([string(event.timestamp, "  ", event.message) for event in events], '\n')
 end
 
 function job_duration(job::BatchJob)
