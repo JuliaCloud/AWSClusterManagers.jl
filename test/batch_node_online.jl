@@ -61,7 +61,7 @@ function batch_node_job_definition(;
                         "command" => [
                             "bash",
                             "-c",
-                            "julia $bind_to -e \"$(escape_quote(worker_code))\"",
+                            "julia $bind_to -e $(bash_quote(worker_code))",
                         ],
                     )
                 )
@@ -70,7 +70,8 @@ function batch_node_job_definition(;
     )
 end
 
-escape_quote(str::AbstractString) = replace(str, "\"" => "\\\"")
+# Use single quotes so that no shell interpolation occurs.
+bash_quote(str::AbstractString) = string("'", replace(str, "'" => "'\\''"), "'")
 
 
 # AWS Batch parallel multi-node jobs will only run on on-demand clusters. When running
@@ -168,7 +169,7 @@ let job_name = "test-worker-link-local-bind-to"
                     "command" => [
                         "bash",
                         "-c",
-                        "julia $bind_to -e \"$(escape_quote(worker_code))\"",
+                        "julia $bind_to -e $(bash_quote(worker_code))",
                     ]
                 )
             )
