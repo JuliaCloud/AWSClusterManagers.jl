@@ -2,11 +2,12 @@
 # parallel jobs using "awsvpc" networking on containers
 const AWS_BATCH_JOB_NODE_PORT = 49152
 
-# The manager (main node) is started before the workers (other nodes). The delay allows the
-# manager to listen for worker connections before the workers attempt to connect. Due to the
-# delay we'll need to wait for the workers to connect. In some cases the worker nodes will
-# fail to start so we need to have a timeout for those cases.
-const AWS_BATCH_NODE_TIMEOUT = Minute(2)
+# The maximum amount of time to listen for worker connections. Note that the manager
+# (main node) is started before the workers (other nodes) which allows the manager time to
+# initialize before the workers attempt to connect. In a scenario in which a worker fails
+# and never connects to the manager this timeout will allow the manager continue with the
+# subset of workers which have already connected.
+const AWS_BATCH_NODE_TIMEOUT = Minute(5)
 
 # Julia cluster manager for AWS Batch multi-node parallel jobs
 # https://docs.aws.amazon.com/batch/latest/userguide/multi-node-parallel-jobs.html
