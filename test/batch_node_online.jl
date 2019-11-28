@@ -269,7 +269,7 @@ let job_name = "test-worker-timeout"
             started_at = nothing
             while started_at === nothing
                 started_at = get(describe(job), "startedAt", nothing)
-                sleep(1)
+                sleep(10)
             end
         end
 
