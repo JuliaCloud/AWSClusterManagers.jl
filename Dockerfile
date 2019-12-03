@@ -36,7 +36,12 @@ RUN mkdir -p $PKG_PATH/src && touch $PKG_PATH/src/$PKG_NAME.jl
 
 # Install and build the package requirements. Record any system packages that need to be
 # installed in order to build any dependencies which is helpful for future maintenence.
-RUN julia -e "using Pkg; Pkg.develop(PackageSpec(name=\"$PKG_NAME\", path=\"$PKG_PATH\")); Pkg.add(PackageSpec(\"Memento\"))"
+RUN julia -e " \
+    using Pkg; \
+    Pkg.update(); \
+    Pkg.develop(PackageSpec(name=\"$PKG_NAME\", path=\"$PKG_PATH\")); \
+    Pkg.add([\"AWSBatch\", \"Memento\"]); \
+    "
 
 # Control if pre-compilation is run when new Julia packages are installed.
 ARG PRECOMPILE="true"

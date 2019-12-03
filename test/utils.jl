@@ -1,7 +1,8 @@
 # Gets the logs messages associated with a AWSBatch BatchJob as a single string
 function log_messages(job::BatchJob)
-    events = log_events(job)
-    return join([event.message for event in events], '\n')
+    events = log_events(job, Nothing)
+    events === nothing && return ""
+    return join([string(event.timestamp, "  ", event.message) for event in events], '\n')
 end
 
 function job_duration(job::BatchJob)
@@ -28,6 +29,7 @@ end
 
 time_str(seconds::Second) = time_str(Dates.value(seconds))
 time_str(p::Period) = time_str(floor(p, Second))
+time_str(::Nothing) = "N/A"  # Unable to determine duration
 
 function register_job_definition(job_definition::AbstractDict)
     output = AWSCore.Services.batch("POST", "/v1/registerjobdefinition", job_definition)

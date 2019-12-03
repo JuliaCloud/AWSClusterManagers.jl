@@ -12,8 +12,9 @@ const AWS_BATCH_NODE_TIMEOUT = Minute(2)
 # https://docs.aws.amazon.com/batch/latest/userguide/multi-node-parallel-jobs.html
 struct AWSBatchNodeManager <: ContainerManager
     num_workers::Int
+    timeout::Second  # Duration to wait for workers to initially check-in with the manager
 
-    function AWSBatchNodeManager()
+    function AWSBatchNodeManager(; timeout::Period=AWS_BATCH_NODE_TIMEOUT)
         if !haskey(ENV, "AWS_BATCH_JOB_MAIN_NODE_INDEX")
             error("Unable to use $AWSBatchNodeManager outside of a running AWS Batch multi-node parallel job")
         end
@@ -25,7 +26,7 @@ struct AWSBatchNodeManager <: ContainerManager
         # Don't include the manager in the number of workers
         num_workers = parse(Int, ENV["AWS_BATCH_JOB_NUM_NODES"]) - 1
 
-        return new(num_workers)
+        return new(num_workers, Second(timeout))
     end
 end
 
@@ -55,8 +56,9 @@ function Distributed.launch(manager::AWSBatchNodeManager, params::Dict, launched
 
         debug(LOGGER, "Worker connected from node $node_index")
 
-        # Send the cluster cookie to the worker
+        # Send the cluster cookie and timeout to the worker
         println(sock, "julia_cookie:", cluster_cookie())
+        println(sock, "julia_worker_timeout:", Dates.value(Second(manager.timeout)))
         flush(sock)
 
         # The worker will report it's own address through the socket. Eventually the
@@ -72,7 +74,7 @@ function Distributed.launch(manager::AWSBatchNodeManager, params::Dict, launched
         push!(workers, config)
     end
 
-    wait(listen_task, AWS_BATCH_NODE_TIMEOUT)
+    wait(listen_task, manager.timeout)
     close(server)
 
     # Note: `launched` is treated as a queue and will have elements removed from it
@@ -155,11 +157,23 @@ function start_batch_node_worker()
     flush(sock)
 
     # Retrieve the cluster cookie from the manager
-    cookie = something(parse_cookie(readline(sock)), "")
+    cookie = parse_cookie(readline(sock))
+
+    # Retrieve the worker timeout as specified in the manager
+    timeout = parse_worker_timeout(readline(sock))
 
     # Hand off control to the Distributed stdlib which will have the worker report an IP
     # address and port at which connections can be established to this worker.
-    start_worker(sock, cookie)
+    #
+    # The worker timeout needs to be equal to or exceed the amount of time in which the
+    # manager waits for workers to report in. The reason for this is that the manager waits
+    # to connect to all workers until connecting to any worker. If we use the default
+    # timeout then a worker could report in early and self-terminate before the manager
+    # connects to that worker. If that scenario occurs then the manager will become stuck
+    # during the setup process.
+    withenv("JULIA_WORKER_TIMEOUT" => timeout) do
+        start_worker(sock, cookie)
+    end
 end
 
 function parse_job_id(str::AbstractString)
@@ -181,5 +195,16 @@ function parse_cookie(str::AbstractString)
         return m.captures[1]
     else
         error(LOGGER, "Unable to parse cluster cookie: $str")
+    end
+end
+
+function parse_worker_timeout(str::AbstractString)
+    # Note: Require match on prefix to ensure we are parsing the correct value
+    m = match(r"^julia_worker_timeout:(\d+)", str)
+
+    if m !== nothing
+        return parse(Int, m.captures[1])
+    else
+        error(LOGGER, "Unable to parse worker timeout: $str")
     end
 end
