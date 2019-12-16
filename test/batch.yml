@@ -202,7 +202,7 @@ Resources:
   PlacementGroup:
     Type: AWS::EC2::PlacementGroup
     Properties:
-      Strategy: cluster
+      Strategy: partition
 
   # For details see: "docs/src/pages/design.md#compute-environment-networking-considerations"
   PrivateSubnetA:
