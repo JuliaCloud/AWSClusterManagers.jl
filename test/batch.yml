@@ -112,7 +112,16 @@ Resources:
         MaxvCpus: !Ref MaxVCPUs
         InstanceTypes: [optimal]
         PlacementGroup: !Ref PlacementGroup
-        Subnets: [!If [UsePrivateSubnet, !Ref PrivateSubnet, !Ref PublicSubnet]]
+        Subnets:
+          !If
+            - UsePrivateSubnet
+            - - !Ref PrivateSubnetA
+              - !Ref PrivateSubnetB
+              - !Ref PrivateSubnetC
+              - !Ref PrivateSubnetD
+              - !Ref PrivateSubnetE
+              - !Ref PrivateSubnetF
+            - - !Ref PublicSubnetA
         SecurityGroupIds: [!Ref SecurityGroup]
         InstanceRole: !Ref IamInstanceProfile
         SpotIamFleetRole: !If [OnDemandComputeEnvironment, !Ref "AWS::NoValue", !Ref BatchSpotFleetRole]
@@ -193,28 +202,98 @@ Resources:
   PlacementGroup:
     Type: AWS::EC2::PlacementGroup
     Properties:
-      Strategy: cluster
+      Strategy: partition
 
   # For details see: "docs/src/pages/design.md#compute-environment-networking-considerations"
-  PrivateSubnet:
+  PrivateSubnetA:
     Type: AWS::EC2::Subnet
     Condition: UsePrivateSubnet
     Properties:
-      # e.g. 10.0.0.0/16 would become 10.0.0.0/18 (10.0.0.0 - 10.0.63.255). See: "/design#cidr-blocks"
-      CidrBlock: !Select [0, !Cidr [!GetAtt VPC.CidrBlock, 2, 14]]
+      AvailabilityZone: !Sub ${AWS::Region}a
+      CidrBlock: !Select [0, !Cidr [!GetAtt VPC.CidrBlock, 16, 12]]  # e.g. 10.0.0.0/16 becomes 10.0.0.0/20 (10.0.0.0 - 10.0.15.255)
       VpcId: !Ref VPC
       MapPublicIpOnLaunch: false
+  RTAPrivateSubnetA:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Condition: UsePrivateSubnet
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable
+      SubnetId: !Ref PrivateSubnetA
+
+  PrivateSubnetB:
+    Type: AWS::EC2::Subnet
+    Condition: UsePrivateSubnet
+    Properties:
+      AvailabilityZone: !Sub ${AWS::Region}b
+      CidrBlock: !Select [1, !Cidr [!GetAtt VPC.CidrBlock, 16, 12]]  # e.g. 10.0.0.0/16 becomes 10.0.16.0/20 (10.0.16.0 - 10.0.31.255)
+      VpcId: !Ref VPC
+      MapPublicIpOnLaunch: false
+  RTAPrivateSubnetB:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Condition: UsePrivateSubnet
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable
+      SubnetId: !Ref PrivateSubnetB
+
+  PrivateSubnetC:
+    Type: AWS::EC2::Subnet
+    Condition: UsePrivateSubnet
+    Properties:
+      AvailabilityZone: !Sub ${AWS::Region}c
+      CidrBlock: !Select [2, !Cidr [!GetAtt VPC.CidrBlock, 16, 12]]  # e.g. 10.0.0.0/16 becomes 10.0.32.0/20 (10.0.32.0 - 10.0.63.255)
+      VpcId: !Ref VPC
+      MapPublicIpOnLaunch: false
+  RTAPrivateSubnetC:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Condition: UsePrivateSubnet
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable
+      SubnetId: !Ref PrivateSubnetC
+
+  PrivateSubnetD:
+    Type: AWS::EC2::Subnet
+    Condition: UsePrivateSubnet
+    Properties:
+      AvailabilityZone: !Sub ${AWS::Region}d
+      CidrBlock: !Select [3, !Cidr [!GetAtt VPC.CidrBlock, 16, 12]]  # e.g. 10.0.0.0/16 becomes 10.0.48.0/20 (10.0.48.0 - 10.0.63.255)
+      VpcId: !Ref VPC
+      MapPublicIpOnLaunch: false
+
+  PrivateSubnetE:
+    Type: AWS::EC2::Subnet
+    Condition: UsePrivateSubnet
+    Properties:
+      AvailabilityZone: !Sub ${AWS::Region}e
+      CidrBlock: !Select [4, !Cidr [!GetAtt VPC.CidrBlock, 16, 12]]  # e.g. 10.0.0.0/16 becomes 10.0.64.0/20 (10.0.64.0 - 10.0.79.255)
+      VpcId: !Ref VPC
+      MapPublicIpOnLaunch: false
+  RTAPrivateSubnetE:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Condition: UsePrivateSubnet
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable
+      SubnetId: !Ref PrivateSubnetE
+
+  PrivateSubnetF:
+    Type: AWS::EC2::Subnet
+    Condition: UsePrivateSubnet
+    Properties:
+      AvailabilityZone: !Sub ${AWS::Region}f
+      CidrBlock: !Select [5, !Cidr [!GetAtt VPC.CidrBlock, 16, 12]]  # e.g. 10.0.0.0/16 becomes 10.0.80.0/20 (10.0.80.0 - 10.0.95.255)
+      VpcId: !Ref VPC
+      MapPublicIpOnLaunch: false
+  RTAPrivateSubnetF:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Condition: UsePrivateSubnet
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable
+      SubnetId: !Ref PrivateSubnetF
+
   PrivateRouteTable:
     Type: AWS::EC2::RouteTable
     Condition: UsePrivateSubnet
     Properties:
       VpcId: !Ref VPC
-  PrivateSubnetRouteTableAssociation:
-    Type: AWS::EC2::SubnetRouteTableAssociation
-    Condition: UsePrivateSubnet
-    Properties:
-      RouteTableId: !Ref PrivateRouteTable
-      SubnetId: !Ref PrivateSubnet
   PrivateRoute:
     Type: AWS::EC2::Route
     Condition: UseNAT
@@ -228,7 +307,7 @@ Resources:
     Condition: UseNAT
     Properties:
       AllocationId: !GetAtt EIP.AllocationId
-      SubnetId: !Ref PublicSubnet
+      SubnetId: !Ref PublicSubnetA
   EIP:
     Type: AWS::EC2::EIP
     Condition: UseNAT
@@ -236,23 +315,22 @@ Resources:
     Properties:
       Domain: vpc
 
-  PublicSubnet:
+  PublicSubnetA:
     Type: AWS::EC2::Subnet
     Properties:
-      AvailabilityZone: !Select [0, !GetAZs ""]  # Grab the first Availability Zone
-      # e.g. 10.0.0.0/16 would become 10.0.64.0/18 (10.0.64.0 - 10.0.127.255). See: "/design#cidr-blocks"
-      CidrBlock: !Select [1, !Cidr [!GetAtt VPC.CidrBlock, 2, 14]]
+      AvailabilityZone: !Sub ${AWS::Region}a
+      CidrBlock: !Select [6, !Cidr [!GetAtt VPC.CidrBlock, 16, 12]]  # e.g. 10.0.0.0/16 becomes 10.0.96.0/20 (10.0.96.0 - 10.0.111.255)
       VpcId: !Ref VPC
       MapPublicIpOnLaunch: true
+  RTAPublicSubnetA:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      SubnetId: !Ref PublicSubnetA
   PublicRouteTable:
     Type: AWS::EC2::RouteTable
     Properties:
       VpcId: !Ref VPC
-  PublicSubnetRouteTableAssociation:
-    Type: AWS::EC2::SubnetRouteTableAssociation
-    Properties:
-      RouteTableId: !Ref PublicRouteTable
-      SubnetId: !Ref PublicSubnet
   PublicRoute:
     Type: AWS::EC2::Route
     Condition: UseExternalNetworking
@@ -265,7 +343,7 @@ Resources:
   VPCGatewayAttachment:
     Type: AWS::EC2::VPCGatewayAttachment
     Condition: UseExternalNetworking
-    DependsOn: PublicSubnet  # Detaching the gateway can fail if the VPC still contains public addresses
+    DependsOn: PublicSubnetA  # Detaching the gateway can fail if the VPC still contains public addresses
     Properties:
       VpcId: !Ref VPC
       InternetGatewayId: !Ref InternetGateway
