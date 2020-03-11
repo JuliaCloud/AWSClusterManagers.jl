@@ -66,21 +66,13 @@ variables:
   variables:
     ONLINE: "docker, batch, batch-node"  # Runs the online tests for AWS Batch & Docker
   before_script:
-    - curl -sS -o julia-ci https://gitlab.invenia.ca/infrastructure/gitlab-ci-helper/raw/master/julia-ci
-    - chmod +x julia-ci
-    - ./julia-ci install-cred-helper
-    - ./julia-ci install $JULIA_VERSION
     - *setup
+    - export STACK_NAME  # Created by `setup` and needed when running tests
     - install_awscli
     - install_cloudspy
     - assume_test_role
-  script:
-    # Execute online tests
-    - source julia-ci export
-    - STACK_NAME=$STACK_NAME ./julia-ci test
-    - ./julia-ci coverage
   after_script:
-    - ./julia-ci clean
+    - ./julia-ci clean  # julia-ci added in script
     - sleep 5
     - *setup
     - export CI_COMMIT_SHA_SHORT=$(git rev-parse --short $CI_COMMIT_SHA)
