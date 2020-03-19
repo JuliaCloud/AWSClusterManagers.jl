@@ -16,9 +16,11 @@ struct AWSBatchNodeManager <: ContainerManager
     timeout::Second  # Duration to wait for workers to initially check-in with the manager
 
     function AWSBatchNodeManager(; timeout::Period=AWS_BATCH_NODE_TIMEOUT)
-        if !haskey(ENV, "AWS_BATCH_JOB_MAIN_NODE_INDEX")
+        if !haskey(ENV, "AWS_BATCH_JOB_ID") || !haskey(ENV, "AWS_BATCH_JOB_MAIN_NODE_INDEX")
             error("Unable to use $AWSBatchNodeManager outside of a running AWS Batch multi-node parallel job")
         end
+
+        info(LOGGER, "AWS Batch Job ID: $(ENV["AWS_BATCH_JOB_ID"])")
 
         if ENV["AWS_BATCH_JOB_NODE_INDEX"] != ENV["AWS_BATCH_JOB_MAIN_NODE_INDEX"]
             error("$AWSBatchNodeManager can only be used by the main node")
@@ -98,6 +100,8 @@ function start_batch_node_worker()
     if !haskey(ENV, "AWS_BATCH_JOB_ID") || !haskey(ENV, "AWS_BATCH_JOB_NODE_INDEX")
         error("Unable to start a worker outside of a running AWS Batch multi-node parallel job")
     end
+
+    info(LOGGER, "AWS Batch Job ID: $(ENV["AWS_BATCH_JOB_ID"])")
 
     # Note: Limiting to IPv4 to match what AWS Batch provides us with for the manager.
     function available_ipv4_msg()
