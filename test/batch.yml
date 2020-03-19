@@ -258,6 +258,12 @@ Resources:
       CidrBlock: !Select [3, !Cidr [!GetAtt VPC.CidrBlock, 16, 12]]  # e.g. 10.0.0.0/16 becomes 10.0.48.0/20 (10.0.48.0 - 10.0.63.255)
       VpcId: !Ref VPC
       MapPublicIpOnLaunch: false
+  RTAPrivateSubnetD:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Condition: UsePrivateSubnet
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable
+      SubnetId: !Ref PrivateSubnetD
 
   PrivateSubnetE:
     Type: AWS::EC2::Subnet
