@@ -17,7 +17,7 @@ using Sockets
 using Test
 
 Mocking.activate()
-const LOGGER = Memento.config!("info"; fmt="[{level} | {name}]: {msg}")
+const LOGGER = Memento.config!("info"; fmt="[{date} | {level} | {name}]: {msg}")
 
  # https://github.com/JuliaLang/julia/pull/32814
 if VERSION < v"1.3.0-alpha.110"
