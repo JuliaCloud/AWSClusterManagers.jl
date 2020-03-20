@@ -5,6 +5,20 @@ function log_messages(job::BatchJob)
     return join([string(event.timestamp, "  ", event.message) for event in events], '\n')
 end
 
+function report(io::IO, job::BatchJob)
+    println(io, "Job ID: $(job.id)")
+    print(io, "Status: $(status(job))")
+
+    reason = status_reason(job)
+    reason !== nothing && print(io, " ($reason)")
+    println(io)
+
+    log_str = log_messages(job)
+    !isempty(log_str) && println(io, '\n', log_str)
+end
+
+report(job::BatchJob) = sprint(report, job)
+
 function job_duration(job::BatchJob)
     d = describe(job)
     if haskey(d, "createdAt") && haskey(d, "stoppedAt")
