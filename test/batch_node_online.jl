@@ -69,7 +69,12 @@ function batch_node_job_definition(;
                     )
                 )
             ]
-        )
+        ),
+        # Retrying to handle EC2 instance failures and internal AWS issues:
+        # https://docs.aws.amazon.com/batch/latest/userguide/job_retries.html
+        "retryStrategy" => Dict(
+            "attempts" => 3,
+        ),
     )
 end
 
@@ -118,7 +123,9 @@ let job_name = "test-worker-spawn-failure"
                 )
             )
         ]
+
     )
+
 
     BATCH_NODE_JOBS[job_name] = submit_job(
         job_name=job_name,
@@ -152,6 +159,7 @@ let job_name = "test-worker-link-local"
         job_name=job_name,
         job_definition=BATCH_NODE_JOB_DEF,
         node_overrides=overrides,
+        retry_strategy=Dict("attempts" => 1),  # Avoid retrying jobs we expect to fail
     )
 end
 
@@ -183,6 +191,7 @@ let job_name = "test-worker-link-local-bind-to"
         job_name=job_name,
         job_definition=BATCH_NODE_JOB_DEF,
         node_overrides=overrides,
+        retry_strategy=Dict("attempts" => 1),  # Avoid retrying jobs we expect to fail
     )
 end
 

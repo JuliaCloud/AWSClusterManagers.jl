@@ -41,6 +41,7 @@ function submit_job(;
     job_definition::AbstractString,
     job_queue::AbstractString=STACK["WorkerJobQueueArn"],
     node_overrides::Dict=Dict(),
+    retry_strategy::Dict=Dict(),
 )
     options = Dict{String,Any}(
         "jobName" => job_name,
@@ -52,8 +53,13 @@ function submit_job(;
         options["nodeOverrides"] = node_overrides
     end
 
+    if !isempty(retry_strategy)
+        options["retryStrategy"] = retry_strategy
+    end
+
     print(JSON.json(options, 4))
 
+    # https://docs.aws.amazon.com/batch/latest/APIReference/API_SubmitJob.html
     output = AWSCore.Services.batch("POST", "/v1/submitjob", options)
     return BatchJob(output["jobId"])
 end
