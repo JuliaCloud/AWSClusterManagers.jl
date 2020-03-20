@@ -544,30 +544,6 @@ Resources:
   #         - exit
   #         - 1
 
-  MultiNodeJobDefinition:
-    Type: AWS::Batch::JobDefinition
-    Properties:
-      Type: multinode
-      NodeProperties:
-        NumNodes: 2
-        MainNode: 0
-        NodeRangeProperties:
-          # TODO: Not required? https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-batch-jobdefinition-containerproperties.html#cfn-batch-jobdefinition-containerproperties-vcpus#cfn-batch-jobdefinition-containerproperties-jobrolearn
-          - TargetNodes: "0"
-            Container:
-              Image: !Sub "${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${ECR}:latest"
-              Vcpus: 1
-              Memory: 1024  # MiB
-              Command: ["julia", "-e", "error(\"Manager command not overwritten\")"]
-              JobRoleArn: !Ref JLBatchJobRole
-          - TargetNodes: "1:"
-            Container:
-              Image: !Sub "${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${ECR}:latest"
-              Vcpus: 1
-              Memory: 1024  # MiB
-              Command: ["julia", "-e", "error(\"Worker command not overwritten\")"]
-              JobRoleArn: !Ref JLBatchJobRole
-
   TestRole:
     Type: AWS::IAM::Role
     Condition: Testing
@@ -667,8 +643,6 @@ Outputs:
     Value: !Ref AWS::StackName
   JobDefinitionName:
     Value: !Ref AWS::StackName
-  MultiNodeJobDefinitionArn:
-    Value: !Ref MultiNodeJobDefinition
   ComputeEnvironmentArn:
     Value: !Ref ComputeEnvironment
   ManagerJobQueueArn:
