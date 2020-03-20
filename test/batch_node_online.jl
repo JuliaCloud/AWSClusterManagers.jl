@@ -334,6 +334,29 @@ end
 
 
 @testset "AWSBatchNodeManager (online)" begin
+    # Note: Alternatively we could test report via Mocking but since the function is only
+    # used for online testing and this particular test doesn't require an additional AWS
+    # Batch job we'll test it here instead
+    @testset "Report" begin
+        job = BATCH_NODE_JOBS["test-worker-spawn-success"]
+
+        manager_job = BatchJob(job.id * "#0")
+
+        wait_finish(job)
+
+        # Validate the report contains important information
+        report_log = report(manager_job)
+        test_results = [
+            @test occursin(manager_job.id, report_log)
+            @test occursin(string(status(manager_job)), report_log)
+            @test occursin(status_reason(manager_job), report_log)
+        ]
+
+        if any(r -> !(r isa Test.Pass), test_results)
+            @info "Details for manager:\n$report_log"
+        end
+    end
+
     @testset "Success" begin
         job = BATCH_NODE_JOBS["test-worker-spawn-success"]
 
@@ -358,10 +381,9 @@ end
 
         # Display the logs for all the jobs if any of the log tests fail
         if any(r -> !(r isa Test.Pass), test_results)
-            worker_logs = log_messages.(worker_jobs)
-            @info "Job output for manager ($(manager_job)):\n$manager_log"
-            @info "Job output for worker 1 ($(worker_jobs[1])):\n$(worker_logs[1])"
-            @info "Job output for worker 2 ($(worker_jobs[1])):\n$(worker_logs[2])"
+            @info "Details for manager:\n$(report(manager_job))"
+            @info "Details for worker 1:\n$(report(worker_jobs[1]))"
+            @info "Details for worker 2:\n$(report(worker_jobs[2]))"
         end
     end
 
@@ -388,8 +410,8 @@ end
 
         # Display the logs for all the jobs if any of the log tests fail
         if any(r -> !(r isa Test.Pass), test_results)
-            @info "Job output for manager ($(manager_job)):\n$manager_log"
-            @info "Job output for worker ($(worker_job)):\n$(worker_log)"
+            @info "Details for manager:\n$(report(manager_job))"
+            @info "Details for worker:\n$(report(worker_log))"
         end
     end
 
@@ -415,8 +437,8 @@ end
 
         # Display the logs for all the jobs if any of the log tests fail
         if any(r -> !(r isa Test.Pass), test_results)
-            @info "Job output for manager ($(manager_job)):\n$manager_log"
-            @info "Job output for worker ($(worker_job)):\n$(worker_log)"
+            @info "Details for manager:\n$(report(manager_job))"
+            @info "Details for worker:\n$(report(worker_job))"
         end
     end
 
@@ -441,8 +463,8 @@ end
 
         # Display the logs for all the jobs if any of the log tests fail
         if any(r -> !(r isa Test.Pass), test_results)
-            @info "Job output for manager ($(manager_job)):\n$manager_log"
-            @info "Job output for worker ($(worker_job)):\n$(worker_log)"
+            @info "Details for manager:\n$(report(manager_job))"
+            @info "Details for worker:\n$(report(worker_job))"
         end
     end
 
@@ -470,8 +492,8 @@ end
         # When the worker fails to connect the following error will occur:
         # `ERROR: IOError: connect: connection refused (ECONNREFUSED)`
         if any(r -> !(r isa Test.Pass), test_results)
-            @info "Job output for manager ($(manager_job)):\n$manager_log"
-            @info "Job output for worker ($(worker_job)):\n$(worker_log)"
+            @info "Details for manager:\n$(report(manager_job))"
+            @info "Details for worker:\n$(report(worker_job))"
         end
     end
 
@@ -515,13 +537,9 @@ end
         ]
 
         if any(r -> !(r isa Test.Pass), test_results)
-            manager_log = log_messages(manager_job)
-            early_worker_log = log_messages(early_worker_job)
-            late_worker_log = log_messages(late_worker_job)
-
-            @info "Job output for manager ($(manager_job)):\n$manager_log"
-            @info "Job output for early worker ($(early_worker_job)):\n$(early_worker_log)"
-            @info "Job output for late worker ($(late_worker_job)):\n$(late_worker_log)"
+            @info "Details for manager:\n$(report(manager_job))"
+            @info "Details for early worker:\n$(report(early_worker_job))"
+            @info "Details for late worker:\n$(report(late_worker_job))"
         end
     end
 end
