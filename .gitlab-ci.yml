@@ -65,12 +65,13 @@ variables:
     - ci-account
   variables:
     ONLINE: "docker, batch, batch-node"  # Runs the online tests for AWS Batch & Docker
+  timeout: 2h
   before_script:
     - *setup
     - export STACK_NAME  # Created by `setup` and needed when running tests
     - install_awscli
     - install_cloudspy
-    - assume_test_role
+    - assume_test_role --duration 7200  # 2 hours, matches job timeout
   after_script:
     - ./julia-ci clean  # julia-ci added in script
     - sleep 5

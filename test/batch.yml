@@ -549,6 +549,7 @@ Resources:
     Condition: Testing
     Properties:
       RoleName: !Sub ${AWS::StackName}-TestRole
+      MaxSessionDuration: 7200  # 2 hours, in seconds
       AssumeRolePolicyDocument:
         Version: 2012-10-17
         Statement:
