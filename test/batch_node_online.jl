@@ -258,6 +258,9 @@ let job_name = "test-worker-timeout"
         for i in workers()
             println("Worker job \$i: ", remotecall_fetch(() -> ENV["AWS_BATCH_JOB_NODE_INDEX"], i))
         end
+
+        # Failure to launch all workers should trigger a retry via a non-zero exit code
+        nworkers() == 2 || exit(2)
         """
 
     bind_to = "--bind-to \$(ip -o -4 addr list eth0 | awk '{print \$4}' | cut -d/ -f1)"
