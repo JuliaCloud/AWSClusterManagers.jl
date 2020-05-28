@@ -53,6 +53,8 @@ function run_batch_job(image_name::AbstractString, num_workers::Integer; timeout
             println("Worker container \$i: ", remotecall_fetch(container_id, i))
             println("Worker job \$i: ", remotecall_fetch(() -> ENV["AWS_BATCH_JOB_ID"], i))
         end
+
+        println("Manager Complete")
         """
 
     # Note: The manager can run out of memory with enough workers:
@@ -95,6 +97,21 @@ function run_batch_job(image_name::AbstractString, num_workers::Integer; timeout
     job_definition = JobDefinition(job)
     deregister(job_definition)
 
+    # CloudWatch can take several seconds to ingest the log record so we'll wait until we
+    # find the end-of-log message.
+    if status(job) == AWSBatch.SUCCEEDED
+        log_wait_start = time()
+        while true
+            events = log_events(job)
+            if events !== nothing && last(events).message == "Manager Complete"
+                break
+            elseif time() - log_wait_start > 60
+                error("CloudWatch logs have not completed ingestion within 1 minute")
+            end
+            sleep(5)
+        end
+    end
+
     return job
 end
 
@@ -104,19 +121,14 @@ end
     # to wait for the cluster to scale up on subsequent tests.
     @testset "Num workers ($num_workers)" for num_workers in [10, 1, 0]
         job = run_batch_job(TEST_IMAGE, num_workers)
+        output = log_messages(job)
 
-        # Retry getting the logs for the batch job because it can take several seconds
-        # for cloudwatch to ingest the log records
-        get_logs = retry(delays=rand(5:10, 2)) do
-            output = log_messages(job)
-            m = match(r"(?<=NumProcs: )\d+", output)
-            if m === nothing
-                error("The logs do not contain the `NumProcs` for job \"$(job.id)\".")
-            end
+        m = match(r"(?<=NumProcs: )\d+", output)
+        if m !== nothing
             num_procs = parse(Int, m.match)
-            return (output, num_procs)
+        else
+            error("The logs do not contain the `NumProcs` for job \"$(job.id)\".")
         end
-        output, num_procs = get_logs()
 
         # Spawned are the AWS Batch job IDs reported upon job submission at launch
         # while reported is the self-reported job ID of each worker.
