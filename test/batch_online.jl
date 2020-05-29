@@ -103,7 +103,7 @@ function run_batch_job(image_name::AbstractString, num_workers::Integer; timeout
         log_wait_start = time()
         while true
             events = log_events(job)
-            if events !== nothing && last(events).message == "Manager Complete"
+            if events !== nothing && !isempty(events) && last(events).message == "Manager Complete"
                 break
             elseif time() - log_wait_start > 60
                 error("CloudWatch logs have not completed ingestion within 1 minute")
