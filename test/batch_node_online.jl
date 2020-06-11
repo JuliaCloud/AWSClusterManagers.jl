@@ -147,7 +147,14 @@ let job_name = "test-worker-link-local"
                         """
                         using AWSClusterManagers, Memento
                         setlevel!(getlogger(), "debug", recursive=true)
-                        start_batch_node_worker()
+                        try
+                            start_batch_node_worker()
+                        catch e   # Prevents the job from failing so we can retry AWS errors
+                            println(e)
+                            for line in stacktrace(catch_backtrace())
+                                println(line)
+                            end
+                        end
                         """
                     ]
                 )
@@ -159,7 +166,6 @@ let job_name = "test-worker-link-local"
         job_name=job_name,
         job_definition=BATCH_NODE_JOB_DEF,
         node_overrides=overrides,
-        retry_strategy=Dict("attempts" => 1),  # Avoid retrying jobs we expect to fail
     )
 end
 
@@ -168,7 +174,14 @@ let job_name = "test-worker-link-local-bind-to"
     worker_code = """
         using AWSClusterManagers, Memento
         setlevel!(getlogger("root"), "debug", recursive=true)
-        start_batch_node_worker()
+        try
+            start_batch_node_worker()
+        catch e   # Prevents the job from failing so we can retry AWS errors
+            println(e)
+            for line in stacktrace(catch_backtrace())
+                println(line)
+            end
+        end
         """
 
     overrides = Dict(
@@ -191,7 +204,6 @@ let job_name = "test-worker-link-local-bind-to"
         job_name=job_name,
         job_definition=BATCH_NODE_JOB_DEF,
         node_overrides=overrides,
-        retry_strategy=Dict("attempts" => 1),  # Avoid retrying jobs we expect to fail
     )
 end
 
@@ -429,7 +441,7 @@ end
         wait_finish(job)
 
         @test status(manager_job) == AWSBatch.SUCCEEDED
-        @test status(worker_job) == AWSBatch.FAILED
+        @test status(worker_job) == AWSBatch.SUCCEEDED
 
         manager_log = log_messages(manager_job)
         worker_log = log_messages(worker_job)
@@ -455,7 +467,7 @@ end
         wait_finish(job)
 
         @test status(manager_job) == AWSBatch.SUCCEEDED
-        @test status(worker_job) == AWSBatch.FAILED
+        @test status(worker_job) == AWSBatch.SUCCEEDED
 
         manager_log = log_messages(manager_job)
         worker_log = log_messages(worker_job)
