@@ -150,10 +150,7 @@ let job_name = "test-worker-link-local"
                         try
                             start_batch_node_worker()
                         catch e   # Prevents the job from failing so we can retry AWS errors
-                            println(e)
-                            for line in stacktrace(catch_backtrace())
-                                println(line)
-                            end
+                            showerror(stderr, e, catch_backtrace())
                         end
                         """
                     ]
@@ -177,10 +174,7 @@ let job_name = "test-worker-link-local-bind-to"
         try
             start_batch_node_worker()
         catch e   # Prevents the job from failing so we can retry AWS errors
-            println(e)
-            for line in stacktrace(catch_backtrace())
-                println(line)
-            end
+            showerror(stderr, e, catch_backtrace())
         end
         """
 
@@ -441,6 +435,8 @@ end
         wait_finish(job)
 
         @test status(manager_job) == AWSBatch.SUCCEEDED
+        # Note: In practice worker jobs would actually fail but we catch the failure so that
+        # we can retry the jobs for other AWS failure cases
         @test status(worker_job) == AWSBatch.SUCCEEDED
 
         manager_log = log_messages(manager_job)
@@ -467,6 +463,8 @@ end
         wait_finish(job)
 
         @test status(manager_job) == AWSBatch.SUCCEEDED
+        # Note: In practice worker jobs would actually fail but we catch the failure so that
+        # we can retry the jobs for other AWS failure cases
         @test status(worker_job) == AWSBatch.SUCCEEDED
 
         manager_log = log_messages(manager_job)
