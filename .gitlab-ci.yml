@@ -16,7 +16,7 @@ variables:
 # Variables that require shell execution or depend on a variable that does
 .setup: &setup
   |
-  echo "$common_functions" > common && source common
+  echo "$ci_init" > ci_init && source ci_init && rm ci_init
   # Make unique stacks for each executed pipeline for `master`. This will allow fast successive merges
   # to work correctly.
   STACK_NAME=$(stack_name $STACK_NAME_PREFIX)
@@ -64,6 +64,7 @@ variables:
     - docker-build
     - ci-account
   variables:
+    JULIA_VERSION: "1.3"
     ONLINE: "docker, batch, batch-node"  # Runs the online tests for AWS Batch & Docker
   timeout: 2h
   before_script:
@@ -73,12 +74,11 @@ variables:
     - install_cloudspy
     - assume_test_role --duration 7200  # 2 hours, matches job timeout
   after_script:
-    - ./julia-ci clean  # julia-ci added in script
-    - sleep 5
     - *setup
+    - julia-ci clean
     - export CI_COMMIT_SHA_SHORT=$(git rev-parse --short $CI_COMMIT_SHA)
     - docker rmi $ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com/aws-batch-manager-test:$CI_COMMIT_SHA_SHORT
-  extends: .test_shell_1_0
+  extends: .test_shell
 
 
 .delete: &delete
