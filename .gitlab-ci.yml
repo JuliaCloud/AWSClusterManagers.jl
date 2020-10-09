@@ -63,6 +63,9 @@ variables:
     - amzn2
     - docker-build
     - ci-account
+    # Required until AWSClusterManager is architecture agnostic
+    # https://gitlab.invenia.ca/invenia/AWSClusterManagers.jl/-/issues/74
+    - x86_64
   variables:
     JULIA_VERSION: "1.3"
     ONLINE: "docker, batch, batch-node"  # Runs the online tests for AWS Batch & Docker
