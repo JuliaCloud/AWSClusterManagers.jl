@@ -1,5 +1,5 @@
 # https://gitlab.invenia.ca/invenia/Dockerfiles/tree/master/julia-baked
-ARG BASE_IMAGE=468665244580.dkr.ecr.us-east-1.amazonaws.com/julia-baked:1.0
+ARG BASE_IMAGE=468665244580.dkr.ecr.us-east-1.amazonaws.com/julia-baked:1.3
 FROM ${BASE_IMAGE}
 
 LABEL maintainer="curtis.vogt@invenia.ca"
