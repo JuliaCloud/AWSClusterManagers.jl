@@ -65,13 +65,17 @@ ARG CREATE_SYSIMG="false"
 
 # Note: Need to have libc to avoid: "/usr/bin/ld: cannot find crti.o: No such file or directory"
 # https://docs.julialang.org/en/v1.0/devdocs/sysimg/#Building-the-Julia-system-image-1
+# TODO: We could generate better precompile statements by using the tests
+# https://gitlab.invenia.ca/invenia/AWSClusterManagers.jl/-/issues/73
 ENV PKGS \
     gcc
 ENV PINNED_PKGS \
     glibc
 RUN echo "using $PKG_NAME" > $JULIA_PATH/userimg.jl && \
     if [[ "$CREATE_SYSIMG" == "true" ]]; then \
-        time $HOME/create_sysimg.sh $JULIA_PATH/userimg.jl; \
+        julia -e 'using Pkg; Pkg.add(PackageSpec(name="PackageCompiler", version="1"))' && \
+        julia --trace-compile=$HOME/precompile.jl -e "using $PKG_NAME" && \
+        time $HOME/create_sysimg.sh $HOME/precompile.jl; \
     elif [[ "$PRECOMPILE" == "true" ]]; then \
         time $HOME/precompile.sh; \
     else \
