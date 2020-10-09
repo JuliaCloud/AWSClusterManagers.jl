@@ -47,7 +47,7 @@ RUN julia -e " \
 ARG PRECOMPILE="true"
 
 # Perform precompilation of packages.
-RUN if [[ "$PRECOMPILE" == "true" ]]; then \
+RUN if [[ "$PKG_PRECOMPILE" == "true" ]]; then \
         $HOME/precompile.sh; \
     fi
 
@@ -76,10 +76,10 @@ RUN echo "using $PKG_NAME" > $JULIA_PATH/userimg.jl && \
         julia -e 'using Pkg; Pkg.add(PackageSpec(name="PackageCompiler", version="1"))' && \
         julia --trace-compile=$HOME/precompile.jl -e "using $PKG_NAME" && \
         time $HOME/create_sysimg.sh $HOME/precompile.jl; \
-    elif [[ "$PRECOMPILE" == "true" ]]; then \
+    elif [[ "$PKG_PRECOMPILE" == "true" ]]; then \
         time $HOME/precompile.sh; \
     else \
-        echo -n "WARNING: Disabling both PRECOMPILE and CREATE_SYSIMG will result in " >&2 && \
+        echo -n "WARNING: Disabling both PKG_PRECOMPILE and CREATE_SYSIMG will result in " >&2 && \
         echo -n "packages being compiled at runtime which may cause containers to run " >&2 && \
         echo "out of memory." >&2; \
     fi
