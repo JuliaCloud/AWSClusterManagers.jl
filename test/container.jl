@@ -23,7 +23,7 @@
     end
 
     @testset "batch regex" begin
-        job_id = "69d95a04-d313-4530-bee5-a65def33a303"
+        job_id = "69d95a04d3134530bee5a65def33a303"
         container_id = "e799b9182976f8298065419945d32a4398f1280e616199448729f5b72b8e81ef"
         cgroup = """
             9:perf_event:/ecs/$job_id/$container_id
