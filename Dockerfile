@@ -1,5 +1,5 @@
 # https://gitlab.invenia.ca/invenia/Dockerfiles/tree/master/julia-baked
-ARG BASE_IMAGE=468665244580.dkr.ecr.us-east-1.amazonaws.com/julia-baked:1.0
+ARG BASE_IMAGE=468665244580.dkr.ecr.us-east-1.amazonaws.com/julia-baked:1.3
 FROM ${BASE_IMAGE}
 
 LABEL maintainer="curtis.vogt@invenia.ca"
@@ -47,7 +47,7 @@ RUN julia -e " \
 ARG PRECOMPILE="true"
 
 # Perform precompilation of packages.
-RUN if [[ "$PRECOMPILE" == "true" ]]; then \
+RUN if [[ "$PKG_PRECOMPILE" == "true" ]]; then \
         $HOME/precompile.sh; \
     fi
 
@@ -65,17 +65,21 @@ ARG CREATE_SYSIMG="false"
 
 # Note: Need to have libc to avoid: "/usr/bin/ld: cannot find crti.o: No such file or directory"
 # https://docs.julialang.org/en/v1.0/devdocs/sysimg/#Building-the-Julia-system-image-1
+# TODO: We could generate better precompile statements by using the tests
+# https://gitlab.invenia.ca/invenia/AWSClusterManagers.jl/-/issues/73
 ENV PKGS \
     gcc
 ENV PINNED_PKGS \
     glibc
 RUN echo "using $PKG_NAME" > $JULIA_PATH/userimg.jl && \
     if [[ "$CREATE_SYSIMG" == "true" ]]; then \
-        time $HOME/create_sysimg.sh $JULIA_PATH/userimg.jl; \
-    elif [[ "$PRECOMPILE" == "true" ]]; then \
+        julia -e 'using Pkg; Pkg.add(PackageSpec(name="PackageCompiler", version="1"))' && \
+        julia --trace-compile=$HOME/precompile.jl -e "using $PKG_NAME" && \
+        time $HOME/create_sysimg.sh $HOME/precompile.jl; \
+    elif [[ "$PKG_PRECOMPILE" == "true" ]]; then \
         time $HOME/precompile.sh; \
     else \
-        echo -n "WARNING: Disabling both PRECOMPILE and CREATE_SYSIMG will result in " >&2 && \
+        echo -n "WARNING: Disabling both PKG_PRECOMPILE and CREATE_SYSIMG will result in " >&2 && \
         echo -n "packages being compiled at runtime which may cause containers to run " >&2 && \
         echo "out of memory." >&2; \
     fi

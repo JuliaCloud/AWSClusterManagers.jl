@@ -74,7 +74,7 @@ if !isempty(ONLINE)
     else
         # Build using the system image on the CI
         build_args = if get(ENV, "CI", "false") == "true"
-            `--build-arg PRECOMPILE=false --build-arg CREATE_SYSIMG=true`
+            `--build-arg PKG_PRECOMPILE=true --build-arg CREATE_SYSIMG=true`
         else
             ``
         end
@@ -95,6 +95,7 @@ include("utils.jl")
     include("container.jl")
     include("docker.jl")
     include("batch.jl")
+    include("socket.jl")
 
     if "docker" in ONLINE
         include("docker_online.jl")

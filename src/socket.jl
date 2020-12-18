@@ -52,6 +52,12 @@ struct InterfaceAddress{T<:IPAddr}
     # netmask::T  # No accessors available currently
 end
 
+# Julia commit 58bafe499b
+const _jl_sockaddr_is_ip4, _jl_sockaddr_is_ip6 = let
+    prefix = VERSION >= v"1.3.0-DEV.434" ? :jl_sockaddr_is_ : :jl_sockaddr_in_is
+    Symbol(prefix, :ip4), Symbol(prefix, :ip6)
+end
+
 # Based upon `getipaddrs` in "stdlib/Sockets/src/addrinfo.jl"
 function get_interface_addrs()
     addresses = InterfaceAddress[]
@@ -67,9 +73,9 @@ function get_interface_addrs()
         name = unsafe_string(unsafe_load(Ptr{Cstring}(current_addr)))
         is_internal = ccall(:jl_uv_interface_address_is_internal, Int32, (Ptr{UInt8},), current_addr) == 1
         sockaddr = ccall(:jl_uv_interface_address_sockaddr, Ptr{Cvoid}, (Ptr{UInt8},), current_addr)
-        ip = if ccall(:jl_sockaddr_in_is_ip4, Int32, (Ptr{Cvoid},), sockaddr) == 1
+        ip = if ccall(_jl_sockaddr_is_ip4, Int32, (Ptr{Cvoid},), sockaddr) == 1
             IPv4(ntoh(ccall(:jl_sockaddr_host4, UInt32, (Ptr{Cvoid},), sockaddr)))
-        elseif ccall(:jl_sockaddr_in_is_ip6, Int32, (Ptr{Cvoid},), sockaddr) == 1
+        elseif ccall(_jl_sockaddr_is_ip6, Int32, (Ptr{Cvoid},), sockaddr) == 1
             addr6 = Ref{UInt128}()
             scope_id = ccall(:jl_sockaddr_host6, UInt32, (Ptr{Cvoid}, Ref{UInt128},), sockaddr, addr6)
             IPv6(ntoh(addr6[]))
@@ -79,5 +85,3 @@ function get_interface_addrs()
     ccall(:uv_free_interface_addresses, Cvoid, (Ptr{UInt8}, Int32), addr, count)
     return addresses
 end
-
-
