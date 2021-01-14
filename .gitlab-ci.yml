@@ -67,7 +67,7 @@ variables:
     # https://gitlab.invenia.ca/invenia/AWSClusterManagers.jl/-/issues/74
     - x86_64
   variables:
-    JULIA_VERSION: "1.3"  # Julia version to use by `Pkg.test()` and not the AWS Batch jobs
+    JULIA_VERSION: "1.5"  # Julia version to use by `Pkg.test()` and not the AWS Batch jobs
     ONLINE: "docker, batch, batch-node"  # Runs the online tests for AWS Batch & Docker
   timeout: 2h
   before_script:
