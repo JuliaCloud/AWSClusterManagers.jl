@@ -1,0 +1,642 @@
+# https://gitlab.invenia.ca/invenia/AWSClusterManagers.jl/blob/master/test/batch.yml
+#
+# Creates a bare bones AWS Batch environment used to test the AWSBatchManager from AWSClusterManagers.jl.
+#
+# ```
+# aws cloudformation create-stack \
+#   --stack-name aws-batch-manager-test \
+#   --template-body file://test/batch.yml \
+#   --capabilities CAPABILITY_NAMED_IAM
+# ```
+#
+# If you are planning on destroying your stack after you have finished running tests you
+# can use the following parameters to make the tests avoid delays with scaling the compute
+# environments by being slightly more expensive:
+#
+# ```
+# aws cloudformation create-stack \
+#   --stack-name aws-batch-manager-test-fast \
+#   --template-body file://test/batch.yml \
+#   --capabilities CAPABILITY_NAMED_IAM \
+#   --parameters \
+#     ParameterKey=MinVCPUs,ParameterValue=16
+# ```
+
+AWSTemplateFormatVersion: 2010-09-09
+Description: >-
+  A bare bones AWS Batch environment used to test the AWSBatchManager from AWSClusterManagers.jl.
+
+# https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/parameters-section-structure.html#aws-specific-parameter-types
+Parameters:
+  OperationsAccountId:
+    Description: >-
+      Account ID for the operations account which stores the julia-baked ECR repository
+    Type: String
+    Default: 468665244580
+    AllowedPattern: "\\d{12}"
+  VPCCidrBlock:
+    # https://docs.aws.amazon.com/AmazonVPC/latest/UserGuide/VPC_Subnets.html#VPC_Sizing
+    Description: >-
+      The IP address range used for batch instances in the VPC.
+    Type: String
+    Default: 10.0.0.0/16
+    AllowedPattern: "\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}/\\d{1,2}"
+  SubnetType:
+    Description: Specify the use of a private or public subnet
+    Type: String
+    Default: private
+    AllowedValues:
+      - private
+      - public
+  ExternalNetworking:
+    Description: Specify how external networking is setup within private subnets
+    Type: String
+    Default: nat
+    AllowedValues:
+      - none
+      - nat
+  ProvisioningModel:
+    Description: Spot instances are cheaper than on-demand but can be abruptly terminated
+    Type: String
+    Default: on-demand
+    AllowedValues:
+      - on-demand
+      - spot
+  MinVCPUs:
+    Description: >-
+      The minimum number of VCPUs to be available. Setting to 1 or higher makes jobs start
+      faster but will cost us more when instances are idle. Note you cannot decrease the
+      minimum number of VCPUs with a stack update.
+    Type: Number
+    Default: 0
+  MaxVCPUs:
+    Description: >-
+      The maximum number of VCPUs. Typically this number does not need to be touched
+    Type: Number
+    Default: 16
+  CIRoleArn:
+    Description: The role ARN used when executing GitLab CI test stage jobs.
+    Type: String
+    Default: ""
+    AllowedPattern: "|arn:aws:iam::\\d{12}:role/[^/]+"
+
+Conditions:
+  UsePublicSubnet: !Equals [!Ref SubnetType, public]
+  UsePrivateSubnet: !Equals [!Ref SubnetType, private]
+  UseNAT: !And
+    - !Condition UsePrivateSubnet
+    - !Equals [!Ref ExternalNetworking, nat]
+  UseExternalNetworking: !Or
+    - !Condition UsePublicSubnet
+    - !Condition UseNAT
+  OnDemandComputeEnvironment: !Equals [!Ref ProvisioningModel, on-demand]
+  Testing: !Not [!Equals [!Ref CIRoleArn, ""]]
+  IsCI: !Equals [!Ref "AWS::AccountId", 813030647716]
+
+
+Resources:
+  ComputeEnvironment:
+    Type: AWS::Batch::ComputeEnvironment
+    DependsOn: BatchServiceRole  # Removing the ServiceRole before deleting the ComputeEnvironment will cause issues
+    Properties:
+      Type: MANAGED
+      # Make the ComputeEnvironment name unique for every conditional variation
+      ComputeEnvironmentName: !Sub
+        - "${AWS::StackName}-${InstanceType}-${SubnetType}"
+        - InstanceType: !If [OnDemandComputeEnvironment, demand, spot]
+          SubnetType: !If [UsePrivateSubnet, private, public]
+      ComputeResources:
+        Type: !If [OnDemandComputeEnvironment, EC2, SPOT]
+        BidPercentage: 100
+        MinvCpus: !Ref MinVCPUs
+        MaxvCpus: !Ref MaxVCPUs
+        InstanceTypes: [optimal]
+        PlacementGroup: !Ref PlacementGroup
+        Subnets:
+          !If
+            - UsePrivateSubnet
+            - - !Ref PrivateSubnetA
+              - !Ref PrivateSubnetB
+              - !Ref PrivateSubnetC
+              - !Ref PrivateSubnetD
+              - !Ref PrivateSubnetE
+              - !Ref PrivateSubnetF
+            - - !Ref PublicSubnetA
+        SecurityGroupIds: [!Ref SecurityGroup]
+        InstanceRole: !Ref IamInstanceProfile
+        SpotIamFleetRole: !If [OnDemandComputeEnvironment, !Ref "AWS::NoValue", !Ref BatchSpotFleetRole]
+        Tags:
+          Name: !Sub "AWS Batch (${AWS::StackName})"
+      ServiceRole: !Ref BatchServiceRole
+  ManagerJobQueue:
+    Type: AWS::Batch::JobQueue
+    Properties:
+      JobQueueName: !Sub ${AWS::StackName}-Managers
+      Priority: 2  # Managers should have a higher priority relative to workers
+      ComputeEnvironmentOrder:
+        - Order: 1
+          ComputeEnvironment: !Ref ComputeEnvironment
+  WorkerJobQueue:
+    Type: AWS::Batch::JobQueue
+    Properties:
+      JobQueueName: !Sub ${AWS::StackName}-Workers
+      Priority: 1
+      ComputeEnvironmentOrder:
+        - Order: 1
+          ComputeEnvironment: !Ref ComputeEnvironment
+
+  IamInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Roles:
+        - !Ref EcsInstanceRole
+  EcsInstanceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2008-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ec2.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonEC2ContainerServiceforEC2Role
+  BatchServiceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: batch.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSBatchServiceRole
+
+  # http://docs.aws.amazon.com/batch/latest/userguide/spot_fleet_IAM_role.html
+  BatchSpotFleetRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: spotfleet.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonEC2SpotFleetTaggingRole
+
+  SecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: EC2 Security Group for instances launched in the VPC by Batch
+      VpcId: !Ref VPC
+  VPC:
+    Type: AWS::EC2::VPC
+    DependsOn: DeleteStackRole  # This role should be the last to delete
+    Properties:
+      CidrBlock: !Ref VPCCidrBlock
+  PlacementGroup:
+    Type: AWS::EC2::PlacementGroup
+    Properties:
+      Strategy: partition
+
+  # For details see: "docs/src/pages/design.md#compute-environment-networking-considerations"
+  PrivateSubnetA:
+    Type: AWS::EC2::Subnet
+    Condition: UsePrivateSubnet
+    Properties:
+      AvailabilityZone: !Sub ${AWS::Region}a
+      CidrBlock: !Select [0, !Cidr [!GetAtt VPC.CidrBlock, 16, 12]]  # e.g. 10.0.0.0/16 becomes 10.0.0.0/20 (10.0.0.0 - 10.0.15.255)
+      VpcId: !Ref VPC
+      MapPublicIpOnLaunch: false
+  RTAPrivateSubnetA:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Condition: UsePrivateSubnet
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable
+      SubnetId: !Ref PrivateSubnetA
+
+  PrivateSubnetB:
+    Type: AWS::EC2::Subnet
+    Condition: UsePrivateSubnet
+    Properties:
+      AvailabilityZone: !Sub ${AWS::Region}b
+      CidrBlock: !Select [1, !Cidr [!GetAtt VPC.CidrBlock, 16, 12]]  # e.g. 10.0.0.0/16 becomes 10.0.16.0/20 (10.0.16.0 - 10.0.31.255)
+      VpcId: !Ref VPC
+      MapPublicIpOnLaunch: false
+  RTAPrivateSubnetB:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Condition: UsePrivateSubnet
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable
+      SubnetId: !Ref PrivateSubnetB
+
+  PrivateSubnetC:
+    Type: AWS::EC2::Subnet
+    Condition: UsePrivateSubnet
+    Properties:
+      AvailabilityZone: !Sub ${AWS::Region}c
+      CidrBlock: !Select [2, !Cidr [!GetAtt VPC.CidrBlock, 16, 12]]  # e.g. 10.0.0.0/16 becomes 10.0.32.0/20 (10.0.32.0 - 10.0.63.255)
+      VpcId: !Ref VPC
+      MapPublicIpOnLaunch: false
+  RTAPrivateSubnetC:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Condition: UsePrivateSubnet
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable
+      SubnetId: !Ref PrivateSubnetC
+
+  PrivateSubnetD:
+    Type: AWS::EC2::Subnet
+    Condition: UsePrivateSubnet
+    Properties:
+      AvailabilityZone: !Sub ${AWS::Region}d
+      CidrBlock: !Select [3, !Cidr [!GetAtt VPC.CidrBlock, 16, 12]]  # e.g. 10.0.0.0/16 becomes 10.0.48.0/20 (10.0.48.0 - 10.0.63.255)
+      VpcId: !Ref VPC
+      MapPublicIpOnLaunch: false
+  RTAPrivateSubnetD:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Condition: UsePrivateSubnet
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable
+      SubnetId: !Ref PrivateSubnetD
+
+  PrivateSubnetE:
+    Type: AWS::EC2::Subnet
+    Condition: UsePrivateSubnet
+    Properties:
+      AvailabilityZone: !Sub ${AWS::Region}e
+      CidrBlock: !Select [4, !Cidr [!GetAtt VPC.CidrBlock, 16, 12]]  # e.g. 10.0.0.0/16 becomes 10.0.64.0/20 (10.0.64.0 - 10.0.79.255)
+      VpcId: !Ref VPC
+      MapPublicIpOnLaunch: false
+  RTAPrivateSubnetE:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Condition: UsePrivateSubnet
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable
+      SubnetId: !Ref PrivateSubnetE
+
+  PrivateSubnetF:
+    Type: AWS::EC2::Subnet
+    Condition: UsePrivateSubnet
+    Properties:
+      AvailabilityZone: !Sub ${AWS::Region}f
+      CidrBlock: !Select [5, !Cidr [!GetAtt VPC.CidrBlock, 16, 12]]  # e.g. 10.0.0.0/16 becomes 10.0.80.0/20 (10.0.80.0 - 10.0.95.255)
+      VpcId: !Ref VPC
+      MapPublicIpOnLaunch: false
+  RTAPrivateSubnetF:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Condition: UsePrivateSubnet
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable
+      SubnetId: !Ref PrivateSubnetF
+
+  PrivateRouteTable:
+    Type: AWS::EC2::RouteTable
+    Condition: UsePrivateSubnet
+    Properties:
+      VpcId: !Ref VPC
+  PrivateRoute:
+    Type: AWS::EC2::Route
+    Condition: UseNAT
+    DependsOn: VPCGatewayAttachment
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref NATGateway
+  NATGateway:
+    Type: AWS::EC2::NatGateway  # "/design.md#nat-gateway"
+    Condition: UseNAT
+    Properties:
+      AllocationId: !GetAtt EIP.AllocationId
+      SubnetId: !Ref PublicSubnetA
+  EIP:
+    Type: AWS::EC2::EIP
+    Condition: UseNAT
+    DependsOn: VPCGatewayAttachment
+    Properties:
+      Domain: vpc
+
+  PublicSubnetA:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Sub ${AWS::Region}a
+      CidrBlock: !Select [6, !Cidr [!GetAtt VPC.CidrBlock, 16, 12]]  # e.g. 10.0.0.0/16 becomes 10.0.96.0/20 (10.0.96.0 - 10.0.111.255)
+      VpcId: !Ref VPC
+      MapPublicIpOnLaunch: true
+  RTAPublicSubnetA:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      SubnetId: !Ref PublicSubnetA
+  PublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+  PublicRoute:
+    Type: AWS::EC2::Route
+    Condition: UseExternalNetworking
+    DependsOn: VPCGatewayAttachment
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+
+  VPCGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Condition: UseExternalNetworking
+    DependsOn: PublicSubnetA  # Detaching the gateway can fail if the VPC still contains public addresses
+    Properties:
+      VpcId: !Ref VPC
+      InternetGatewayId: !Ref InternetGateway
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Condition: UseExternalNetworking
+
+
+  #============================================#
+# Automatically delete stacks in the CI account that haven't been updated recently.
+
+  DeleteStackRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: DeleteStackPolicy
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - cloudformation:DescribeStacks
+                  - cloudformation:DeleteStack
+                Resource: !Ref AWS::StackId
+              - Effect: Allow
+                Action:
+                  - logs:*
+                  - ec2:*
+                  - batch:*
+                  - iam:*
+                  - events:*
+                  - lambda:*
+                  - ecr:*
+                Resource: "*"
+
+  DeleteStackLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      Handler: index.lambda_handler
+      Runtime: python3.6
+      Timeout: 5
+      Role: !GetAtt DeleteStackRole.Arn
+      Environment:
+        Variables:
+          STACK_NAME: !Ref AWS::StackName
+          WAIT_PERIOD: "3"  # hours
+      Code:
+        ZipFile: |
+          from datetime import datetime, timedelta
+          import boto3
+          import os
+          STACK_NAME = os.environ["STACK_NAME"]
+          WAIT_PERIOD = os.environ["WAIT_PERIOD"]
+
+          def empty_repository(ecr):
+              client = boto3.client('ecr')
+              image_ids = client.list_images(repositoryName=ecr)["imageIds"]
+              client.batch_delete_image(repositoryName=ecr, imageIds=image_ids)
+              print(f"Finished emptying ECR repository \"{ecr}\".")
+
+          def lambda_handler(event, context):
+              cfn = boto3.resource('cloudformation')
+              stack = cfn.Stack(STACK_NAME)
+              wait_period = timedelta(hours=int(WAIT_PERIOD))
+              if stack.last_updated_time is None:
+                  last_update = stack.creation_time
+              else:
+                  last_update = stack.last_updated_time
+              tzaware_now = datetime.now(last_update.tzinfo)
+              if tzaware_now >= last_update + wait_period:
+                  print(f"Deleting stack after {WAIT_PERIOD} hours without updates.")
+                  stack_outputs = {x["OutputKey"]: x["OutputValue"] for x in stack.outputs}
+                  empty_repository(stack_outputs["Ecr"])
+                  stack.delete()
+
+  DeleteStackPermission:
+    Condition: IsCI
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref DeleteStackLambda
+      Action: lambda:InvokeFunction
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt DeleteStackRule.Arn
+
+  DeleteStackRule:
+    Condition: IsCI
+    Type: AWS::Events::Rule
+    Properties:
+      Description: Trigger deletion if stack has not been updated recently.
+      ScheduleExpression: cron(0 * * * ? *)  # Run every hour
+      State: ENABLED
+      Targets:
+        - Id: DeleteStackLambda
+          Arn: !GetAtt DeleteStackLambda.Arn
+
+
+  #============================================#
+
+  # Role for AWSClusterManagers.jl for managers/workers
+  JLBatchJobRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ecs-tasks.amazonaws.com  # Note: Shouldn't be batch.amazonaws.com
+            Action: sts:AssumeRole
+
+  JLBatchManagerPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      Description: >-
+        Allow a AWSBatchManager to spawn workers and perform introspection
+      Roles:
+        - !Ref JLBatchJobRole
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Action:
+              - batch:SubmitJob
+              - batch:DescribeJobs
+              - batch:DescribeJobDefinitions
+              - batch:DescribeComputeEnvironments
+              - batch:DescribeJobQueues
+            Resource: '*'
+
+  TestBatchNodeJobRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ecs-tasks.amazonaws.com  # Note: Shouldn't be batch.amazonaws.com
+            Action: sts:AssumeRole
+
+  TestBatchNodeJobPolicy:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: DescribeJobs
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Action: batch:DescribeJobs
+            Resource: "*"
+      Roles: [!Ref TestBatchNodeJobRole]
+
+  JLBatchJobIngress:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      Description: Allows Julia managers/workers to connect to each other on any port
+      GroupId: !Ref SecurityGroup
+      IpProtocol: "-1"  # All protocols (TCP, UDP, ICMP) on all ports
+      SourceSecurityGroupId: !Ref SecurityGroup
+
+  ECR:
+    Type: AWS::ECR::Repository
+    # Note: Doesn't work. ECR repositories will not be deleted when the stack is deleted if
+    # the repo contains any images. Delete the repo manually first to solve this.
+    DeletionPolicy: Delete
+    Properties:
+      RepositoryName: !Ref AWS::StackName  # Named to be consistent with JobDefinitionName
+
+  TestRole:
+    Type: AWS::IAM::Role
+    Condition: Testing
+    Properties:
+      RoleName: !Sub ${AWS::StackName}-TestRole
+      MaxSessionDuration: 7200  # 2 hours, in seconds
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              AWS: !Ref CIRoleArn
+            Action: sts:AssumeRole
+
+  # Similar to the "JLBatchManagerPolicy" but includes additional required permissions
+  # necessary for running the AWSClusterManagers online batch tests.
+  TestPolicy:
+    Type: AWS::IAM::Policy
+    Condition: Testing
+    Properties:
+      PolicyName: TestPolicy
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          # Permissions used by AWSBatch.jl
+          - Effect: Allow
+            Action:
+              - batch:RegisterJobDefinition
+              - batch:DescribeJobDefinitions
+              - batch:DeregisterJobDefinition
+              - batch:SubmitJob
+              - batch:DescribeJobs
+              - batch:DescribeJobQueues
+              - batch:DescribeComputeEnvironments
+            Resource: "*"
+          - Effect: Allow
+            Action: logs:GetLogEvents
+            Resource: "*"
+          - Effect: Allow
+            Action: iam:PassRole
+            Resource: !GetAtt JLBatchJobRole.Arn
+
+          # AWSTools.stack_output
+          - Effect: Allow
+            Action: cloudformation:DescribeStacks
+            Resource: !Sub arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/${AWS::StackName}/*
+
+          # AWSBatch.Docker.login
+          - Effect: Allow
+            Action: ecr:GetAuthorizationToken
+            Resource: "*"
+
+          # AWSBatch.Docker.pull
+          - Effect: Allow
+            Action:
+              - ecr:GetDownloadUrlForLayer
+              - ecr:BatchGetImage
+              - ecr:BatchCheckLayerAvailability
+            Resource:
+              - !Sub arn:aws:ecr:${AWS::Region}:${OperationsAccountId}:repository/julia-baked
+              - !Sub arn:aws:ecr:${AWS::Region}:${AWS::AccountId}:repository/${ECR}
+
+          # AWSBatch.Docker.push
+          - Effect: Allow
+            Action:
+              - ecr:PutImage
+              - ecr:InitiateLayerUpload
+              - ecr:UploadLayerPart
+              - ecr:CompleteLayerUpload
+            Resource:
+              - !Sub arn:aws:ecr:${AWS::Region}:${AWS::AccountId}:repository/${ECR}
+
+          # aws-clear-queue
+          - Effect: Allow
+            Action:
+              - batch:ListJobs
+              - batch:TerminateJob
+              - batch:UpdateJobQueue
+            Resource: "*"
+
+          # batch-delete-image
+          - Effect: Allow
+            Action:
+              - ecr:ListImages
+              - ecr:BatchDeleteImage
+            Resource: !GetAtt ECR.Arn
+
+          # test/batch_node_online.jl
+          - Effect: Allow
+            Action: iam:PassRole
+            Resource: !GetAtt TestBatchNodeJobRole.Arn
+      Roles: [!Ref TestRole]
+
+Outputs:
+  # JobDefinitionArn:
+    # Value: !Ref JobDefinition
+  JobName:
+    Value: !Ref AWS::StackName
+  JobDefinitionName:
+    Value: !Ref AWS::StackName
+  ComputeEnvironmentArn:
+    Value: !Ref ComputeEnvironment
+  ManagerJobQueueArn:
+    Value: !Ref ManagerJobQueue
+  WorkerJobQueueArn:
+    Value: !Ref WorkerJobQueue
+  JobRoleArn:
+    Value: !GetAtt JLBatchJobRole.Arn
+  TestBatchNodeJobRoleArn:
+    Value: !GetAtt TestBatchNodeJobRole.Arn
+  Ecr:
+    Value: !Ref ECR
+  EcrUri:
+    Value: !Sub ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${ECR}

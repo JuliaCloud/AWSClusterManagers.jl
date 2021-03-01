@@ -1,0 +1,136 @@
+---
+include:
+  - project: invenia/gitlab-ci-helper
+    file: /templates/julia.yml
+
+# Disable GitLab CI's default cache policy of "pull-push"
+# https://docs.gitlab.com/ee/ci/yaml/#cache-policy
+# https://docs.gitlab.com/ce/ci/caching/index.html#disabling-cache-on-specific-jobs
+cache: {}
+
+variables:
+  AMAZON_LINUX_IMAGE: amazonlinux:2
+  STACK_NAME_PREFIX: sandbox-awsclustermanagers
+  ONLINE: ""
+
+# Variables that require shell execution or depend on a variable that does
+.setup: &setup
+  |
+  echo "$ci_init" > ci_init && source ci_init && rm ci_init
+  # Make unique stacks for each executed pipeline for `master`. This will allow fast successive merges
+  # to work correctly.
+  STACK_NAME=$(stack_name $STACK_NAME_PREFIX)
+  ACCOUNT_ID=$(aws_account_id)
+  REGION=$(aws_region)
+  export AWS_DEFAULT_REGION=$(echo $REGION)
+
+"Setup Environment":
+  stage: setup
+  except:
+    - tags
+    - master
+    - /^.+\/.*master$/  # e.g. jh/validate-master
+  when: always
+  environment:
+    name: branch/$CI_COMMIT_REF_SLUG
+    on_stop: "Delete Environment"
+  script:
+    - echo "Setting up environment"
+
+"Create Stack":
+  stage: setup
+  tags:
+    - docker-ci
+    - ci-account
+  image: $AMAZON_LINUX_IMAGE
+  before_script:
+    - *setup
+    - install_awscli
+    - install_cloudspy
+  script:
+    - aws cloudformation validate-template --template-body file://test/batch.yml
+    - |
+      aws-deploy-stack \
+        --role-arn arn:aws:iam::${ACCOUNT_ID}:role/CloudFormationAdmin \
+        --stack-name $STACK_NAME \
+        --template-file ./test/batch.yml \
+        --wait \
+        --params CIRoleArn=arn:aws:iam::${ACCOUNT_ID}:role/GitLabCIRunnerRole
+
+"Online Tests":
+  stage: test
+  tags:
+    - amzn2
+    - docker-build
+    - ci-account
+    # Required until AWSClusterManager is architecture agnostic
+    # https://gitlab.invenia.ca/invenia/AWSClusterManagers.jl/-/issues/74
+    - x86_64
+  variables:
+    JULIA_VERSION: "1.5"  # Julia version to use by `Pkg.test()` and not the AWS Batch jobs
+    ONLINE: "docker, batch, batch-node"  # Runs the online tests for AWS Batch & Docker
+  timeout: 2h
+  before_script:
+    - *setup
+    - export STACK_NAME  # Created by `setup` and needed when running tests
+    - install_awscli
+    - install_cloudspy
+    - assume_test_role --duration 7200  # 2 hours, matches job timeout
+  after_script:
+    - *setup
+    - julia-ci clean
+    - export CI_COMMIT_SHA_SHORT=$(git rev-parse --short $CI_COMMIT_SHA)
+    - docker rmi $ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com/aws-batch-manager-test:$CI_COMMIT_SHA_SHORT
+  extends: .test_shell
+
+
+.delete: &delete
+  tags:
+    - docker-ci
+    - ci-account
+  image: $AMAZON_LINUX_IMAGE
+  before_script:
+    - *setup
+    - install_awscli
+    - install_cloudspy
+    - assume_test_role
+  script:
+    - eval $(aws-stack-outputs $STACK_NAME)
+    # Terminate any jobs that are still running as running jobs can keep the EC2 instances
+    # running which makes the stack fail to delete cleanly. Jobs can still be running in
+    # scenarios where they are stuck or the CI hits the timeout.
+    - aws-clear-queue $ManagerJobQueueArn $WorkerJobQueueArn --reason "Deleting CloudFormation stack" --disable --wait
+    # Empty the ECR repository
+    - image_ids=$(aws ecr list-images --repository-name $Ecr --query "imageIds[*]")
+    - '[[ "$image_ids" != "[]" ]] && aws ecr batch-delete-image --repository-name $Ecr --image-ids "$image_ids"'
+    - unset AWS_PROFILE  # Switch to back to CI runner role
+    - |
+      aws cloudformation delete-stack \
+        --role-arn arn:aws:iam::${ACCOUNT_ID}:role/CloudFormationAdmin \
+        --stack-name $STACK_NAME
+    - aws cloudformation wait stack-delete-complete --stack-name $STACK_NAME
+
+"Delete Environment":
+  stage: teardown
+  except:
+    - tags
+    - master
+    - /^.+\/.*master$/
+  when: manual
+  environment:
+    name: branch/$CI_COMMIT_REF_SLUG
+    action: stop
+  dependencies:
+    - "Create Stack"
+  variables:
+    GIT_STRATEGY: none  # Avoid checking out a branch after deletion
+  <<: *delete
+
+"Delete Stack":
+  stage: teardown
+  only:
+    - tags
+    - master
+    - /^.+\/.*master$/
+  when: always
+  <<: *delete
