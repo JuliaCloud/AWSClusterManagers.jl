@@ -20,9 +20,9 @@ makedocs(
         "Design" => "pages/design.md",
         "API" => "pages/api.md",
     ],
-    repo = "https://gitlab.invenia.ca/invenia/AWSClusterManagers.jl/blob/{commit}{path}#L{line}",
+    repo = "https://github.com/JuliaCloud/AWSClusterManagers.jl/blob//{commit}{path}#L{line}",
     sitename = "AWSClusterManagers.jl",
-    authors = "Curtis Vogt",
+    authors = "Invenia Technical Computing",
     checkdocs = :exports,
     strict = true,
 )

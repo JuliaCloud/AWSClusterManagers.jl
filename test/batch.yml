@@ -526,24 +526,6 @@ Resources:
     Properties:
       RepositoryName: !Ref AWS::StackName  # Named to be consistent with JobDefinitionName
 
-  # Note: It would be nice to use this as the base job definition and make use of overrides
-  # when starting the test manager
-  # See: https://gitlab.invenia.ca/invenia/AWSClusterManagers.jl/issues/19
-
-  # JobDefinition:
-  #   Type: AWS::Batch::JobDefinition
-  #   Properties:
-  #     Type: container
-  #     ContainerProperties:
-  #       Image: !Sub "${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${ECR}:latest",
-  #       JobRoleArn: !Ref JLBatchJobRole
-  #       Vcpus: 1
-  #       Memory: 1024
-  #       # By default this job should fail
-  #       Command:
-  #         - exit
-  #         - 1
-
   TestRole:
     Type: AWS::IAM::Role
     Condition: Testing

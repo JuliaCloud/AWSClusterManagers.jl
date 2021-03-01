@@ -25,9 +25,7 @@ Adjustments can be made to the tests with the environmental variables `ONLINE` a
 - `ONLINE`: Should contain a comma separated list which contain elements from the set
   "docker" and/or "batch".  Including "docker" will run the online Docker tests (requires
   [Docker](https://www.docker.com/community-edition) to be installed) and "batch" will run
-  AWS Batch tests (see `STACK_NAME` for details). Running online tests requires that you
-  have [setup the Amazon ECR credential helper](https://gitlab.invenia.ca/invenia/wiki/blob/master/setup/docker.md#repository-access)
-  for Docker.
+  AWS Batch tests (see `STACK_NAME` for details).
 - `STACK_NAME`: Set the AWS Batch tests to use the stack specified. It is expected that
   the stack already exists in the current AWS profile. Note that `STACK_NAME` is only
   used if `ONLINE` contains "batch".
