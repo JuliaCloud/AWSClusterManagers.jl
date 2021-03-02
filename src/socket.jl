@@ -54,7 +54,7 @@ end
 
 # Julia commit 58bafe499b
 const _jl_sockaddr_is_ip4, _jl_sockaddr_is_ip6 = let
-    prefix = VERSION >= v"1.3.0-DEV.434" ? :jl_sockaddr_is_ : :jl_sockaddr_in_is
+    prefix = VERSION >= v"1.3.0-DEV.434" ? :jl_sockaddr_is_ : :jl_sockaddr_in_is_
     Symbol(prefix, :ip4), Symbol(prefix, :ip6)
 end
 
