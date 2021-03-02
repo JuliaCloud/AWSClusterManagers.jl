@@ -2,6 +2,7 @@ AWSClusterManagers
 ==================
 
 [![CI](https://github.com/JuliaCloud/AWSClusterManagers.jl/workflows/CI/badge.svg)](https://github.com/JuliaCloud/AWSClusterManagers.jl/actions?query=workflow%3ACI)
+[![Bors enabled](https://bors.tech/images/badge_small.svg)](https://app.bors.tech/repositories/32323)
 [![codecov](https://codecov.io/gh/JuliaCloud/AWSClusterManagers.jl/branch/master/graph/badge.svg)](https://codecov.io/gh/JuliaCloud/AWSClusterManagers.jl)
 [![Stable Documentation](https://img.shields.io/badge/docs-stable-blue.svg)](https://juliacloud.github.io/AWSClusterManagers.jl/stable)
 
