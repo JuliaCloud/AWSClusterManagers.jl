@@ -1,1 +1,4 @@
+status = [
+    "Julia 1 - ubuntu-latest - x64",
+]
 delete-merged-branches = true
