@@ -62,8 +62,7 @@ end
 # image is required) we avoid having a Docker build log breaking up output from tests.
 #
 # Note: Users are expected to have Docker credential helpers setup such that images can be
-# retrieved automatically. For details see:
-# https://gitlab.invenia.ca/invenia/wiki/blob/master/setup/docker.md#repository-access
+# retrieved automatically.
 if !isempty(ONLINE)
     @info("Preparing Docker image for online tests")
 
