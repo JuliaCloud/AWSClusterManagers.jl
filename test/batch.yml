@@ -523,8 +523,6 @@ Resources:
     # Note: Doesn't work. ECR repositories will not be deleted when the stack is deleted if
     # the repo contains any images. Delete the repo manually first to solve this.
     DeletionPolicy: Delete
-    Properties:
-      RepositoryName: !Ref AWS::StackName  # Named to be consistent with JobDefinitionName
 
   TestRole:
     Type: AWS::IAM::Role

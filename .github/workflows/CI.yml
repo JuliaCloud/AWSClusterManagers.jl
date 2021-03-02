@@ -43,8 +43,9 @@ jobs:
       - name: Deploy to AWS CloudFormation
         uses: aws-actions/aws-cloudformation-github-deploy@v1
         with:
-          name: AWSClusterManagers-jl-0000
+          name: AWSClusterManagers-jl-0001
           template: test/batch.yml
+          role-arn:  arn:aws:iam::134847318362:role/CloudFormationAdmin
 
       - run: |
           aws sts get-caller-identity
