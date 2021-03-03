@@ -19,7 +19,6 @@
         for i in workers()
             container = remotecall_fetch(container_id, i)
             println("Worker container \$i: \$container")
-            println("Worker image \$i: \$(AWSClusterManagers.image_id(container))")
         end
         """
 
@@ -37,6 +36,8 @@
         ```,
         String
     )
+
+    println(output)
 
     m = match(r"(?<=NumProcs: )\d+", output)
     num_procs = m !== nothing ? parse(Int, m.match) : -1
