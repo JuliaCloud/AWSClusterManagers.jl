@@ -57,9 +57,7 @@ jobs:
       - name: Export stack output
         run: |
           export AWS_DEFAULT_OUTPUT=text
-          TEST_ROLE_ARN=$(aws cloudformation describe-stacks --stack-name $STACK_NAME --query 'Stacks[0].Outputs[?OutputKey==`TestBatchNodeJobRoleArn`].OutputValue')
           ECR_URI=$(aws cloudformation describe-stacks --stack-name $STACK_NAME --query 'Stacks[0].Outputs[?OutputKey==`EcrUri`].OutputValue')
-          echo "TEST_ROLE_ARN=${TEST_ROLE_ARN}" >> $GITHUB_ENV
           echo "ECR_URI=${ECR_URI}" >> $GITHUB_ENV
 
       - name: Assume test role
@@ -68,9 +66,9 @@ jobs:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: us-east-1
-          role-to-assume: ${{ env.TEST_ROLE_ARN }}
+          role-to-assume: ${{ env.STACK_NAME }}-TestRole
           # role-external-id: ${{ secrets.AWS_ROLE_EXTERNAL_ID }}
-          # role-duration-seconds: 1200
+          role-duration-seconds: 7200
           # role-session-name: MySessionName
 
       - name: Set up QEMU
