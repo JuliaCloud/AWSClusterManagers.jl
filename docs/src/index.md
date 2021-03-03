@@ -1,7 +1,10 @@
-# AWSClusterManagers
-[![latest](https://img.shields.io/badge/docs-latest-blue.svg)](https://invenia.pages.invenia.ca/AWSClusterManagers.jl/)
-[![build status](https://gitlab.invenia.ca/invenia/AWSClusterManagers.jl/badges/master/build.svg)](https://gitlab.invenia.ca/invenia/AWSClusterManagers.jl/commits/master)
-[![coverage](https://gitlab.invenia.ca/invenia/AWSClusterManagers.jl/badges/master/coverage.svg)](https://gitlab.invenia.ca/invenia/AWSClusterManagers.jl/commits/master)
+AWSClusterManagers
+==================
+
+[![CI](https://github.com/JuliaCloud/AWSClusterManagers.jl/workflows/CI/badge.svg)](https://github.com/JuliaCloud/AWSClusterManagers.jl/actions?query=workflow%3ACI)
+[![Bors enabled](https://bors.tech/images/badge_small.svg)](https://app.bors.tech/repositories/32323)
+[![codecov](https://codecov.io/gh/JuliaCloud/AWSClusterManagers.jl/branch/master/graph/badge.svg)](https://codecov.io/gh/JuliaCloud/AWSClusterManagers.jl)
+[![Stable Documentation](https://img.shields.io/badge/docs-stable-blue.svg)](https://juliacloud.github.io/AWSClusterManagers.jl/stable)
 
 Julia cluster managers which run within the AWS infrastructure.
 

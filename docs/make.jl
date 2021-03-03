@@ -1,16 +1,12 @@
 using Documenter, AWSClusterManagers
 
-makedocs(
+makedocs(;
     modules = [AWSClusterManagers],
+    authors = "Invenia Technical Computing Corporation",
+    repo = "https://github.com/JuliaCloud/AWSClusterManagers.jl/blob/{commit}{path}#L{line}",
+    sitename = "AWSClusterManagers.jl",
     format = Documenter.HTML(
         prettyurls = get(ENV, "CI", nothing) == "true",
-        assets = [
-            "assets/invenia.css",
-            "assets/figures/batch_workers.svg",
-            "assets/figures/batch_managers.svg",
-            "assets/figures/batch_project.svg",
-            "assets/figures/docker_manager.svg",
-        ],
     ),
     pages = [
         "Home" => "index.md",
@@ -20,9 +16,12 @@ makedocs(
         "Design" => "pages/design.md",
         "API" => "pages/api.md",
     ],
-    repo = "https://github.com/JuliaCloud/AWSClusterManagers.jl/blob//{commit}{path}#L{line}",
-    sitename = "AWSClusterManagers.jl",
-    authors = "Invenia Technical Computing",
-    checkdocs = :exports,
     strict = true,
+    checkdocs = :exports,
+)
+
+deploydocs(;
+    repo = "https://github.com/JuliaCloud/AWSClusterManagers.jl",
+    devbranch = "main",
+    push_preview = true,
 )

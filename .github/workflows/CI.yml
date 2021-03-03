@@ -66,13 +66,12 @@ jobs:
             using Pkg
             Pkg.develop(PackageSpec(path=pwd()))
             Pkg.instantiate()'
-      # Note: Requires a newer version of Documenter
-      # - run: |
-      #     julia --project=docs -e '
-      #       using Documenter: DocMeta, doctest
-      #       using AWSClusterManagers
-      #       DocMeta.setdocmeta!(AWSClusterManagers, :DocTestSetup, :(using AWSClusterManagers); recursive=true)
-      #       doctest(AWSClusterManagers)'
+      - run: |
+          julia --project=docs -e '
+            using Documenter: DocMeta, doctest
+            using AWSClusterManagers
+            DocMeta.setdocmeta!(AWSClusterManagers, :DocTestSetup, :(using AWSClusterManagers); recursive=true)
+            doctest(AWSClusterManagers)'
       - run: julia --project=docs docs/make.jl
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
