@@ -1,4 +1,5 @@
 status = [
     "Julia 1 - ubuntu-latest - x64",
+    "Online Tests",
 ]
 delete-merged-branches = true
