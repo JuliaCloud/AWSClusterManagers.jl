@@ -68,11 +68,11 @@ Parameters:
       The maximum number of VCPUs. Typically this number does not need to be touched
     Type: Number
     Default: 16
-  CIRoleArn:
-    Description: The role ARN used when executing CI test stage jobs.
+  CIEntityArn:
+    Description: The user/role ARN used when executing CI test stage jobs.
     Type: String
     Default: ""
-    AllowedPattern: "|arn:aws:iam::\\d{12}:role/[^/]+"
+    AllowedPattern: "|arn:aws:iam::\\d{12}:(user|role)/[^/]+"
 
 Conditions:
   UsePublicSubnet: !Equals [!Ref SubnetType, public]
@@ -84,7 +84,7 @@ Conditions:
     - !Condition UsePublicSubnet
     - !Condition UseNAT
   OnDemandComputeEnvironment: !Equals [!Ref ProvisioningModel, on-demand]
-  Testing: !Not [!Equals [!Ref CIRoleArn, ""]]
+  Testing: !Not [!Equals [!Ref CIEntityArn, ""]]
   IsCI: !Equals [!Ref "AWS::AccountId", 813030647716]
 
 
@@ -530,7 +530,7 @@ Resources:
           # https://github.com/aws-actions/configure-aws-credentials#permissions-for-assuming-a-role
           - Effect: Allow
             Principal:
-              AWS: !Ref CIRoleArn
+              AWS: !Ref CIEntityArn
             Action:
               - sts:AssumeRole
               - sts:TagSession
