@@ -46,6 +46,9 @@ jobs:
       - run: |
           echo "STACK_NAME=AWSClusterManagers-jl-0001" >> $GITHUB_ENV
 
+      # Note: Using Bors will restrict us to only having one workflow running at a given time.
+      # Because of this we can safely use a single CFN stack and just update the stack to the
+      # state of the current branch.
       - name: Deploy to AWS CloudFormation
         uses: aws-actions/aws-cloudformation-github-deploy@v1
         with:
