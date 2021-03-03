@@ -527,10 +527,13 @@ Resources:
       AssumeRolePolicyDocument:
         Version: 2012-10-17
         Statement:
+          # https://github.com/aws-actions/configure-aws-credentials#permissions-for-assuming-a-role
           - Effect: Allow
             Principal:
               AWS: !Ref CIRoleArn
-            Action: sts:AssumeRole
+            Action:
+              - sts:AssumeRole
+              - sts:TagSession
 
   # Similar to the "JLBatchManagerPolicy" but includes additional required permissions
   # necessary for running the AWSClusterManagers online batch tests.
