@@ -73,6 +73,14 @@ Parameters:
     Type: String
     Default: ""
     AllowedPattern: "|arn:aws:iam::\\d{12}:(user|role)/[^/]+"
+  AutomaticTeardown:
+    Description: Delete the stack automatically after 3 hours of inactivity
+    Type: String
+    Default: "false"
+    AllowedValues:
+      - "true"
+      - "false"
+
 
 Conditions:
   UsePublicSubnet: !Equals [!Ref SubnetType, public]
@@ -85,7 +93,7 @@ Conditions:
     - !Condition UseNAT
   OnDemandComputeEnvironment: !Equals [!Ref ProvisioningModel, on-demand]
   Testing: !Not [!Equals [!Ref CIEntityArn, ""]]
-  IsCI: !Equals [!Ref "AWS::AccountId", 813030647716]
+  SelfDestruct: !Equals [!Ref AutomaticTeardown, true]
 
 
 Resources:
@@ -428,7 +436,7 @@ Resources:
                   stack.delete()
 
   DeleteStackPermission:
-    Condition: IsCI
+    Condition: SelfDestruct
     Type: AWS::Lambda::Permission
     Properties:
       FunctionName: !Ref DeleteStackLambda
@@ -437,7 +445,7 @@ Resources:
       SourceArn: !GetAtt DeleteStackRule.Arn
 
   DeleteStackRule:
-    Condition: IsCI
+    Condition: SelfDestruct
     Type: AWS::Events::Rule
     Properties:
       Description: Trigger deletion if stack has not been updated recently.

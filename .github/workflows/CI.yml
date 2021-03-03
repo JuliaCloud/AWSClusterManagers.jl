@@ -53,7 +53,7 @@ jobs:
           template: test/batch.yml
           role-arn:  arn:aws:iam::134847318362:role/CloudFormationAdmin
           capabilities: CAPABILITY_NAMED_IAM
-          parameter-overrides: "CIEntityArn=arn:aws:iam::134847318362:user/AWSClusterManagers-jl"
+          parameter-overrides: "CIEntityArn=arn:aws:iam::134847318362:user/AWSClusterManagers-jl,AutomaticTeardown=true"
           no-fail-on-empty-changeset: "1"
 
       - name: Export stack output
