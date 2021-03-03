@@ -74,8 +74,7 @@ if !isempty(ONLINE)
     else
         # Build using the system image on the CI
         build_args = if get(ENV, "CI", "false") == "true"
-            # `--build-arg PKG_PRECOMPILE=true --build-arg CREATE_SYSIMG=true`
-            ``
+            `--build-arg PKG_PRECOMPILE=true --build-arg CREATE_SYSIMG=true`
         else
             ``
         end
