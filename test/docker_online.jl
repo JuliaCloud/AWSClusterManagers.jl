@@ -51,7 +51,7 @@
             logger = Memento.config!("debug"; fmt="{msg}")
             setlevel!(getlogger(AWSClusterManagers), "debug")
 
-            addprocs(DockerManager($num_workers, image="$TEST_IMAGE"))
+            addprocs(DockerManager($num_workers))
             println("NumProcs: ", nprocs())
 
             @everywhere using AWSClusterManagers: container_id, image_id
