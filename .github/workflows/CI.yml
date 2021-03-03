@@ -31,7 +31,7 @@ jobs:
           - os: windows-latest
             arch: x86
     env:
-      STACK_NAME: AWSClusterManagers-jl
+      STACK_NAME_PREFIX: AWSClusterManagers-jl
       ONLINE: "docker, batch, batch-node"
     steps:
       - uses: actions/checkout@v2
@@ -64,6 +64,15 @@ jobs:
 
       - name: Validate AWS CloudFormation template
         run: aws cloudformation validate-template --template-body file://test/batch.yml
+
+      - name: Define STACK_NAME
+        run: |
+          echo $GITHUB_REF
+          BRANCH_NAME=$(echo $GITHUB_REF | sed 's!.*/!!')
+          echo $BRANCH_NAME
+          STACK_NAME=${STACK_NAME_PREFIX}-${BRANCH_NAME//\//-}  # Replace any forward slashes with a hyphen
+          echo $STACK_NAME
+          echo "STACK_NAME=$STACK_NAME" >> $GITHUB_ENV
 
       # Note: Using Bors will restrict us to only having one workflow running at a given time.
       # Because of this we can safely use a single CFN stack and just update the stack to the
