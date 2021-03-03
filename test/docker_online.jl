@@ -7,10 +7,12 @@
         using Distributed
         using Memento
 
+        println(read("/proc/self/cgroup", String))
+
         Memento.config!("debug"; fmt="{msg}")
         setlevel!(getlogger(AWSClusterManagers), "debug")
 
-        addprocs(DockerManager($num_workers))
+        addprocs(DockerManager($num_workers, image="$TEST_IMAGE"))
         println("NumProcs: ", nprocs())
 
         @everywhere using AWSClusterManagers: container_id
