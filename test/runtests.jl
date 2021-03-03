@@ -74,7 +74,10 @@ if !isempty(ONLINE)
     else
         # Build using the system image on the CI
         build_args = if get(ENV, "CI", "false") == "true"
-            `--build-arg PKG_PRECOMPILE=true --build-arg CREATE_SYSIMG=true`
+            # We probably should be using `CREATE_SYSIMG=true` to ensure faster starts on
+            # AWS Batch but currently that features is problematic on GitHub Actions:
+            # https://github.com/JuliaCloud/AWSClusterManagers.jl/issues/9
+            `--build-arg PKG_PRECOMPILE=true --build-arg CREATE_SYSIMG=false`
         else
             ``
         end
