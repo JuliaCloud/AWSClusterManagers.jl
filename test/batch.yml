@@ -28,12 +28,6 @@ Description: >-
 
 # https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/parameters-section-structure.html#aws-specific-parameter-types
 Parameters:
-  OperationsAccountId:
-    Description: >-
-      Account ID for the operations account which stores the julia-baked ECR repository
-    Type: String
-    Default: 468665244580
-    AllowedPattern: "\\d{12}"
   VPCCidrBlock:
     # https://docs.aws.amazon.com/AmazonVPC/latest/UserGuide/VPC_Subnets.html#VPC_Sizing
     Description: >-
@@ -75,7 +69,7 @@ Parameters:
     Type: Number
     Default: 16
   CIRoleArn:
-    Description: The role ARN used when executing GitLab CI test stage jobs.
+    Description: The role ARN used when executing CI test stage jobs.
     Type: String
     Default: ""
     AllowedPattern: "|arn:aws:iam::\\d{12}:role/[^/]+"
@@ -583,7 +577,6 @@ Resources:
               - ecr:BatchGetImage
               - ecr:BatchCheckLayerAvailability
             Resource:
-              - !Sub arn:aws:ecr:${AWS::Region}:${OperationsAccountId}:repository/julia-baked
               - !Sub arn:aws:ecr:${AWS::Region}:${AWS::AccountId}:repository/${ECR}
 
           # AWSBatch.Docker.push
