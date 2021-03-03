@@ -32,7 +32,8 @@ jobs:
             arch: x86
     env:
       STACK_NAME: AWSClusterManagers-jl
-      ONLINE: "docker, batch, batch-node"
+      # ONLINE: "docker, batch, batch-node"
+      ONLINE: "docker, batch"
     steps:
       - uses: actions/checkout@v2
       - uses: julia-actions/setup-julia@v1
