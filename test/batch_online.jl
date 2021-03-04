@@ -99,11 +99,14 @@ function run_batch_job(image_name::AbstractString, num_workers::Integer; timeout
 
     # CloudWatch can take several seconds to ingest the log record so we'll wait until we
     # find the end-of-log message.
+    # Note: Do not assume that the "Manager Complete" message will be the last thing written
+    # to the log as busy worker may cause additional warnings messages.
+    # https://github.com/JuliaCloud/AWSClusterManagers.jl/issues/10
     if status(job) == AWSBatch.SUCCEEDED
         log_wait_start = time()
         while true
             events = log_events(job)
-            if events !== nothing && !isempty(events) && last(events).message == "Manager Complete"
+            if events !== nothing && !isempty(events) && any(e -> e.message == "Manager Complete", events)
                 break
             elseif time() - log_wait_start > 60
                 error("CloudWatch logs have not completed ingestion within 1 minute")
