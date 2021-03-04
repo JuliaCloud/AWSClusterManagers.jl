@@ -4,15 +4,39 @@ FROM ${BASE_IMAGE}
 
 ENV PKG_NAME "AWSClusterManagers"
 
-# Install AWSClusterManagers.jl test requirements:
-# - Docker
-# - iproute2 (allows node workers to use the `ip` with Julia's `--bind-to` flag)
+# Install the official Docker repository
+# https://docs.docker.com/engine/install/debian/#install-using-the-repository
+ENV PKGS \
+    gpg \
+    lsb-release
 ENV PINNED_PKGS \
-    docker \
+    curl
+RUN arch=$(uname -m) && \
+    case "$arch" in \
+        x86_64) DEB_ARCH=amd64 ;; \
+        aarch64) DEB_ARCH=arm64 ;; \
+        *) echo "error: current architecture ($arch) does not have a corresponding DEB_ARCH defined" >&2; exit 1 ;; \
+    esac && \
+    apt-get update && \
+    apt-get -y --no-install-recommends install $PKGS $PINNED_PKGS && \
+    apt-mark hold $PINNED_PKGS && \
+    curl -fsSL https://download.docker.com/linux/debian/gpg | gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg && \
+    echo "deb [arch=$DEB_ARCH signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/debian \
+        $(lsb_release -cs) stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null && \
+    apt-get -y --auto-remove purge $PKGS && \
+    rm -rf /var/lib/apt/lists/*
+
+# Install and validate AWSClusterManagers.jl test requirements:
+# - docker-ce-cli: allows `docker` use from the command line
+# - iproute2: allows node workers to use the `ip` with Julia's `--bind-to` flag
+ENV PINNED_PKGS \
+    docker-ce-cli \
     iproute2
 RUN apt-get update && \
     apt-get -y --no-install-recommends install $PINNED_PKGS && \
     apt-mark hold $PINNED_PKGS && \
+    docker --version && \
+    ip -o -4 addr list eth0 && \
     rm -rf /var/lib/apt/lists/*
 
 # Copy the essentials from AWSClusterManagers package such that we can install the

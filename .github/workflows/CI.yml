@@ -53,6 +53,72 @@ jobs:
         with:
           file: lcov.info
 
+  online-test:
+    name: "Online Tests"
+    runs-on: ubuntu-latest
+    env:
+      STACK_NAME: AWSClusterManagers-jl
+      ONLINE: "docker, batch, batch-node"
+    steps:
+      - uses: actions/checkout@v2
+      - uses: julia-actions/setup-julia@v1
+        with:
+          version: "1"
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v1
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v1
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+
+      - name: Validate AWS CloudFormation template
+        run: aws cloudformation validate-template --template-body file://test/batch.yml
+
+      # Note: Using Bors will restrict us to only having one workflow running at a given time.
+      # Because of this we can safely use a single CFN stack and just update the stack to the
+      # state of the current branch.
+      - name: Deploy to AWS CloudFormation
+        uses: aws-actions/aws-cloudformation-github-deploy@v1
+        with:
+          name: ${{ env.STACK_NAME }}
+          template: test/batch.yml
+          role-arn:  arn:aws:iam::134847318362:role/CloudFormationAdmin
+          capabilities: CAPABILITY_NAMED_IAM
+          parameter-overrides: "CIEntityArn=arn:aws:iam::134847318362:user/AWSClusterManagers-jl,AutomaticTeardown=true"
+          no-fail-on-empty-changeset: "1"
+
+      - name: Export stack output
+        run: |
+          export AWS_DEFAULT_OUTPUT=text
+          ECR_URI=$(aws cloudformation describe-stacks --stack-name $STACK_NAME --query 'Stacks[0].Outputs[?OutputKey==`EcrUri`].OutputValue')
+          echo "ECR_URI=${ECR_URI}" >> $GITHUB_ENV
+
+      - name: Assume TestRole
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+          role-to-assume: ${{ env.STACK_NAME }}-TestRole
+          role-duration-seconds: 7200
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v1
+
+      - uses: julia-actions/julia-buildpkg@v1
+      - uses: julia-actions/julia-runtest@v1
+      - uses: julia-actions/julia-processcoverage@v1
+      - uses: codecov/codecov-action@v1
+        with:
+          file: lcov.info
+
   docs:
     name: Documentation
     runs-on: ubuntu-latest

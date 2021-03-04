@@ -41,4 +41,27 @@
         @test m !== nothing
         @test m["container_id"] == container_id
     end
+
+    @testset "GitHub Actions regex" begin
+        container_id = "cf0888f8246174f11a08a07911abd5993da1e2f7b0e28103cc5799fe486debee"
+        cgroup = """
+            12:hugetlb:/actions_job/$container_id
+            11:blkio:/actions_job/$container_id
+            10:rdma:/
+            9:perf_event:/actions_job/$container_id
+            8:freezer:/actions_job/$container_id
+            7:devices:/actions_job/$container_id
+            6:net_cls,net_prio:/actions_job/$container_id
+            5:memory:/actions_job/$container_id
+            4:pids:/actions_job/$container_id
+            3:cpu,cpuacct:/actions_job/$container_id
+            2:cpuset:/actions_job/$container_id
+            1:name=systemd:/actions_job/$container_id
+            0::/system.slice/containerd.service
+            """
+
+        m = match(AWSClusterManagers.CGROUP_REGEX, cgroup)
+        @test m !== nothing
+        @test m["container_id"] == container_id
+    end
 end

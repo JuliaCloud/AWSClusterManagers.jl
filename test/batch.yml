@@ -28,12 +28,6 @@ Description: >-
 
 # https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/parameters-section-structure.html#aws-specific-parameter-types
 Parameters:
-  OperationsAccountId:
-    Description: >-
-      Account ID for the operations account which stores the julia-baked ECR repository
-    Type: String
-    Default: 468665244580
-    AllowedPattern: "\\d{12}"
   VPCCidrBlock:
     # https://docs.aws.amazon.com/AmazonVPC/latest/UserGuide/VPC_Subnets.html#VPC_Sizing
     Description: >-
@@ -74,11 +68,19 @@ Parameters:
       The maximum number of VCPUs. Typically this number does not need to be touched
     Type: Number
     Default: 16
-  CIRoleArn:
-    Description: The role ARN used when executing GitLab CI test stage jobs.
+  CIEntityArn:
+    Description: The user/role ARN used when executing CI test stage jobs.
     Type: String
     Default: ""
-    AllowedPattern: "|arn:aws:iam::\\d{12}:role/[^/]+"
+    AllowedPattern: "|arn:aws:iam::\\d{12}:(user|role)/[^/]+"
+  AutomaticTeardown:
+    Description: Delete the stack automatically after 3 hours of inactivity
+    Type: String
+    Default: "false"
+    AllowedValues:
+      - "true"
+      - "false"
+
 
 Conditions:
   UsePublicSubnet: !Equals [!Ref SubnetType, public]
@@ -90,8 +92,8 @@ Conditions:
     - !Condition UsePublicSubnet
     - !Condition UseNAT
   OnDemandComputeEnvironment: !Equals [!Ref ProvisioningModel, on-demand]
-  Testing: !Not [!Equals [!Ref CIRoleArn, ""]]
-  IsCI: !Equals [!Ref "AWS::AccountId", 813030647716]
+  Testing: !Not [!Equals [!Ref CIEntityArn, ""]]
+  SelfDestruct: !Equals [!Ref AutomaticTeardown, true]
 
 
 Resources:
@@ -434,7 +436,7 @@ Resources:
                   stack.delete()
 
   DeleteStackPermission:
-    Condition: IsCI
+    Condition: SelfDestruct
     Type: AWS::Lambda::Permission
     Properties:
       FunctionName: !Ref DeleteStackLambda
@@ -443,7 +445,7 @@ Resources:
       SourceArn: !GetAtt DeleteStackRule.Arn
 
   DeleteStackRule:
-    Condition: IsCI
+    Condition: SelfDestruct
     Type: AWS::Events::Rule
     Properties:
       Description: Trigger deletion if stack has not been updated recently.
@@ -523,8 +525,6 @@ Resources:
     # Note: Doesn't work. ECR repositories will not be deleted when the stack is deleted if
     # the repo contains any images. Delete the repo manually first to solve this.
     DeletionPolicy: Delete
-    Properties:
-      RepositoryName: !Ref AWS::StackName  # Named to be consistent with JobDefinitionName
 
   TestRole:
     Type: AWS::IAM::Role
@@ -535,10 +535,13 @@ Resources:
       AssumeRolePolicyDocument:
         Version: 2012-10-17
         Statement:
+          # https://github.com/aws-actions/configure-aws-credentials#permissions-for-assuming-a-role
           - Effect: Allow
             Principal:
-              AWS: !Ref CIRoleArn
-            Action: sts:AssumeRole
+              AWS: !Ref CIEntityArn
+            Action:
+              - sts:AssumeRole
+              - sts:TagSession
 
   # Similar to the "JLBatchManagerPolicy" but includes additional required permissions
   # necessary for running the AWSClusterManagers online batch tests.
@@ -585,7 +588,6 @@ Resources:
               - ecr:BatchGetImage
               - ecr:BatchCheckLayerAvailability
             Resource:
-              - !Sub arn:aws:ecr:${AWS::Region}:${OperationsAccountId}:repository/julia-baked
               - !Sub arn:aws:ecr:${AWS::Region}:${AWS::AccountId}:repository/${ECR}
 
           # AWSBatch.Docker.push
