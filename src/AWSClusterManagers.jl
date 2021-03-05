@@ -13,7 +13,7 @@ export AWSBatchManager, AWSBatchNodeManager, DockerManager, start_batch_node_wor
 const LOGGER = getlogger(@__MODULE__)
 
 function __init__()
-    # https://invenia.github.io/Memento.jl/latest/faq/pkg-usage.html
+    # https://invenia.github.io/Memento.jl/latest/faq/pkg-usage/
     Memento.register(LOGGER)
 end
 
