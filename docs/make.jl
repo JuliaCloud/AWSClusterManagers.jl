@@ -21,7 +21,7 @@ makedocs(;
 )
 
 deploydocs(;
-    repo = "https://github.com/JuliaCloud/AWSClusterManagers.jl",
+    repo = "github.com/JuliaCloud/AWSClusterManagers.jl",
     devbranch = "main",
     push_preview = true,
 )
