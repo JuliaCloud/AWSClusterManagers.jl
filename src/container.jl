@@ -34,14 +34,15 @@ The minimum and maximum number of workers wanted by the manager.
 """
 desired_workers(::ContainerManager)
 
-function Distributed.launch(manager::ContainerManager, params::Dict, launched::Array, c::Condition)
+function Distributed.launch(
+    manager::ContainerManager, params::Dict, launched::Array, c::Condition
+)
     min_workers, max_workers = desired_workers(manager)
     num_workers = 0
 
     # Determine the IP address of the current host within the specified range
     ips = filter!(getipaddrs()) do ip
-        typeof(ip) === typeof(manager.min_ip) &&
-        manager.min_ip <= ip <= manager.max_ip
+        typeof(ip) === typeof(manager.min_ip) && manager.min_ip <= ip <= manager.max_ip
     end
     valid_ip = first(ips)
 
@@ -108,7 +109,9 @@ function Distributed.launch(manager::ContainerManager, params::Dict, launched::A
     end
 end
 
-function Distributed.manage(manager::ContainerManager, id::Integer, config::WorkerConfig, op::Symbol)
+function Distributed.manage(
+    manager::ContainerManager, id::Integer, config::WorkerConfig, op::Symbol
+)
     # Note: Terminating the TCP connection from the master to the worker will cause the
     # worker to shutdown automatically.
 end

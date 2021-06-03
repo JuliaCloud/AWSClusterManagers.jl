@@ -38,7 +38,7 @@ const BATCH_SPAWN_REGEX = r"Spawning (array )?job: (?<id>[0-9a-f\-]+)(?(1) \(n=(
         @testset "keywords" begin
             mgr = AWSBatchManager(
                 3,
-                4,
+                4;
                 definition="keyword-def",
                 name="keyword-name",
                 queue="keyword-queue",
@@ -97,7 +97,7 @@ const BATCH_SPAWN_REGEX = r"Spawning (array )?job: (?<id>[0-9a-f\-]+)(?(1) \(n=(
                 @test mgr.job_queue == "worker"
 
                 # Use the queue passed in
-                mgr = AWSBatchManager(3, queue="special")
+                mgr = AWSBatchManager(3; queue="special")
                 @test mgr.job_queue == "special"
             end
         end
@@ -121,7 +121,7 @@ const BATCH_SPAWN_REGEX = r"Spawning (array )?job: (?<id>[0-9a-f\-]+)(?(1) \(n=(
                 @patch AWSBatch.max_vcpus(::JobQueue) = 1
                 @patch function AWSBatch.run_batch(; kwargs...)
                     @async run(kwargs[:cmd])
-                    BatchJob("00000000-0000-0000-0000-000000000001")
+                    return BatchJob("00000000-0000-0000-0000-000000000001")
                 end
             ]
 
@@ -130,7 +130,7 @@ const BATCH_SPAWN_REGEX = r"Spawning (array )?job: (?<id>[0-9a-f\-]+)(?(1) \(n=(
                 init_procs = procs()
                 # Add a single AWSBatchManager worker
                 added_procs = @test_log LOGGER "notice" BATCH_SPAWN_REGEX begin
-                     addprocs(AWSBatchManager(1))
+                    addprocs(AWSBatchManager(1))
                 end
                 # Check that the workers are available
                 @test length(added_procs) == 1
@@ -148,7 +148,7 @@ const BATCH_SPAWN_REGEX = r"Spawning (array )?job: (?<id>[0-9a-f\-]+)(?(1) \(n=(
                 @patch AWSBatch.max_vcpus(::JobQueue) = 1
                 @patch function AWSBatch.run_batch(; kwargs...)
                     # Avoiding spawning a worker process
-                    BatchJob("00000000-0000-0000-0000-000000000002")
+                    return BatchJob("00000000-0000-0000-0000-000000000002")
                 end
             ]
 
@@ -162,25 +162,31 @@ const BATCH_SPAWN_REGEX = r"Spawning (array )?job: (?<id>[0-9a-f\-]+)(?(1) \(n=(
         @testset "VCPU limit" begin
             @testset "minimum exceeds" begin
                 patches = [
-                    @patch AWSBatch.JobQueue(queue::AbstractString) = JobQueue(mock_queue_arn)
+                    @patch function AWSBatch.JobQueue(queue::AbstractString)
+                        return JobQueue(mock_queue_arn)
+                    end
                     @patch AWSBatch.max_vcpus(::JobQueue) = 3
                 ]
 
                 apply(patches) do
-                    @test_throws TaskFailedException addprocs(AWSBatchManager(4, timeout=Second(5)))
+                    @test_throws TaskFailedException addprocs(
+                        AWSBatchManager(4; timeout=Second(5))
+                    )
                     @test nprocs() == 1
                 end
             end
 
             @testset "maximum exceeds" begin
                 patches = [
-                    @patch AWSBatch.JobQueue(queue::AbstractString) = JobQueue(mock_queue_arn)
+                    @patch function AWSBatch.JobQueue(queue::AbstractString)
+                        return JobQueue(mock_queue_arn)
+                    end
                     @patch AWSBatch.max_vcpus(::JobQueue) = 1
                     @patch function AWSBatch.run_batch(; kwargs...)
                         for _ in 1:kwargs[:num_jobs]
                             @async run(kwargs[:cmd])
                         end
-                        BatchJob("00000000-0000-0000-0000-000000000004")
+                        return BatchJob("00000000-0000-0000-0000-000000000004")
                     end
                 ]
                 msg = string(
@@ -189,7 +195,7 @@ const BATCH_SPAWN_REGEX = r"Spawning (array )?job: (?<id>[0-9a-f\-]+)(?(1) \(n=(
                 )
                 apply(patches) do
                     added_procs = @test_log LOGGER "warn" msg begin
-                        addprocs(AWSBatchManager(0:2, timeout=Second(5)))
+                        addprocs(AWSBatchManager(0:2; timeout=Second(5)))
                     end
                     @test length(added_procs) > 0
                     rmprocs(added_procs; waitfor=5.0)

@@ -57,29 +57,25 @@ struct DockerManager <: ContainerManager
             image = @mock image_id()
         end
 
-        new(num_workers, image, Second(timeout), min_ip, max_ip)
+        return new(num_workers, image, Second(timeout), min_ip, max_ip)
     end
 end
 
 function DockerManager(
     num_workers::Integer;
     image::AbstractString="",
-    timeout::Union{Real, Period}=DOCKER_TIMEOUT,
+    timeout::Union{Real,Period}=DOCKER_TIMEOUT,
     min_ip::IPv4=ip"0.0.0.0",
     max_ip::IPv4=ip"255.255.255.255",
 )
-    DockerManager(num_workers, image, timeout, min_ip, max_ip)
+    return DockerManager(num_workers, image, timeout, min_ip, max_ip)
 end
 
 launch_timeout(mgr::DockerManager) = mgr.timeout
 desired_workers(mgr::DockerManager) = mgr.num_workers, mgr.num_workers
 
 function Base.:(==)(a::DockerManager, b::DockerManager)
-    return (
-        a.num_workers == b.num_workers &&
-        a.image == b.image &&
-        a.timeout == b.timeout
-    )
+    return (a.num_workers == b.num_workers && a.image == b.image && a.timeout == b.timeout)
 end
 
 function spawn_containers(mgr::DockerManager, override_cmd::Cmd)
@@ -88,7 +84,7 @@ function spawn_containers(mgr::DockerManager, override_cmd::Cmd)
     cmd = `$cmd $override_cmd`
 
     # Docker only allow us to spawn a job at a time
-    for id in 1:mgr.num_workers
+    for id in 1:(mgr.num_workers)
         container_id = @mock read(cmd, String)
         notice(LOGGER, "Spawning container: $container_id")
     end

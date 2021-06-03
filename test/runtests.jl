@@ -19,11 +19,10 @@ using Test
 Mocking.activate()
 const LOGGER = Memento.config!("info"; fmt="[{date} | {level} | {name}]: {msg}")
 
- # https://github.com/JuliaLang/julia/pull/32814
+# https://github.com/JuliaLang/julia/pull/32814
 if VERSION < v"1.3.0-alpha.110"
     const TaskFailedException = ErrorException
 end
-
 
 const PKG_DIR = abspath(@__DIR__, "..")
 
@@ -33,7 +32,8 @@ const ONLINE = split(strip(get(ENV, "ONLINE", "")), r"\s*,\s*"; keepempty=false)
 # Run the tests on a stack created with the "test/batch.yml" CloudFormation template
 const STACK_NAME = get(ENV, "STACK_NAME", "")
 const STACK = !isempty(STACK_NAME) ? stack_output(STACK_NAME) : Dict()
-const ECR = !isempty(STACK) ? first(split(STACK["EcrUri"], ':')) : "aws-cluster-managers-test"
+const ECR =
+    !isempty(STACK) ? first(split(STACK["EcrUri"], ':')) : "aws-cluster-managers-test"
 
 const GIT_DIR = joinpath(@__DIR__, "..", ".git")
 const REV = if isdir(GIT_DIR)
