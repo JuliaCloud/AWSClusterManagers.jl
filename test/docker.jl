@@ -31,7 +31,7 @@ const DOCKER_SPAWN_REGEX = r"^Spawning container: [0-9a-z]{12}$"
 
         @testset "keywords" begin
             mgr = DockerManager(
-                3,
+                3;
                 image=mock_image,
                 timeout=Minute(12),
                 min_ip=ip"3.0.0.0",
@@ -97,7 +97,7 @@ const DOCKER_SPAWN_REGEX = r"^Spawning container: [0-9a-z]{12}$"
                 init_procs = procs()
                 # Add a single AWSBatchManager worker
                 added_procs = @test_log LOGGER "notice" DOCKER_SPAWN_REGEX begin
-                     addprocs(DockerManager(1, mock_image))
+                    addprocs(DockerManager(1, mock_image))
                 end
                 # Check that the workers are available
                 @test length(added_procs) == 1

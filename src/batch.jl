@@ -70,7 +70,8 @@ struct AWSBatchManager <: ContainerManager
         max_ip::IPv4=ip"255.255.255.255",
     )
         min_workers >= 0 || throw(ArgumentError("min workers must be non-negative"))
-        min_workers <= max_workers || throw(ArgumentError("min workers exceeds max workers"))
+        min_workers <= max_workers ||
+            throw(ArgumentError("min workers exceeds max workers"))
 
         # Default the queue to using the WORKER_JOB_QUEUE environmental variable.
         if isempty(queue)
@@ -79,7 +80,18 @@ struct AWSBatchManager <: ContainerManager
 
         region = isempty(region) ? "us-east-1" : region
 
-        new(min_workers, max_workers, definition, name, queue, memory, region, Second(timeout), min_ip, max_ip)
+        return new(
+            min_workers,
+            max_workers,
+            definition,
+            name,
+            queue,
+            memory,
+            region,
+            Second(timeout),
+            min_ip,
+            max_ip,
+        )
     end
 end
 
@@ -95,7 +107,7 @@ function AWSBatchManager(
     min_ip::IPv4=ip"0.0.0.0",
     max_ip::IPv4=ip"255.255.255.255",
 )
-    AWSBatchManager(
+    return AWSBatchManager(
         min_workers,
         max_workers,
         definition,
@@ -105,16 +117,16 @@ function AWSBatchManager(
         region,
         timeout,
         min_ip,
-        max_ip
+        max_ip,
     )
 end
 
 function AWSBatchManager(workers::UnitRange{<:Integer}; kwargs...)
-    AWSBatchManager(first(workers), last(workers); kwargs...)
+    return AWSBatchManager(first(workers), last(workers); kwargs...)
 end
 
 function AWSBatchManager(workers::Integer; kwargs...)
-    AWSBatchManager(workers, workers; kwargs...)
+    return AWSBatchManager(workers, workers; kwargs...)
 end
 
 launch_timeout(mgr::AWSBatchManager) = mgr.timeout
@@ -143,32 +155,37 @@ function spawn_containers(mgr::AWSBatchManager, override_cmd::Cmd)
     max_compute = @mock max_vcpus(queue)
 
     if min_workers > max_compute
-        error(string(
-            "Unable to launch the minimum number of workers ($min_workers) as the ",
-            "minimum exceeds the max VCPUs available ($max_compute).",
-        ))
+        error(
+            string(
+                "Unable to launch the minimum number of workers ($min_workers) as the ",
+                "minimum exceeds the max VCPUs available ($max_compute).",
+            ),
+        )
     elseif max_workers > max_compute
         # Note: In addition to warning the user about the VCPU cap we could also also reduce
         # the number of worker we request. Unfortunately since we don't know how many jobs
         # are currently running or how long they will take we'll leave `max_workers`
         # untouched.
-        warn(LOGGER, string(
-            "Due to the max VCPU limit ($max_compute) most likely only a partial amount ",
-            "of the requested workers ($max_workers) will be spawned.",
-        ))
+        warn(
+            LOGGER,
+            string(
+                "Due to the max VCPU limit ($max_compute) most likely only a partial amount ",
+                "of the requested workers ($max_workers) will be spawned.",
+            ),
+        )
     end
 
     # Since each batch worker can only use one cpu we override the vcpus to one.
-    job = @mock run_batch(
-        name = mgr.job_name,
-        definition = mgr.job_definition,
-        queue = mgr.job_queue,
-        region = mgr.region,
-        vcpus = 1,
-        memory = mgr.job_memory,
-        cmd = override_cmd,
-        num_jobs = max_workers,
-        allow_job_registration = false,
+    job = @mock run_batch(;
+        name=mgr.job_name,
+        definition=mgr.job_definition,
+        queue=mgr.job_queue,
+        region=mgr.region,
+        vcpus=1,
+        memory=mgr.job_memory,
+        cmd=override_cmd,
+        num_jobs=max_workers,
+        allow_job_registration=false,
     )
 
     if max_workers > 1

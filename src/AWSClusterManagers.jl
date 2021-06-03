@@ -14,7 +14,7 @@ const LOGGER = getlogger(@__MODULE__)
 
 function __init__()
     # https://invenia.github.io/Memento.jl/latest/faq/pkg-usage/
-    Memento.register(LOGGER)
+    return Memento.register(LOGGER)
 end
 
 include("socket.jl")

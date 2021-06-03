@@ -17,7 +17,9 @@ struct AWSBatchNodeManager <: ContainerManager
 
     function AWSBatchNodeManager(; timeout::Period=AWS_BATCH_NODE_TIMEOUT)
         if !haskey(ENV, "AWS_BATCH_JOB_ID") || !haskey(ENV, "AWS_BATCH_JOB_MAIN_NODE_INDEX")
-            error("Unable to use $AWSBatchNodeManager outside of a running AWS Batch multi-node parallel job")
+            error(
+                "Unable to use $AWSBatchNodeManager outside of a running AWS Batch multi-node parallel job",
+            )
         end
 
         info(LOGGER, "AWS Batch Job ID: $(ENV["AWS_BATCH_JOB_ID"])")
@@ -33,7 +35,9 @@ struct AWSBatchNodeManager <: ContainerManager
     end
 end
 
-function Distributed.launch(manager::AWSBatchNodeManager, params::Dict, launched::Array, c::Condition)
+function Distributed.launch(
+    manager::AWSBatchNodeManager, params::Dict, launched::Array, c::Condition
+)
     num_workers = manager.num_workers
     connected_workers = 0
 
@@ -69,10 +73,7 @@ function Distributed.launch(manager::AWSBatchNodeManager, params::Dict, launched
         # address and port.
         config = WorkerConfig()
         config.io = sock
-        config.userdata = (;
-            :job_id => job_id,
-            :node_index => node_index,
-        )
+        config.userdata = (; :job_id => job_id, :node_index => node_index)
 
         push!(workers, config)
     end
@@ -86,11 +87,14 @@ function Distributed.launch(manager::AWSBatchNodeManager, params::Dict, launched
     #
     # Note: Julia worker numbers will not match up to the node index of the worker.
     # Primarily this is due to the worker numbers being 1-indexed while nodes are 0-indexed.
-    append!(launched, sort!(workers, by=w -> w.userdata.node_index))
+    append!(launched, sort!(workers; by=w -> w.userdata.node_index))
     notify(c)
 
     if connected_workers < num_workers
-        warn(LOGGER, "Only $connected_workers of the $num_workers workers job have reported in")
+        warn(
+            LOGGER,
+            "Only $connected_workers of the $num_workers workers job have reported in",
+        )
     else
         debug(LOGGER, "All workers have successfully reported in")
     end
@@ -98,7 +102,9 @@ end
 
 function start_batch_node_worker()
     if !haskey(ENV, "AWS_BATCH_JOB_ID") || !haskey(ENV, "AWS_BATCH_JOB_NODE_INDEX")
-        error("Unable to start a worker outside of a running AWS Batch multi-node parallel job")
+        error(
+            "Unable to start a worker outside of a running AWS Batch multi-node parallel job",
+        )
     end
 
     info(LOGGER, "AWS Batch Job ID: $(ENV["AWS_BATCH_JOB_ID"])")
@@ -151,8 +157,8 @@ function start_batch_node_worker()
     # Establish a connection to the manager. If the manager is slow to startup the worker
     # will attempt to connect for ~2 minutes.
     manager_connect = retry(
-        () -> connect(manager_ip, AWS_BATCH_JOB_NODE_PORT),
-        delays=ExponentialBackOff(n=8, max_delay=30),
+        () -> connect(manager_ip, AWS_BATCH_JOB_NODE_PORT);
+        delays=ExponentialBackOff(; n=8, max_delay=30),
         check=(s, e) -> e isa Base.IOError,
     )
     sock = manager_connect()

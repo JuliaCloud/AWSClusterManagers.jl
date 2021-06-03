@@ -49,10 +49,8 @@ function batch_node_job_definition(;
                         "jobRoleArn" => job_role_arn,
                         "vcpus" => 1,
                         "memory" => 1024,  # MiB
-                        "command" => [
-                            "julia", "-e", manager_code,
-                        ],
-                    )
+                        "command" => ["julia", "-e", manager_code],
+                    ),
                 ),
                 Dict(
                     "targetNodes" => "1:",
@@ -66,21 +64,18 @@ function batch_node_job_definition(;
                             "-c",
                             "julia $bind_to -e $(bash_quote(worker_code))",
                         ],
-                    )
-                )
-            ]
+                    ),
+                ),
+            ],
         ),
         # Retrying to handle EC2 instance failures and internal AWS issues:
         # https://docs.aws.amazon.com/batch/latest/userguide/job_retries.html
-        "retryStrategy" => Dict(
-            "attempts" => 3,
-        ),
+        "retryStrategy" => Dict("attempts" => 3),
     )
 end
 
 # Use single quotes so that no shell interpolation occurs.
 bash_quote(str::AbstractString) = string("'", replace(str, "'" => "'\\''"), "'")
-
 
 # AWS Batch parallel multi-node jobs will only run on on-demand clusters. When running
 # on spot the jobs will remain stuck in the RUNNABLE state
@@ -89,15 +84,13 @@ let ce = describe_compute_environment(STACK["ComputeEnvironmentArn"])
         error(
             "Aborting as compute environment $(STACK["ComputeEnvironmentArn"]) is not " *
             "using on-demand instances which are required for AWS Batch multi-node " *
-            "parallel jobs."
+            "parallel jobs.",
         )
     end
 end
 
-
 const BATCH_NODE_INDEX_REGEX = r"Worker job (?<worker_id>\d+): (?<node_index>\d+)"
 const BATCH_NODE_JOB_DEF = register_job_definition(batch_node_job_definition())  # ARN
-
 
 # Spawn all of the AWS Batch jobs at once in order to make online tests run faster. Each
 # job spawned below has a corresponding testset. Ideally, the job spawning would be
@@ -106,9 +99,8 @@ const BATCH_NODE_JOB_DEF = register_job_definition(batch_node_job_definition()) 
 const BATCH_NODE_JOBS = Dict{String,BatchJob}()
 
 let job_name = "test-worker-spawn-success"
-    BATCH_NODE_JOBS[job_name] = submit_job(
-        job_name=job_name,
-        job_definition=BATCH_NODE_JOB_DEF,
+    BATCH_NODE_JOBS[job_name] = submit_job(;
+        job_name=job_name, job_definition=BATCH_NODE_JOB_DEF
     )
 end
 
@@ -118,19 +110,13 @@ let job_name = "test-worker-spawn-failure"
         "nodePropertyOverrides" => [
             Dict(
                 "targetNodes" => "1:",
-                "containerOverrides" => Dict(
-                    "command" => ["bash", "-c", "exit 0"],
-                )
-            )
-        ]
-
+                "containerOverrides" => Dict("command" => ["bash", "-c", "exit 0"]),
+            ),
+        ],
     )
 
-
-    BATCH_NODE_JOBS[job_name] = submit_job(
-        job_name=job_name,
-        job_definition=BATCH_NODE_JOB_DEF,
-        node_overrides=overrides,
+    BATCH_NODE_JOBS[job_name] = submit_job(;
+        job_name=job_name, job_definition=BATCH_NODE_JOB_DEF, node_overrides=overrides
     )
 end
 
@@ -152,17 +138,15 @@ let job_name = "test-worker-link-local"
                         catch e   # Prevents the job from failing so we can retry AWS errors
                             showerror(stderr, e, catch_backtrace())
                         end
-                        """
-                    ]
-                )
-            )
-        ]
+                        """,
+                    ],
+                ),
+            ),
+        ],
     )
 
-    BATCH_NODE_JOBS[job_name] = submit_job(
-        job_name=job_name,
-        job_definition=BATCH_NODE_JOB_DEF,
-        node_overrides=overrides,
+    BATCH_NODE_JOBS[job_name] = submit_job(;
+        job_name=job_name, job_definition=BATCH_NODE_JOB_DEF, node_overrides=overrides
     )
 end
 
@@ -188,16 +172,14 @@ let job_name = "test-worker-link-local-bind-to"
                         "bash",
                         "-c",
                         "julia $bind_to -e $(bash_quote(worker_code))",
-                    ]
-                )
-            )
-        ]
+                    ],
+                ),
+            ),
+        ],
     )
 
-    BATCH_NODE_JOBS[job_name] = submit_job(
-        job_name=job_name,
-        job_definition=BATCH_NODE_JOB_DEF,
-        node_overrides=overrides,
+    BATCH_NODE_JOBS[job_name] = submit_job(;
+        job_name=job_name, job_definition=BATCH_NODE_JOB_DEF, node_overrides=overrides
     )
 end
 
@@ -221,17 +203,14 @@ let job_name = "test-slow-manager"
         "nodePropertyOverrides" => [
             Dict(
                 "targetNodes" => "0",
-                "containerOverrides" => Dict(
-                    "command" => ["julia", "-e", manager_code]
-                )
-            )
-        ]
+                "containerOverrides" =>
+                    Dict("command" => ["julia", "-e", manager_code]),
+            ),
+        ],
     )
 
-    BATCH_NODE_JOBS[job_name] = submit_job(
-        job_name=job_name,
-        job_definition=BATCH_NODE_JOB_DEF,
-        node_overrides=overrides,
+    BATCH_NODE_JOBS[job_name] = submit_job(;
+        job_name=job_name, job_definition=BATCH_NODE_JOB_DEF, node_overrides=overrides
     )
 end
 
@@ -315,11 +294,8 @@ let job_name = "test-worker-timeout"
         "nodePropertyOverrides" => [
             Dict(
                 "targetNodes" => "0",
-                "containerOverrides" => Dict(
-                    "command" => [
-                        "julia", "-e", manager_code,
-                    ],
-                )
+                "containerOverrides" =>
+                    Dict("command" => ["julia", "-e", manager_code]),
             ),
             Dict(
                 "targetNodes" => "1:",
@@ -328,19 +304,16 @@ let job_name = "test-worker-timeout"
                         "bash",
                         "-c",
                         "julia $bind_to -e $(bash_quote(worker_code))",
-                    ]
-                )
-            )
-        ]
+                    ],
+                ),
+            ),
+        ],
     )
 
-    BATCH_NODE_JOBS[job_name] = submit_job(
-        job_name=job_name,
-        job_definition=BATCH_NODE_JOB_DEF,
-        node_overrides=overrides,
+    BATCH_NODE_JOBS[job_name] = submit_job(;
+        job_name=job_name, job_definition=BATCH_NODE_JOB_DEF, node_overrides=overrides
     )
 end
-
 
 @testset "AWSBatchNodeManager (online)" begin
     # Note: Alternatively we could test report via Mocking but since the function is only

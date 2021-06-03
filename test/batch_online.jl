@@ -3,7 +3,6 @@
 # but are usually instant and instances take around 4 minutes before they are ready.
 const TIMEOUT = Minute(15)
 
-
 # Scrapes the log output to determine the worker job IDs as stated by the manager
 function scrape_worker_job_ids(output::AbstractString)
     m = match(BATCH_SPAWN_REGEX, output)
@@ -22,7 +21,12 @@ function scrape_worker_job_ids(output::AbstractString)
     end
 end
 
-function run_batch_job(image_name::AbstractString, num_workers::Integer; timeout::Period=TIMEOUT, should_fail::Bool=false)
+function run_batch_job(
+    image_name::AbstractString,
+    num_workers::Integer;
+    timeout::Period=TIMEOUT,
+    should_fail::Bool=false,
+)
     # TODO: Use AWS Batch job parameters to avoid re-registering the job
 
     timeout_secs = Dates.value(Second(timeout))
@@ -61,21 +65,21 @@ function run_batch_job(image_name::AbstractString, num_workers::Integer; timeout
     # - 64 workers with a manager with 1024 MB of memory
     info(LOGGER, "Submitting AWS Batch job with $num_workers workers")
     job = run_batch(;
-        name = STACK["JobName"] * "-n$num_workers",
-        queue = STACK["ManagerJobQueueArn"],
-        definition = STACK["JobDefinitionName"],
-        image = image_name,
-        role = STACK["JobRoleArn"],
-        vcpus = 1,
-        memory = 2048,
-        cmd = Cmd(["julia", "-e", code]),
+        name=STACK["JobName"] * "-n$num_workers",
+        queue=STACK["ManagerJobQueueArn"],
+        definition=STACK["JobDefinitionName"],
+        image=image_name,
+        role=STACK["JobRoleArn"],
+        vcpus=1,
+        memory=2048,
+        cmd=Cmd(["julia", "-e", code]),
     )
 
     # If no compute environment resources are available it could take around
     # 5 minutes before the manager job is running
     info(LOGGER, "Waiting for AWS Batch manager job $(job.id) to run (~5 minutes)")
     start_time = time()
-    @test wait(state -> state < AWSBatch.RUNNING, job, timeout=timeout_secs) == true
+    @test wait(state -> state < AWSBatch.RUNNING, job; timeout=timeout_secs) == true
     info(LOGGER, "Manager spawning duration: $(time_str(time() - start_time))")
 
     # Once the manager job is running it will spawn additional AWS Batch jobs as
@@ -87,9 +91,10 @@ function run_batch_job(image_name::AbstractString, num_workers::Integer; timeout
     info(LOGGER, "Waiting for AWS Batch workers and manager job to complete (~5 minutes)")
     start_time = time()
     if should_fail
-        @test wait(job, [AWSBatch.FAILED], [AWSBatch.SUCCEEDED], timeout=timeout_secs) == true
+        @test wait(job, [AWSBatch.FAILED], [AWSBatch.SUCCEEDED]; timeout=timeout_secs) ==
+              true
     else
-        @test wait(job, [AWSBatch.SUCCEEDED], timeout=timeout_secs) == true
+        @test wait(job, [AWSBatch.SUCCEEDED]; timeout=timeout_secs) == true
     end
     info(LOGGER, "Worker spawning duration: $(time_str(time() - start_time))")
 
@@ -106,7 +111,9 @@ function run_batch_job(image_name::AbstractString, num_workers::Integer; timeout
         log_wait_start = time()
         while true
             events = log_events(job)
-            if events !== nothing && !isempty(events) && any(e -> e.message == "Manager Complete", events)
+            if events !== nothing &&
+               !isempty(events) &&
+               any(e -> e.message == "Manager Complete", events)
                 break
             elseif time() - log_wait_start > 60
                 error("CloudWatch logs have not completed ingestion within 1 minute")
@@ -117,7 +124,6 @@ function run_batch_job(image_name::AbstractString, num_workers::Integer; timeout
 
     return job
 end
-
 
 @testset "AWSBatchManager (online)" begin
     # Note: Start with the largest number of workers so the remaining tests don't have
@@ -136,8 +142,12 @@ end
         # Spawned are the AWS Batch job IDs reported upon job submission at launch
         # while reported is the self-reported job ID of each worker.
         spawned_jobs = scrape_worker_job_ids(output)
-        reported_jobs = [m[1] for m in eachmatch(r"Worker job \d+: ([0-9a-f\-]+(?:\:\d+)?)", output)]
-        reported_containers = [m[1] for m in eachmatch(r"Worker container \d+: ([0-9a-f]*)", output)]
+        reported_jobs = [
+            m[1] for m in eachmatch(r"Worker job \d+: ([0-9a-f\-]+(?:\:\d+)?)", output)
+        ]
+        reported_containers = [
+            m[1] for m in eachmatch(r"Worker container \d+: ([0-9a-f]*)", output)
+        ]
 
         @test num_procs == num_workers + 1
         if num_workers > 0

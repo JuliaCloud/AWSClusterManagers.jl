@@ -6,12 +6,13 @@
     end
 
     @testset "container_id" begin
-        container_id = read(```
-            docker run
-            -i $TEST_IMAGE
-            julia -e "using AWSClusterManagers: container_id; print(container_id())"
-            ```,
-            String
+        container_id = read(
+            ```
+docker run
+-i $TEST_IMAGE
+julia -e "using AWSClusterManagers: container_id; print(container_id())"
+```,
+            String,
         )
 
         test_result = @test !isempty(container_id)
@@ -25,13 +26,14 @@
     end
 
     @testset "image_id" begin
-        image_id = read(```
-            docker run
-            -v /var/run/docker.sock:/var/run/docker.sock
-            -i $TEST_IMAGE
-            julia -e "using AWSClusterManagers: image_id; print(image_id())"
-            ```,
-            String
+        image_id = read(
+            ```
+docker run
+-v /var/run/docker.sock:/var/run/docker.sock
+-i $TEST_IMAGE
+julia -e "using AWSClusterManagers: image_id; print(image_id())"
+```,
+            String,
         )
 
         @test !isempty(image_id)
@@ -61,14 +63,15 @@
             """
 
         # Run the code in a docker container, but replace the newlines with semi-colons.
-        output = read(```
-            docker run
-            --network=host
-            -v /var/run/docker.sock:/var/run/docker.sock
-            -i $TEST_IMAGE
-            julia -e $(replace(code, r"\n+" => "; "))
-            ```,
-            String
+        output = read(
+            ```
+  docker run
+  --network=host
+  -v /var/run/docker.sock:/var/run/docker.sock
+  -i $TEST_IMAGE
+  julia -e $(replace(code, r"\n+" => "; "))
+  ```,
+            String,
         )
 
         m = match(r"(?<=NumProcs: )\d+", output)
@@ -76,9 +79,15 @@
 
         # Spawned is the list container IDs reported by the manager upon launch while
         # reported is the self-reported container ID of each worker.
-        spawned_containers = map(m -> m.match, eachmatch(r"(?<=Spawning container: )[0-9a-f\-]+", output))
-        reported_containers = map(m -> m.match, eachmatch(r"(?<=Worker container \d: )[0-9a-f\-]+", output))
-        reported_images = map(m -> m.match, eachmatch(r"(?<=Worker image \d: )[0-9a-f\-]+", output))
+        spawned_containers = map(
+            m -> m.match, eachmatch(r"(?<=Spawning container: )[0-9a-f\-]+", output)
+        )
+        reported_containers = map(
+            m -> m.match, eachmatch(r"(?<=Worker container \d: )[0-9a-f\-]+", output)
+        )
+        reported_images = map(
+            m -> m.match, eachmatch(r"(?<=Worker image \d: )[0-9a-f\-]+", output)
+        )
 
         @test num_procs == num_workers + 1
         @test length(reported_containers) == num_workers

@@ -14,7 +14,7 @@ function report(io::IO, job::BatchJob)
     println(io)
 
     log_str = log_messages(job)
-    !isempty(log_str) && println(io, '\n', log_str)
+    return !isempty(log_str) && println(io, '\n', log_str)
 end
 
 report(job::BatchJob) = sprint(report, job)
@@ -58,9 +58,7 @@ function submit_job(;
     retry_strategy::Dict=Dict(),
 )
     options = Dict{String,Any}(
-        "jobName" => job_name,
-        "jobDefinition" => job_definition,
-        "jobQueue" => job_queue,
+        "jobName" => job_name, "jobDefinition" => job_definition, "jobQueue" => job_queue
     )
 
     if !isempty(node_overrides)
@@ -86,7 +84,8 @@ function describe_compute_environment(compute_environment::AbstractString)
     #   --query computeEnvironments[0]
     # ```
     output = AWSCore.Services.batch(
-        "POST", "/v1/describecomputeenvironments",
+        "POST",
+        "/v1/describecomputeenvironments",
         Dict("computeEnvironments" => [compute_environment]),
     )
 
@@ -104,7 +103,7 @@ function wait_finish(job::BatchJob; timeout::Period=Minute(20))
 
     info(LOGGER, "Waiting for AWS Batch job to finish (~5 minutes)")
     # TODO: Disable logging from wait? Or at least emit timestamps
-    wait(job, [AWSBatch.FAILED, AWSBatch.SUCCEEDED], timeout=timeout_secs)  # TODO: Support timeout as Period
+    wait(job, [AWSBatch.FAILED, AWSBatch.SUCCEEDED]; timeout=timeout_secs)  # TODO: Support timeout as Period
     duration = job_duration(job)
     runtime = job_runtime(job)
     info(LOGGER, "Job duration: $(time_str(duration)), Job runtime: $(time_str(runtime))")
