@@ -98,6 +98,7 @@ include("utils.jl")
     include("docker.jl")
     include("batch.jl")
     include("socket.jl")
+    include("batch_node.jl")
 
     if "docker" in ONLINE
         include("docker_online.jl")
