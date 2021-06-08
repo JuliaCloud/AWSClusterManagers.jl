@@ -62,7 +62,23 @@
         end
     end
 
-    @testset "AWS_BATCH_JOB_NUM_NODES -- Int" begin
+    @testset "AWS_BATCH_JOB_NUM_NODES -- Int as a String" begin
+        expected_workers = 9
+
+        withenv(
+            "AWS_BATCH_JOB_ID" => "job_id",
+            "AWS_BATCH_JOB_MAIN_NODE_INDEX" => 1,
+            "AWS_BATCH_JOB_NODE_INDEX" => 1,
+            "AWS_BATCH_JOB_NUM_NODES" => string(expected_workers + 1)  # Add one to account for the manager
+        ) do
+            result = AWSBatchNodeManager()
+
+            @test result.num_workers == expected_workers
+            @test result.timeout == AWSClusterManagers.AWS_BATCH_NODE_TIMEOUT
+        end
+    end
+
+    @testset "AWS_BATCH_JOB_NUM_NODES -- Set timeout" begin
         expected_workers = 9
         expected_timeout = Second(5)
 
@@ -93,11 +109,11 @@ end
     end
 
     failing_cases = [
-        string(repeat("a", 35), "#123"),
-        string(repeat("a", 37), "#123"),
-        string(repeat("!", 36), "#123"),
-        string(repeat("a", 36), "#"),
-        string(repeat("a", 36), "#abc"),
+        string(repeat("a", 35), "#123"),  # Fails because too short
+        string(repeat("a", 37), "#123"),  # Fails because too long
+        string(repeat("!", 36), "#123"),  # Fails because non `a-z0-9-` before #
+        string(repeat("a", 36), "#"),  # Fails because no decimal after #
+        string(repeat("a", 36), "#abc"),  # Fails because non-decimal after #
     ]
 
     @testset "failing case: $(case)" for case in failing_cases
