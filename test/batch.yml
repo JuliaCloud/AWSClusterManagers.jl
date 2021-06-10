@@ -136,7 +136,7 @@ Resources:
       JobQueueName: !Sub ${AWS::StackName}-Managers
       Priority: 2  # Managers should have a higher priority relative to workers
       ComputeEnvironmentOrder:
-        - Order: 1
+        - Order: 1  # Orders are 0-based which will cause issues in Julia
           ComputeEnvironment: !Ref ComputeEnvironment
   WorkerJobQueue:
     Type: AWS::Batch::JobQueue
@@ -144,7 +144,7 @@ Resources:
       JobQueueName: !Sub ${AWS::StackName}-Workers
       Priority: 1
       ComputeEnvironmentOrder:
-        - Order: 1
+        - Order: 1  # Orders are 0-based which will cause issues in Julia
           ComputeEnvironment: !Ref ComputeEnvironment
 
   IamInstanceProfile:
