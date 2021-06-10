@@ -20,6 +20,7 @@ Let's assume we want to run the following script:
 ```julia
 # demo.jl
 using AWSClusterManagers: AWSBatchManager
+using Distributed
 
 addprocs(AWSBatchManager(4))
 
@@ -58,7 +59,7 @@ To begin we'll want to build a docker image which contains:
 
 Example:
 ```
-FROM julia-bin:1.0
+FROM julia:1.6
 
 RUN julia -e 'using Pkg; Pkg.add("AWSClusterManagers")'
 COPY demo.jl .
