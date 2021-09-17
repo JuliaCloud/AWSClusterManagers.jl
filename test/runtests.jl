@@ -1,7 +1,7 @@
 using AWSBatch
 using AWSClusterManagers
 using AWSClusterManagers: desired_workers, launch_timeout
-using AWSCore: AWSCore
+using AWS
 using AWSTools.CloudFormation: stack_output
 using AWSTools.Docker: Docker
 using Base: AbstractCmd
@@ -15,6 +15,8 @@ using Mocking
 using Printf: @sprintf
 using Sockets
 using Test
+
+@service Batch
 
 Mocking.activate()
 const LOGGER = Memento.config!("info"; fmt="[{date} | {level} | {name}]: {msg}")
