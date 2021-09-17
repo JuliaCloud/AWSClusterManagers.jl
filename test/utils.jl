@@ -47,9 +47,7 @@ time_str(::Nothing) = "N/A"  # Unable to determine duration
 
 function register_job_definition(job_definition::AbstractDict)
     output = Batch.register_job_definition(
-        job_definition["jobDefinitionName"],
-        job_definition["type"],
-        job_definition,
+        job_definition["jobDefinitionName"], job_definition["type"], job_definition
     )
 
     return output["jobDefinitionArn"]
@@ -86,7 +84,7 @@ function describe_compute_environment(compute_environment::AbstractString)
     #   --query computeEnvironments[0]
     # ```
     output = Batch.describe_compute_environments(
-        Dict("computeEnvironments" => [compute_environment]),
+        Dict("computeEnvironments" => [compute_environment])
     )
 
     details = if !isempty(output["computeEnvironments"])
