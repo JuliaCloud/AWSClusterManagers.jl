@@ -96,11 +96,14 @@ end
 include("utils.jl")
 
 @testset "AWSClusterManagers" begin
-    include("container.jl")
-    include("docker.jl")
-    include("batch.jl")
-    include("socket.jl")
-    include("batch_node.jl")
+    # Avoid accessing AWSCredentials in offline tests
+    withenv("AWS_ACCESS_KEY_ID" => "", "AWS_SECRET_ACCESS_KEY" => "") do
+        include("container.jl")
+        include("docker.jl")
+        include("batch.jl")
+        include("socket.jl")
+        include("batch_node.jl")
+    end
 
     if "docker" in ONLINE
         include("docker_online.jl")
