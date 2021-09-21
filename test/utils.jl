@@ -1,5 +1,5 @@
 # Gets the logs messages associated with a AWSBatch BatchJob as a single string
-function log_messages(job::BatchJob; retries=1, wait_interval=7)
+function log_messages(job::BatchJob; retries=2, wait_interval=7)
     i = 0
     events = log_events(job)
     # Retry if no logs are found
