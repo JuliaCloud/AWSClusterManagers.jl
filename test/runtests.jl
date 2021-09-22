@@ -1,7 +1,7 @@
+using AWS
 using AWSBatch
 using AWSClusterManagers
 using AWSClusterManagers: desired_workers, launch_timeout
-using AWS
 using AWSTools.CloudFormation: stack_output
 using AWSTools.Docker: Docker
 using Base: AbstractCmd
