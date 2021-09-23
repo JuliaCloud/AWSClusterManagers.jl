@@ -117,8 +117,9 @@ function run_batch_job(
             if events !== nothing &&
                !isempty(events) &&
                any(e -> e.message == "Manager Complete", events)
-
-                output = join([string(event.timestamp, "  ", event.message) for event in events], '\n')
+                output = join(
+                    [string(event.timestamp, "  ", event.message) for event in events], '\n'
+                )
                 break
             elseif time() - log_wait_start > 60
                 error("CloudWatch logs have not completed ingestion within 1 minute")
