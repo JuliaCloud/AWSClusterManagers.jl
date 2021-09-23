@@ -384,7 +384,7 @@ end
         @test status(worker_job) == AWSBatch.SUCCEEDED
 
         manager_log = log_messages(manager_job)
-        worker_log = log_messages(worker_job, retries=0)
+        worker_log = log_messages(worker_job; retries=0)
         test_results = [
             @test occursin("Only 0 of the 1 workers job have reported in", manager_log)
             @test isempty(worker_log)
