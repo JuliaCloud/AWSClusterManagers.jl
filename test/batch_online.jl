@@ -107,30 +107,35 @@ function run_batch_job(
     # Note: Do not assume that the "Manager Complete" message will be the last thing written
     # to the log as busy worker may cause additional warnings messages.
     # https://github.com/JuliaCloud/AWSClusterManagers.jl/issues/10
-    if status(job) == AWSBatch.SUCCEEDED
+    job_status = status(job)
+    output = ""
+    if job_status == AWSBatch.SUCCEEDED
         log_wait_start = time()
+
         while true
             events = log_events(job)
             if events !== nothing &&
                !isempty(events) &&
                any(e -> e.message == "Manager Complete", events)
+
+                output = join([string(event.timestamp, "  ", event.message) for event in events], '\n')
                 break
             elseif time() - log_wait_start > 60
                 error("CloudWatch logs have not completed ingestion within 1 minute")
             end
+
             sleep(5)
         end
     end
 
-    return job
+    return job, output
 end
 
 @testset "AWSBatchManager (online)" begin
     # Note: Start with the largest number of workers so the remaining tests don't have
     # to wait for the cluster to scale up on subsequent tests.
     @testset "Num workers ($num_workers)" for num_workers in [10, 1, 0]
-        job = run_batch_job(TEST_IMAGE, num_workers)
-        output = log_messages(job)
+        job, output = run_batch_job(TEST_IMAGE, num_workers)
 
         m = match(r"(?<=NumProcs: )\d+", output)
         if m !== nothing
@@ -186,17 +191,13 @@ end
 
     @testset "exceed worker limit" begin
         num_workers = typemax(Int64)
-        job = run_batch_job(TEST_IMAGE, num_workers; should_fail=true)
-        output = log_messages(job)
-
-        m = match(r"(?<=NumProcs: )\d+", output)
-        num_procs = m !== nothing ? parse(Int, m.match) : -1
+        job, output = run_batch_job(TEST_IMAGE, num_workers; should_fail=true)
 
         # Spawned are the AWS Batch job IDs reported upon job submission at launch
         # while reported is the self-reported job ID of each worker.
         spawned_jobs = scrape_worker_job_ids(output)
 
-        @test num_procs == -1
+        @test match(r"(?<=NumProcs: )\d+", output) === nothing
         @test isempty(spawned_jobs)
     end
 end
