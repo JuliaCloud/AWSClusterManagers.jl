@@ -1,7 +1,7 @@
 name = "AWSClusterManagers"
 uuid = "69f5933c-162f-5d2f-a6d8-da72a0bfad91"
 authors = ["Invenia Technical Computing"]
-version = "1.1.5"
+version = "1.2.0"
 
 [deps]
 AWSBatch = "dcae83d4-2881-5875-9d49-e5534165e9c0"
@@ -13,20 +13,20 @@ Mocking = "78c3b35d-d492-501b-9361-3d52fe80e533"
 Sockets = "6462fe0b-24de-5631-8697-dd941f90decc"
 
 [compat]
-AWSBatch = "1.4"
-AWSCore = "0.6"
-AWSTools = "1"
+AWS = "1"
+AWSBatch = "2.0.1"
+AWSTools = "2"
 JSON = "0.20.1, 0.21"
 Memento = "0.11, 0.12, 0.13, 1"
 Mocking = "0.7"
 julia = "1"
 
 [extras]
-AWSCore = "4f1ea46c-232b-54a6-9b17-cc2d0f3e6598"
+AWS = "fbe9abb3-538b-5e4e-ba9e-bc94f4f92ebc"
 AWSTools = "83bcdc74-1232-581c-948a-f29122bf8259"
 LibGit2 = "76f85450-5226-5b5a-8eaa-529ad045b433"
 Printf = "de0858da-6303-5e67-8744-51eddeeeb8d7"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [targets]
-test = ["AWSCore", "AWSTools", "LibGit2", "Printf", "Test"]
+test = ["AWS", "AWSTools", "LibGit2", "Printf", "Test"]
