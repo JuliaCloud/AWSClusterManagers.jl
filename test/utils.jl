@@ -1,6 +1,14 @@
 # Gets the logs messages associated with a AWSBatch BatchJob as a single string
-function log_messages(job::BatchJob)
+function log_messages(job::BatchJob; retries=5, wait_interval=7)
+    i = 0
     events = log_events(job)
+    # Retry if no logs are found
+    while i < retries && (events === nothing || isempty(events))
+        i += 1
+        sleep(wait_interval)
+        events = log_events(job)
+    end
+
     events === nothing && return ""
     return join([string(event.timestamp, "  ", event.message) for event in events], '\n')
 end
@@ -46,7 +54,10 @@ time_str(p::Period) = time_str(floor(p, Second))
 time_str(::Nothing) = "N/A"  # Unable to determine duration
 
 function register_job_definition(job_definition::AbstractDict)
-    output = AWSCore.Services.batch("POST", "/v1/registerjobdefinition", job_definition)
+    output = Batch.register_job_definition(
+        job_definition["jobDefinitionName"], job_definition["type"], job_definition
+    )
+
     return output["jobDefinitionArn"]
 end
 
@@ -57,9 +68,7 @@ function submit_job(;
     node_overrides::Dict=Dict(),
     retry_strategy::Dict=Dict(),
 )
-    options = Dict{String,Any}(
-        "jobName" => job_name, "jobDefinition" => job_definition, "jobQueue" => job_queue
-    )
+    options = Dict{String,Any}()
 
     if !isempty(node_overrides)
         options["nodeOverrides"] = node_overrides
@@ -71,8 +80,7 @@ function submit_job(;
 
     print(JSON.json(options, 4))
 
-    # https://docs.aws.amazon.com/batch/latest/APIReference/API_SubmitJob.html
-    output = AWSCore.Services.batch("POST", "/v1/submitjob", options)
+    output = Batch.submit_job(job_definition, job_name, job_queue, options)
     return BatchJob(output["jobId"])
 end
 
@@ -83,10 +91,8 @@ function describe_compute_environment(compute_environment::AbstractString)
     #   --compute-environments $(STACK["ComputeEnvironmentArn"])
     #   --query computeEnvironments[0]
     # ```
-    output = AWSCore.Services.batch(
-        "POST",
-        "/v1/describecomputeenvironments",
-        Dict("computeEnvironments" => [compute_environment]),
+    output = Batch.describe_compute_environments(
+        Dict("computeEnvironments" => [compute_environment])
     )
 
     details = if !isempty(output["computeEnvironments"])

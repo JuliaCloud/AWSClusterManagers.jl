@@ -384,7 +384,7 @@ end
         @test status(worker_job) == AWSBatch.SUCCEEDED
 
         manager_log = log_messages(manager_job)
-        worker_log = log_messages(worker_job)
+        worker_log = log_messages(worker_job; retries=0)
         test_results = [
             @test occursin("Only 0 of the 1 workers job have reported in", manager_log)
             @test isempty(worker_log)
@@ -393,7 +393,7 @@ end
         # Display the logs for all the jobs if any of the log tests fail
         if any(r -> !(r isa Test.Pass), test_results)
             @info "Details for manager:\n$(report(manager_job))"
-            @info "Details for worker:\n$(report(worker_log))"
+            @info "Details for worker:\n$(report(worker_job))"
         end
     end
 
