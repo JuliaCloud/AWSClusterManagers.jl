@@ -3,7 +3,7 @@ function log_messages(job::BatchJob; retries=2, wait_interval=7)
     i = 0
     events = log_events(job)
     # Retry if no logs are found
-    while i < retries && events === nothing
+    while i < retries && (events === nothing || isempty(events))
         i += 1
         sleep(wait_interval)
         events = log_events(job)

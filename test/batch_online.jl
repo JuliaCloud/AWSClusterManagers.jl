@@ -107,9 +107,8 @@ function run_batch_job(
     # Note: Do not assume that the "Manager Complete" message will be the last thing written
     # to the log as busy worker may cause additional warnings messages.
     # https://github.com/JuliaCloud/AWSClusterManagers.jl/issues/10
-    job_status = status(job)
     output = ""
-    if job_status == AWSBatch.SUCCEEDED
+    if status(job) == AWSBatch.SUCCEEDED
         log_wait_start = time()
 
         while true
